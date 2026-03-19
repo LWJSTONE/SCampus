@@ -1,6 +1,7 @@
 package com.campus.forum.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.campus.forum.entity.Collect;
 import com.campus.forum.mapper.CollectMapper;
@@ -109,7 +110,7 @@ public class CollectServiceImpl implements CollectService {
     }
 
     @Override
-    public Page<CollectVO> getCollectList(Long userId, Integer page, Integer size) {
+    public IPage<CollectVO> getCollectList(Long userId, Integer page, Integer size) {
         Page<CollectVO> pageParam = new Page<>(page, size);
         return collectMapper.selectCollectPage(pageParam, userId);
     }

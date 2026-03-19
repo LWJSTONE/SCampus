@@ -1,5 +1,6 @@
 package com.campus.forum.controller;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.campus.forum.dto.CommentCreateDTO;
 import com.campus.forum.dto.CommentQueryDTO;
@@ -48,7 +49,7 @@ public class CommentController {
      */
     @GetMapping("/post/{postId}")
     @Operation(summary = "获取帖子评论列表", description = "分页获取指定帖子的评论列表，包含子评论")
-    public Result<Page<CommentVO>> getPostComments(
+    public Result<IPage<CommentVO>> getPostComments(
             @Parameter(description = "帖子ID") @PathVariable Long postId,
             @Parameter(description = "当前页") @RequestParam(defaultValue = "1") Integer current,
             @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") Integer size,
@@ -68,7 +69,7 @@ public class CommentController {
         Long currentUserId = getCurrentUserId(request);
         
         // 查询评论列表
-        Page<CommentVO> commentPage = commentService.getCommentsByPostId(postId, queryDTO, currentUserId);
+        IPage<CommentVO> commentPage = commentService.getCommentsByPostId(postId, queryDTO, currentUserId);
         
         return Result.success(commentPage);
     }
@@ -95,7 +96,7 @@ public class CommentController {
         }
         
         // 获取IP地址
-        String ipAddress = IpUtils.getIpAddress(request);
+        String ipAddress = IpUtils.getIpAddr(request);
         
         // 发布评论
         Long commentId = commentService.publishComment(createDTO, userId, ipAddress);
@@ -173,7 +174,7 @@ public class CommentController {
      */
     @GetMapping("/{id}/replies")
     @Operation(summary = "获取评论回复列表", description = "分页获取指定评论的回复列表")
-    public Result<Page<CommentVO>> getCommentReplies(
+    public Result<IPage<CommentVO>> getCommentReplies(
             @Parameter(description = "评论ID") @PathVariable Long id,
             @Parameter(description = "当前页") @RequestParam(defaultValue = "1") Integer current,
             @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") Integer size,
@@ -185,7 +186,7 @@ public class CommentController {
         Long currentUserId = getCurrentUserId(request);
         
         // 查询回复列表
-        Page<CommentVO> replyPage = commentService.getReplies(id, current, size, currentUserId);
+        IPage<CommentVO> replyPage = commentService.getReplies(id, current, size, currentUserId);
         
         return Result.success(replyPage);
     }

@@ -1,6 +1,7 @@
 package com.campus.forum.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.campus.forum.dto.ReportCreateDTO;
@@ -55,10 +56,10 @@ public class ReportServiceImpl extends ServiceImpl<ReportMapper, Report> impleme
     }
 
     @Override
-    public Page<ReportVO> getReportPage(ReportQueryDTO queryDTO) {
+    public IPage<ReportVO> getReportPage(ReportQueryDTO queryDTO) {
         Page<ReportVO> page = new Page<>(queryDTO.getCurrent(), queryDTO.getSize());
         
-        Page<ReportVO> result = reportMapper.selectReportPage(page,
+        IPage<ReportVO> result = reportMapper.selectReportPage(page,
                 queryDTO.getStatus(),
                 queryDTO.getReportType(),
                 queryDTO.getReasonType(),

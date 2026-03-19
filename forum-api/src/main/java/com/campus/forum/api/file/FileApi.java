@@ -1,6 +1,6 @@
 package com.campus.forum.api.file;
 
-import com.campus.forum.common.core.result.R;
+import com.campus.forum.entity.Result;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,7 +21,7 @@ public interface FileApi {
      * @return 文件URL
      */
     @GetMapping("/api/file/{fileId}/url")
-    R<String> getFileUrl(@PathVariable("fileId") Long fileId);
+    Result<String> getFileUrl(@PathVariable("fileId") Long fileId);
 
     /**
      * 删除文件
@@ -30,5 +30,5 @@ public interface FileApi {
      * @return 操作结果
      */
     @DeleteMapping("/api/file/{fileId}")
-    R<Boolean> deleteFile(@PathVariable("fileId") Long fileId);
+    Result<Boolean> deleteFile(@PathVariable("fileId") Long fileId);
 }

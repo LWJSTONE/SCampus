@@ -1,5 +1,6 @@
 package com.campus.forum.service;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.campus.forum.dto.CommentCreateDTO;
 import com.campus.forum.dto.CommentQueryDTO;
@@ -26,7 +27,7 @@ public interface CommentService {
      * @param currentUserId 当前用户ID（可为空）
      * @return 评论分页列表
      */
-    Page<CommentVO> getCommentsByPostId(Long postId, CommentQueryDTO queryDTO, Long currentUserId);
+    IPage<CommentVO> getCommentsByPostId(Long postId, CommentQueryDTO queryDTO, Long currentUserId);
 
     /**
      * 发布评论
@@ -65,7 +66,7 @@ public interface CommentService {
      * @param currentUserId 当前用户ID
      * @return 回复分页列表
      */
-    Page<CommentVO> getReplies(Long commentId, Integer page, Integer size, Long currentUserId);
+    IPage<CommentVO> getReplies(Long commentId, Integer page, Integer size, Long currentUserId);
 
     /**
      * 获取评论详情

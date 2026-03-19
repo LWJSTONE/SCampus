@@ -1,5 +1,6 @@
 package com.campus.forum.service;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.campus.forum.dto.ApproveHandleDTO;
@@ -21,7 +22,7 @@ public interface ApproveService extends IService<Approve> {
      * @param queryDTO 查询参数
      * @return 审核分页列表
      */
-    Page<ApproveVO> getApprovePage(ApproveQueryDTO queryDTO);
+    IPage<ApproveVO> getApprovePage(ApproveQueryDTO queryDTO);
 
     /**
      * 获取审核详情

@@ -1,5 +1,6 @@
 package com.campus.forum.service.impl;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.campus.forum.dto.ApproveHandleDTO;
@@ -30,10 +31,10 @@ public class ApproveServiceImpl extends ServiceImpl<ApproveMapper, Approve> impl
     private final ApproveMapper approveMapper;
 
     @Override
-    public Page<ApproveVO> getApprovePage(ApproveQueryDTO queryDTO) {
+    public IPage<ApproveVO> getApprovePage(ApproveQueryDTO queryDTO) {
         Page<ApproveVO> page = new Page<>(queryDTO.getCurrent(), queryDTO.getSize());
         
-        Page<ApproveVO> result = approveMapper.selectApprovePage(page,
+        IPage<ApproveVO> result = approveMapper.selectApprovePage(page,
                 queryDTO.getStatus(),
                 queryDTO.getContentType(),
                 queryDTO.getUserId(),

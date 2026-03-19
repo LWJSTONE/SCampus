@@ -1,5 +1,6 @@
 package com.campus.forum.service;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.campus.forum.dto.ReportCreateDTO;
@@ -31,7 +32,7 @@ public interface ReportService extends IService<Report> {
      * @param queryDTO 查询参数
      * @return 举报分页列表
      */
-    Page<ReportVO> getReportPage(ReportQueryDTO queryDTO);
+    IPage<ReportVO> getReportPage(ReportQueryDTO queryDTO);
 
     /**
      * 获取举报详情

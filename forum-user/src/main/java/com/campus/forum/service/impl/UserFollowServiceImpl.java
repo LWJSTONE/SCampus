@@ -1,6 +1,7 @@
 package com.campus.forum.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.campus.forum.constant.ResultCode;
@@ -123,7 +124,7 @@ public class UserFollowServiceImpl extends ServiceImpl<UserFollowMapper, UserFol
         Page<UserFollow> page = queryDTO.toPage();
         
         // 查询粉丝列表
-        Page<UserFollow> followPage = userFollowMapper.selectFollowerPage(page, userId);
+        IPage<UserFollow> followPage = userFollowMapper.selectFollowerPage(page, userId);
         
         // 获取粉丝用户ID列表
         List<Long> followerIds = followPage.getRecords().stream()
@@ -166,7 +167,7 @@ public class UserFollowServiceImpl extends ServiceImpl<UserFollowMapper, UserFol
         Page<UserFollow> page = queryDTO.toPage();
         
         // 查询关注列表
-        Page<UserFollow> followPage = userFollowMapper.selectFollowingPage(page, userId);
+        IPage<UserFollow> followPage = userFollowMapper.selectFollowingPage(page, userId);
         
         // 获取关注用户ID列表
         List<Long> followingIds = followPage.getRecords().stream()

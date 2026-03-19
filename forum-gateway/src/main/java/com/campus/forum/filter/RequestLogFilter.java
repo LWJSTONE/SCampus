@@ -94,16 +94,7 @@ public class RequestLogFilter implements GlobalFilter, Ordered {
                     
                     log.info("<<< 请求结束 [{}] {} {} 状态: {} 耗时: {}ms",
                             requestId, method, path, statusCode, duration);
-                }))
-                .doOnError(throwable -> {
-                    // 请求异常时记录日志
-                    long endTimestamp = System.currentTimeMillis();
-                    Long startTimeAttr = exchange.getAttribute(REQUEST_START_TIME_ATTR);
-                    long duration = startTimeAttr != null ? endTimestamp - startTimeAttr : 0;
-                    
-                    log.error("<<< 请求异常 [{}] {} {} 耗时: {}ms 错误: {}",
-                            requestId, method, path, duration, throwable.getMessage());
-                });
+                }));
     }
 
     /**

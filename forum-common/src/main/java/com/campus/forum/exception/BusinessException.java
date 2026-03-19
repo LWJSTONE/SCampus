@@ -62,6 +62,18 @@ public class BusinessException extends RuntimeException {
     /**
      * 构造方法
      *
+     * @param resultCode 结果码枚举
+     * @param message    错误消息
+     */
+    public BusinessException(ResultCode resultCode, String message) {
+        super(message);
+        this.code = resultCode.getCode();
+        this.message = message;
+    }
+
+    /**
+     * 构造方法
+     *
      * @param message 错误消息
      * @param cause   原因
      */

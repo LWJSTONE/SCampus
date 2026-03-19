@@ -1,6 +1,6 @@
 package com.campus.forum.api.user;
 
-import com.campus.forum.common.core.result.R;
+import com.campus.forum.entity.Result;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -22,7 +22,7 @@ public interface UserApi {
      * @return 用户信息
      */
     @GetMapping("/api/user/{id}")
-    R<UserDTO> getUserById(@PathVariable("id") Long id);
+    Result<UserDTO> getUserById(@PathVariable("id") Long id);
 
     /**
      * 根据用户名获取用户
@@ -31,7 +31,7 @@ public interface UserApi {
      * @return 用户信息
      */
     @GetMapping("/api/user/username/{username}")
-    R<UserDTO> getUserByUsername(@PathVariable("username") String username);
+    Result<UserDTO> getUserByUsername(@PathVariable("username") String username);
 
     /**
      * 更新用户状态
@@ -41,5 +41,5 @@ public interface UserApi {
      * @return 操作结果
      */
     @PutMapping("/api/user/{id}/status")
-    R<Boolean> updateUserStatus(@PathVariable("id") Long id, @RequestParam("status") Integer status);
+    Result<Boolean> updateUserStatus(@PathVariable("id") Long id, @RequestParam("status") Integer status);
 }

@@ -77,4 +77,15 @@ public class PageResult<T> implements Serializable {
     public static <T> PageResult<T> of(com.baomidou.mybatisplus.extension.plugins.pagination.Page<T> page) {
         return new PageResult<>(page.getCurrent(), page.getSize(), page.getTotal(), page.getRecords());
     }
+
+    /**
+     * 从MyBatis Plus的IPage对象转换
+     *
+     * @param page MyBatis Plus分页对象
+     * @param <T>  数据类型
+     * @return 分页结果
+     */
+    public static <T> PageResult<T> of(com.baomidou.mybatisplus.core.metadata.IPage<T> page) {
+        return new PageResult<>(page.getCurrent(), page.getSize(), page.getTotal(), page.getRecords());
+    }
 }

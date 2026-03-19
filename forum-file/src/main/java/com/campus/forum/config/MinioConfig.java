@@ -50,7 +50,6 @@ public class MinioConfig {
         return MinioClient.builder()
                 .endpoint(endpoint)
                 .credentials(accessKey, secretKey)
-                .secure(secure)
                 .build();
     }
 }

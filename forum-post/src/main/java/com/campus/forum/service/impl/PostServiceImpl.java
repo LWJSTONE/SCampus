@@ -3,6 +3,7 @@ package com.campus.forum.service.impl;
 import cn.hutool.core.text.CharSequenceUtil;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.campus.forum.constant.ResultCode;
 import com.campus.forum.dto.PostCreateDTO;
@@ -68,7 +69,7 @@ public class PostServiceImpl implements PostService {
         Page<PostListVO> page = new Page<>(queryDTO.getCurrent(), queryDTO.getSize());
 
         // 查询帖子列表
-        Page<PostListVO> postPage = postMapper.selectPostPage(page, queryDTO);
+        IPage<PostListVO> postPage = postMapper.selectPostPage(page, queryDTO);
 
         // 处理每条帖子
         for (PostListVO post : postPage.getRecords()) {
@@ -386,7 +387,7 @@ public class PostServiceImpl implements PostService {
         Page<PostListVO> page = new Page<>(queryDTO.getCurrent(), queryDTO.getSize());
 
         // 搜索帖子
-        Page<PostListVO> postPage = postMapper.searchPosts(page, keyword, queryDTO);
+        IPage<PostListVO> postPage = postMapper.searchPosts(page, keyword, queryDTO);
 
         // 处理每条帖子
         for (PostListVO post : postPage.getRecords()) {
@@ -475,7 +476,7 @@ public class PostServiceImpl implements PostService {
         log.info("获取用户帖子列表, userId: {}", userId);
 
         Page<PostListVO> page = new Page<>(queryDTO.getCurrent(), queryDTO.getSize());
-        Page<PostListVO> postPage = postMapper.selectUserPosts(page, userId);
+        IPage<PostListVO> postPage = postMapper.selectUserPosts(page, userId);
 
         for (PostListVO post : postPage.getRecords()) {
             processPost(post, currentUserId);

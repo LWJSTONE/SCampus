@@ -1,5 +1,6 @@
 package com.campus.forum.service;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.campus.forum.dto.UserBanDTO;
@@ -44,7 +45,7 @@ public interface UserBanService extends IService<UserBan> {
      * @param size 每页大小
      * @return 禁言分页列表
      */
-    Page<UserBanVO> getBanPage(Long userId, Integer status, Integer current, Integer size);
+    IPage<UserBanVO> getBanPage(Long userId, Integer status, Integer current, Integer size);
 
     /**
      * 查询用户当前禁言状态

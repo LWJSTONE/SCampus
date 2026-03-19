@@ -54,6 +54,11 @@ public class Category extends BaseEntity implements Serializable {
     private Integer status;
 
     /**
+     * 帖子数量
+     */
+    private Integer postCount;
+
+    /**
      * 子分类列表
      */
     @TableField(exist = false)

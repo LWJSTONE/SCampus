@@ -2,6 +2,7 @@ package com.campus.forum.service.impl;
 
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.campus.forum.api.notify.NotifyApi;
 import com.campus.forum.api.post.PostApi;
@@ -70,14 +71,14 @@ public class CommentServiceImpl implements CommentService {
      * 获取帖子的评论列表
      */
     @Override
-    public Page<CommentVO> getCommentsByPostId(Long postId, CommentQueryDTO queryDTO, Long currentUserId) {
+    public IPage<CommentVO> getCommentsByPostId(Long postId, CommentQueryDTO queryDTO, Long currentUserId) {
         log.info("获取帖子评论列表, postId: {}, currentUserId: {}", postId, currentUserId);
         
         // 构建分页参数
         Page<CommentVO> page = new Page<>(queryDTO.getCurrent(), queryDTO.getSize());
         
         // 查询一级评论
-        Page<CommentVO> commentPage = commentMapper.selectCommentsByPostId(page, postId, currentUserId);
+        IPage<CommentVO> commentPage = commentMapper.selectCommentsByPostId(page, postId, currentUserId);
         
         // 处理每条评论
         for (CommentVO comment : commentPage.getRecords()) {
@@ -264,7 +265,7 @@ public class CommentServiceImpl implements CommentService {
      * 获取评论的回复列表
      */
     @Override
-    public Page<CommentVO> getReplies(Long commentId, Integer page, Integer size, Long currentUserId) {
+    public IPage<CommentVO> getReplies(Long commentId, Integer page, Integer size, Long currentUserId) {
         log.info("获取评论回复列表, commentId: {}, page: {}, size: {}", commentId, page, size);
         
         // 验证评论是否存在
@@ -275,7 +276,7 @@ public class CommentServiceImpl implements CommentService {
         
         // 查询回复列表
         Page<CommentVO> replyPage = new Page<>(page, size);
-        Page<CommentVO> result = commentMapper.selectRepliesPage(replyPage, commentId, currentUserId);
+        IPage<CommentVO> result = commentMapper.selectRepliesPage(replyPage, commentId, currentUserId);
         
         // 处理回复
         for (CommentVO reply : result.getRecords()) {

@@ -3,6 +3,9 @@ package com.campus.forum.controller;
 import com.campus.forum.dto.CategoryDTO;
 import com.campus.forum.dto.ForumDTO;
 import com.campus.forum.dto.ModeratorDTO;
+import com.campus.forum.entity.Category;
+import com.campus.forum.entity.Forum;
+import com.campus.forum.entity.Moderator;
 import com.campus.forum.entity.Result;
 import com.campus.forum.service.CategoryService;
 import com.campus.forum.service.ForumService;
@@ -61,7 +64,7 @@ public class CategoryController {
             @Parameter(description = "分类信息", required = true) @Validated @RequestBody CategoryDTO dto,
             @Parameter(description = "当前登录用户ID") @RequestHeader(value = "X-User-Id", required = false) Long currentUserId) {
         log.info("创建分类：{}", dto.getName());
-        var category = categoryService.createCategory(dto);
+        Category category = categoryService.createCategory(dto);
         return Result.success(category.getId());
     }
 
@@ -146,7 +149,7 @@ public class CategoryController {
             @Parameter(description = "版块信息", required = true) @Validated @RequestBody ForumDTO dto,
             @Parameter(description = "当前登录用户ID") @RequestHeader(value = "X-User-Id", required = false) Long currentUserId) {
         log.info("创建版块：{}", dto.getName());
-        var forum = forumService.createForum(dto);
+        Forum forum = forumService.createForum(dto);
         return Result.success(forum.getId());
     }
 
@@ -215,7 +218,7 @@ public class CategoryController {
             @Parameter(description = "版主信息", required = true) @Validated @RequestBody ModeratorDTO dto,
             @Parameter(description = "当前登录用户ID") @RequestHeader(value = "X-User-Id", required = false) Long currentUserId) {
         log.info("添加版主：版块={}，用户={}", id, dto.getUserId());
-        var moderator = moderatorService.addModerator(id, dto);
+        Moderator moderator = moderatorService.addModerator(id, dto);
         return Result.success(moderator.getId());
     }
 

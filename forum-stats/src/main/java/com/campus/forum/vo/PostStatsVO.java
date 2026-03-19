@@ -44,6 +44,12 @@ public class PostStatsVO implements Serializable {
     @Schema(description = "平均每帖点赞数")
     private Double avgLikesPerPost;
 
+    @Schema(description = "总评论数")
+    private Long totalComments;
+
+    @Schema(description = "今日新增评论")
+    private Integer todayNewComments;
+
     @Schema(description = "帖子增长率(%)")
     private Double growthRate;
 }

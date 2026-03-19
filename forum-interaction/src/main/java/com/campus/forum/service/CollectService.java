@@ -1,6 +1,6 @@
 package com.campus.forum.service;
 
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.campus.forum.vo.CollectVO;
 
 /**
@@ -46,5 +46,5 @@ public interface CollectService {
      * @param size 每页大小
      * @return 收藏列表
      */
-    Page<CollectVO> getCollectList(Long userId, Integer page, Integer size);
+    IPage<CollectVO> getCollectList(Long userId, Integer page, Integer size);
 }

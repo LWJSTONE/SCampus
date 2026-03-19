@@ -3,6 +3,7 @@ package com.campus.forum.service.impl;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.crypto.digest.BCrypt;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.campus.forum.constant.ResultCode;
@@ -55,7 +56,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         Page<User> page = queryDTO.toPage();
         
         // 查询用户列表
-        Page<User> userPage = userMapper.selectUserPage(page, queryDTO.getKeyword(), queryDTO.getStatus());
+        IPage<User> userPage = userMapper.selectUserPage(page, queryDTO.getKeyword(), queryDTO.getStatus());
         
         // 转换为VO
         List<UserListVO> voList = userPage.getRecords().stream()

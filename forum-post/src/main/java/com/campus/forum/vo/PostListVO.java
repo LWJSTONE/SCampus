@@ -172,4 +172,10 @@ public class PostListVO implements Serializable {
      */
     @Schema(description = "热度值")
     private Integer hotScore;
+
+    /**
+     * 是否为作者
+     */
+    @Schema(description = "是否为作者")
+    private Boolean isAuthor;
 }

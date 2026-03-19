@@ -1,5 +1,6 @@
 package com.campus.forum.controller;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.campus.forum.dto.CollectDTO;
 import com.campus.forum.dto.LikeDTO;
@@ -153,7 +154,7 @@ public class InteractionController {
      */
     @GetMapping("/collect/list")
     @Operation(summary = "获取收藏列表", description = "分页获取当前用户的收藏列表")
-    public Result<Page<CollectVO>> getCollectList(
+    public Result<IPage<CollectVO>> getCollectList(
             @Parameter(description = "当前页") @RequestParam(defaultValue = "1") Integer current,
             @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") Integer size,
             HttpServletRequest request) {
@@ -165,7 +166,7 @@ public class InteractionController {
         
         log.info("获取收藏列表: userId={}, current={}, size={}", userId, current, size);
         
-        Page<CollectVO> collectPage = collectService.getCollectList(userId, current, size);
+        IPage<CollectVO> collectPage = collectService.getCollectList(userId, current, size);
         
         return Result.success(collectPage);
     }

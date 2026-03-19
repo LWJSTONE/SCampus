@@ -1,6 +1,6 @@
 package com.campus.forum.api.post;
 
-import com.campus.forum.common.core.result.R;
+import com.campus.forum.entity.Result;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -22,7 +22,7 @@ public interface PostApi {
      * @return 帖子信息
      */
     @GetMapping("/api/post/{id}")
-    R<PostDTO> getPostById(@PathVariable("id") Long id);
+    Result<PostDTO> getPostById(@PathVariable("id") Long id);
 
     /**
      * 更新帖子统计信息
@@ -33,7 +33,7 @@ public interface PostApi {
      * @return 操作结果
      */
     @PostMapping("/api/post/{id}/stats")
-    R<Boolean> updatePostStats(@PathVariable("id") Long id,
+    Result<Boolean> updatePostStats(@PathVariable("id") Long id,
                                @RequestParam("field") String field,
                                @RequestParam("delta") int delta);
 
@@ -46,7 +46,7 @@ public interface PostApi {
      * @return 帖子列表
      */
     @GetMapping("/api/post/user/{userId}")
-    R<com.baomidou.mybatisplus.extension.plugins.pagination.Page<PostDTO>> getPostsByUserId(
+    Result<com.baomidou.mybatisplus.extension.plugins.pagination.Page<PostDTO>> getPostsByUserId(
             @PathVariable("userId") Long userId,
             @RequestParam("page") int page,
             @RequestParam("size") int size);

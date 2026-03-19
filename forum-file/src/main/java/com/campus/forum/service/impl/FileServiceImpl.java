@@ -1,6 +1,7 @@
 package com.campus.forum.service.impl;
 
 import cn.hutool.core.io.FileUtil;
+import cn.hutool.core.io.IoUtil;
 import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.crypto.digest.DigestUtil;
@@ -221,7 +222,7 @@ public class FileServiceImpl extends ServiceImpl<FileMapper, File> implements Fi
                         .bucket(minioBucketName)
                         .object(file.getFilePath())
                         .build());
-                content = FileUtil.readBytes(inputStream);
+                content = IoUtil.readBytes(inputStream);
             } else {
                 Path path = Paths.get(localStoragePath, file.getFilePath());
                 content = Files.readAllBytes(path);
@@ -262,7 +263,7 @@ public class FileServiceImpl extends ServiceImpl<FileMapper, File> implements Fi
                         .bucket(minioBucketName)
                         .object(file.getFilePath())
                         .build());
-                content = FileUtil.readBytes(inputStream);
+                content = IoUtil.readBytes(inputStream);
             } else {
                 Path path = Paths.get(localStoragePath, file.getFilePath());
                 content = Files.readAllBytes(path);
@@ -320,7 +321,7 @@ public class FileServiceImpl extends ServiceImpl<FileMapper, File> implements Fi
 
     @Override
     public PageResult<FileVO> getFileList(FileQueryDTO queryDTO) {
-        Page<File> page = new Page<>(queryDTO.getPageNum(), queryDTO.getPageSize());
+        Page<File> page = new Page<>(queryDTO.getCurrent(), queryDTO.getSize());
         
         LambdaQueryWrapper<File> wrapper = new LambdaQueryWrapper<>();
         wrapper.like(StrUtil.isNotBlank(queryDTO.getFileName()), File::getFileName, queryDTO.getFileName())
@@ -337,7 +338,7 @@ public class FileServiceImpl extends ServiceImpl<FileMapper, File> implements Fi
         List<FileVO> voList = new ArrayList<>();
         result.getRecords().forEach(f -> voList.add(convertToVO(f)));
 
-        return new PageResult<>(result.getTotal(), voList);
+        return new PageResult<>(queryDTO.getCurrent().longValue(), queryDTO.getSize().longValue(), result.getTotal(), voList);
     }
 
     @Override

@@ -10,7 +10,7 @@ import com.campus.forum.vo.LoginVO;
 import com.campus.forum.vo.TokenVO;
 import com.campus.forum.vo.UserInfoVO;
 
-import jakarta.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletRequest;
 
 /**
  * 认证服务接口

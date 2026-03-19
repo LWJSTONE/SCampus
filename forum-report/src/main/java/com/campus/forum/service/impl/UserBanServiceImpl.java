@@ -1,5 +1,6 @@
 package com.campus.forum.service.impl;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.campus.forum.dto.UserBanDTO;
@@ -78,10 +79,10 @@ public class UserBanServiceImpl extends ServiceImpl<UserBanMapper, UserBan> impl
     }
 
     @Override
-    public Page<UserBanVO> getBanPage(Long userId, Integer status, Integer current, Integer size) {
+    public IPage<UserBanVO> getBanPage(Long userId, Integer status, Integer current, Integer size) {
         Page<UserBanVO> page = new Page<>(current, size);
         
-        Page<UserBanVO> result = userBanMapper.selectBanPage(page, userId, status, null);
+        IPage<UserBanVO> result = userBanMapper.selectBanPage(page, userId, status, null);
         
         // 填充名称和计算剩余时间
         result.getRecords().forEach(this::fillNames);

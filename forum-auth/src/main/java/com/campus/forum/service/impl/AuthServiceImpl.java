@@ -28,7 +28,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import jakarta.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletRequest;
 import java.time.LocalDateTime;
 import java.util.Base64;
 
@@ -129,7 +129,7 @@ public class AuthServiceImpl implements AuthService {
         // 从请求头获取Token
         String token = getTokenFromRequest(request);
         if (StrUtil.isBlank(token)) {
-            return Result.success("登出成功");
+            return Result.success();
         }
 
         // 解析用户ID
@@ -147,7 +147,7 @@ public class AuthServiceImpl implements AuthService {
             log.info("用户登出成功：userId={}", userId);
         }
 
-        return Result.success("登出成功");
+        return Result.success();
     }
 
     @Override
@@ -202,7 +202,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         log.info("用户注册成功：userId={}, username={}", user.getId(), user.getUsername());
-        return Result.success("注册成功");
+        return Result.success();
     }
 
     @Override
@@ -315,7 +315,7 @@ public class AuthServiceImpl implements AuthService {
         redisUtils.del(tokenKey);
 
         log.info("密码重置成功：userId={}", user.getId());
-        return Result.success("密码重置成功");
+        return Result.success();
     }
 
     @Override

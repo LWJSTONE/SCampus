@@ -1,5 +1,6 @@
 package com.campus.forum.entity;
 
+import com.campus.forum.constant.ResultCode;
 import lombok.Data;
 
 import java.io.Serializable;

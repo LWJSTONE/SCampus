@@ -1,5 +1,6 @@
 package com.campus.forum.controller;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.campus.forum.dto.*;
 import com.campus.forum.entity.Result;
@@ -17,7 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
-import jakarta.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletRequest;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -69,7 +70,7 @@ public class ReportController {
      */
     @GetMapping
     @Operation(summary = "获取举报列表", description = "分页获取举报列表（管理员）")
-    public Result<Page<ReportVO>> getReportList(
+    public Result<IPage<ReportVO>> getReportList(
             @Parameter(description = "当前页") @RequestParam(defaultValue = "1") Integer current,
             @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") Integer size,
             @Parameter(description = "处理状态") @RequestParam(required = false) Integer status,
@@ -86,7 +87,7 @@ public class ReportController {
         queryDTO.setReportType(reportType);
         queryDTO.setReasonType(reasonType);
         
-        Page<ReportVO> page = reportService.getReportPage(queryDTO);
+        IPage<ReportVO> page = reportService.getReportPage(queryDTO);
         
         return Result.success(page);
     }
@@ -154,7 +155,7 @@ public class ReportController {
      */
     @GetMapping("/approve")
     @Operation(summary = "获取待审核列表", description = "分页获取待审核内容列表")
-    public Result<Page<ApproveVO>> getApproveList(
+    public Result<IPage<ApproveVO>> getApproveList(
             @Parameter(description = "当前页") @RequestParam(defaultValue = "1") Integer current,
             @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") Integer size,
             @Parameter(description = "审核状态") @RequestParam(required = false) Integer status,
@@ -171,7 +172,7 @@ public class ReportController {
         queryDTO.setContentType(contentType);
         queryDTO.setUserId(userId);
         
-        Page<ApproveVO> page = approveService.getApprovePage(queryDTO);
+        IPage<ApproveVO> page = approveService.getApprovePage(queryDTO);
         
         return Result.success(page);
     }
@@ -280,7 +281,7 @@ public class ReportController {
      */
     @GetMapping("/ban")
     @Operation(summary = "获取禁言列表", description = "分页获取禁言记录列表")
-    public Result<Page<UserBanVO>> getBanList(
+    public Result<IPage<UserBanVO>> getBanList(
             @Parameter(description = "当前页") @RequestParam(defaultValue = "1") Integer current,
             @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") Integer size,
             @Parameter(description = "用户ID") @RequestParam(required = false) Long userId,
@@ -289,7 +290,7 @@ public class ReportController {
         
         log.info("获取禁言列表, current: {}, size: {}", current, size);
         
-        Page<UserBanVO> page = userBanService.getBanPage(userId, status, current, size);
+        IPage<UserBanVO> page = userBanService.getBanPage(userId, status, current, size);
         
         return Result.success(page);
     }

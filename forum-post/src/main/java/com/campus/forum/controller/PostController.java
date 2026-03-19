@@ -129,7 +129,7 @@ public class PostController {
         }
 
         // 获取IP地址
-        String ipAddress = IpUtils.getIpAddress(request);
+        String ipAddress = IpUtils.getIpAddr(request);
 
         // 发布帖子
         Long postId = postService.publishPost(createDTO, userId, ipAddress);
