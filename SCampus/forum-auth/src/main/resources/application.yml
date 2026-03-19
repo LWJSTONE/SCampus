@@ -1,0 +1,165 @@
+# ============================================================
+# 应用配置文件
+# 
+# 配置服务端口、数据库、Redis等基础配置
+# ============================================================
+
+server:
+  # 服务端口
+  port: 9001
+  servlet:
+    # 应用上下文路径
+    context-path: /
+  tomcat:
+    # Tomcat线程配置
+    threads:
+      # 最大工作线程数
+      max: 200
+      # 最小空闲线程数
+      min-spare: 10
+    # 最大连接数
+    max-connections: 10000
+    # 连接超时时间
+    connection-timeout: 5000ms
+
+spring:
+  application:
+    # 应用名称
+    name: forum-auth
+  
+  # 数据库配置
+  datasource:
+    # 数据源类型
+    type: com.alibaba.druid.pool.DruidDataSource
+    # Druid配置
+    druid:
+      # JDBC配置
+      driver-class-name: com.mysql.cj.jdbc.Driver
+      url: jdbc:mysql://${MYSQL_HOST:localhost}:3306/forum_auth_db?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+      username: ${MYSQL_USERNAME:root}
+      password: ${MYSQL_PASSWORD:root}
+      # 连接池配置
+      initial-size: 5
+      min-idle: 5
+      max-active: 20
+      max-wait: 60000
+      time-between-eviction-runs-millis: 60000
+      min-evictable-idle-time-millis: 300000
+      validation-query: SELECT 1
+      test-while-idle: true
+      test-on-borrow: false
+      test-on-return: false
+      pool-prepared-statements: true
+      max-pool-prepared-statement-per-connection-size: 20
+      # 监控配置
+      stat-view-servlet:
+        enabled: true
+        url-pattern: /druid/*
+        login-username: admin
+        login-password: admin
+        reset-enable: false
+      web-stat-filter:
+        enabled: true
+        url-pattern: /*
+        exclusions: "*.js,*.gif,*.jpg,*.png,*.css,*.ico,/druid/*"
+      filter:
+        stat:
+          log-slow-sql: true
+          slow-sql-millis: 1000
+          merge-sql: true
+        wall:
+          config:
+            multi-statement-allow: true
+
+  # Redis配置
+  redis:
+    host: ${REDIS_HOST:localhost}
+    port: ${REDIS_PORT:6379}
+    password: ${REDIS_PASSWORD:}
+    database: 0
+    timeout: 10000ms
+    lettuce:
+      pool:
+        max-active: 8
+        max-wait: -1ms
+        max-idle: 8
+        min-idle: 0
+
+  # Jackson配置
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+    serialization:
+      write-dates-as-timestamps: false
+      fail-on-empty-beans: false
+    deserialization:
+      fail-on-unknown-properties: false
+
+# MyBatis Plus配置
+mybatis-plus:
+  # Mapper XML文件位置
+  mapper-locations: classpath*:mapper/**/*.xml
+  # 实体类扫描路径
+  type-aliases-package: com.campus.forum.entity
+  # 配置
+  configuration:
+    # 开启驼峰命名转换
+    map-underscore-to-camel-case: true
+    # 日志输出
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    # 二级缓存
+    cache-enabled: false
+    # 懒加载
+    lazy-loading-enabled: true
+  # 全局配置
+  global-config:
+    db-config:
+      # 主键类型（自增）
+      id-type: auto
+      # 逻辑删除字段
+      logic-delete-field: deleteFlag
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+      # 字段策略
+      insert-strategy: not_null
+      update-strategy: not_null
+
+# Knife4j配置（API文档）
+knife4j:
+  enable: true
+  setting:
+    language: zh_cn
+    swagger-model-name: 实体类列表
+
+# Swagger OpenAPI配置
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
+  group-configs:
+    - group: '认证服务API'
+      paths-to-match: '/**'
+      packages-to-scan: com.campus.forum.controller
+
+# 日志配置
+logging:
+  level:
+    root: info
+    com.campus.forum: debug
+    com.campus.forum.mapper: debug
+  pattern:
+    console: '%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n'
+    file: '%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n'
+
+# 管理端点配置
+management:
+  endpoints:
+    web:
+      exposure:
+        include: '*'
+  endpoint:
+    health:
+      show-details: always

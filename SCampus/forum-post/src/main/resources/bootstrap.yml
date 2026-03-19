@@ -1,0 +1,62 @@
+# ==================== Nacos 配置中心配置 ====================
+spring:
+  cloud:
+    nacos:
+      # Nacos 服务发现配置
+      discovery:
+        # Nacos 服务地址
+        server-addr: localhost:8848
+        # 命名空间（可用于区分不同环境）
+        namespace: public
+        # 分组
+        group: DEFAULT_GROUP
+        # 服务名称
+        service: forum-post
+        # 心跳间隔
+        heart-beat-interval: 5000
+        # 心跳超时时间
+        heart-beat-timeout: 15000
+        # 是否启用服务发现
+        enabled: true
+        # 注册到Nacos的IP地址（为空则自动获取）
+        ip:
+        # 注册到Nacos的端口（为空则使用服务器端口）
+        port:
+
+      # Nacos 配置中心配置
+      config:
+        # Nacos 服务地址
+        server-addr: localhost:8848
+        # 命名空间
+        namespace: public
+        # 分组
+        group: DEFAULT_GROUP
+        # 配置文件格式
+        file-extension: yaml
+        # 是否启用配置中心
+        enabled: true
+        # 配置自动刷新
+        refresh-enabled: true
+        # 共享配置
+        shared-configs:
+          - data-id: common.yaml
+            group: DEFAULT_GROUP
+            refresh: true
+        # 扩展配置
+        extension-configs:
+          - data-id: forum-post.yaml
+            group: DEFAULT_GROUP
+            refresh: true
+
+# ==================== Sentinel 配置 ====================
+sentinel:
+  transport:
+    # Sentinel Dashboard 地址
+    dashboard: localhost:8080
+    # 客户端端口
+    port: 8719
+  # 开启饥饿加载
+  eager: true
+  # 关闭 Sentinel 过滤器
+  filter:
+    enabled: false

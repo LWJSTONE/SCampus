@@ -1,0 +1,34 @@
+package com.campus.forum.api.post;
+
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.campus.forum.common.core.result.R;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
+
+/**
+ * 帖子服务Feign客户端回退处理类
+ *
+ * @author campus
+ */
+@Slf4j
+@Component
+public class PostApiFallback implements PostApi {
+
+    @Override
+    public R<PostDTO> getPostById(Long id) {
+        log.error("调用帖子服务失败，获取帖子信息，帖子ID: {}", id);
+        return R.fail("帖子服务不可用，请稍后重试");
+    }
+
+    @Override
+    public R<Boolean> updatePostStats(Long id, String field, int delta) {
+        log.error("调用帖子服务失败，更新帖子统计，帖子ID: {}, 字段: {}, 增量: {}", id, field, delta);
+        return R.fail("帖子服务不可用，请稍后重试");
+    }
+
+    @Override
+    public R<Page<PostDTO>> getPostsByUserId(Long userId, int page, int size) {
+        log.error("调用帖子服务失败，获取用户帖子列表，用户ID: {}, 页码: {}, 每页大小: {}", userId, page, size);
+        return R.fail("帖子服务不可用，请稍后重试");
+    }
+}

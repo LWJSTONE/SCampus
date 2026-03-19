@@ -1,0 +1,637 @@
+package com.campus.forum.service.impl;
+
+import cn.hutool.core.text.CharSequenceUtil;
+import cn.hutool.core.util.StrUtil;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.campus.forum.constant.ResultCode;
+import com.campus.forum.dto.PostCreateDTO;
+import com.campus.forum.dto.PostQueryDTO;
+import com.campus.forum.dto.PostUpdateDTO;
+import com.campus.forum.entity.PageResult;
+import com.campus.forum.entity.Post;
+import com.campus.forum.entity.PostAttachment;
+import com.campus.forum.entity.PostTag;
+import com.campus.forum.exception.BusinessException;
+import com.campus.forum.mapper.PostAttachmentMapper;
+import com.campus.forum.mapper.PostMapper;
+import com.campus.forum.mapper.PostTagMapper;
+import com.campus.forum.service.PostService;
+import com.campus.forum.vo.PostDetailVO;
+import com.campus.forum.vo.PostListVO;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.BeanUtils;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.util.*;
+import java.util.stream.Collectors;
+
+/**
+ * 帖子服务实现类
+ * 实现帖子相关的业务逻辑
+ *
+ * @author campus
+ * @since 2024-01-01
+ */
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class PostServiceImpl implements PostService {
+
+    private final PostMapper postMapper;
+    private final PostTagMapper postTagMapper;
+    private final PostAttachmentMapper postAttachmentMapper;
+    private final StringRedisTemplate redisTemplate;
+
+    // Redis Key前缀
+    private static final String REDIS_KEY_POST_VIEW = "post:view:";
+    private static final String REDIS_KEY_POST_LIKE = "post:like:";
+    private static final String REDIS_KEY_POST_COLLECT = "post:collect:";
+    private static final String REDIS_KEY_HOT_POSTS = "post:hot:list";
+    private static final String REDIS_KEY_POST_COUNT = "post:count:user:";
+
+    // 敏感词列表（实际项目应从配置中心获取）
+    private static final Set<String> SENSITIVE_WORDS = new HashSet<>(Arrays.asList(
+            "色情", "暴力", "赌博", "毒品", "诈骗"
+    ));
+
+    @Override
+    public PageResult<PostListVO> getPostList(PostQueryDTO queryDTO, Long currentUserId) {
+        log.info("获取帖子列表, queryDTO: {}, currentUserId: {}", queryDTO, currentUserId);
+
+        // 构建分页参数
+        Page<PostListVO> page = new Page<>(queryDTO.getCurrent(), queryDTO.getSize());
+
+        // 查询帖子列表
+        Page<PostListVO> postPage = postMapper.selectPostPage(page, queryDTO);
+
+        // 处理每条帖子
+        for (PostListVO post : postPage.getRecords()) {
+            processPost(post, currentUserId);
+        }
+
+        return PageResult.of(postPage);
+    }
+
+    @Override
+    public PostDetailVO getPostDetail(Long id, Long currentUserId) {
+        log.info("获取帖子详情, id: {}, currentUserId: {}", id, currentUserId);
+
+        // 查询帖子
+        Post post = postMapper.selectPostDetailById(id);
+        if (post == null || post.getDeleteFlag() == 1) {
+            throw new BusinessException(ResultCode.POST_NOT_FOUND);
+        }
+
+        // 检查帖子状态
+        if (post.getStatus() != 1) {
+            throw new BusinessException(ResultCode.POST_NOT_FOUND, "帖子不存在或已被删除");
+        }
+
+        // 转换为VO
+        PostDetailVO detailVO = new PostDetailVO();
+        BeanUtils.copyProperties(post, detailVO);
+
+        // 设置用户信息
+        detailVO.setUserName(post.getUserName());
+        detailVO.setUserAvatar(post.getUserAvatar());
+        detailVO.setForumName(post.getForumName());
+
+        // 设置标签列表
+        List<PostTag> tags = postTagMapper.selectByPostId(id);
+        if (tags != null && !tags.isEmpty()) {
+            List<PostDetailVO.TagVO> tagVOList = tags.stream().map(tag -> {
+                PostDetailVO.TagVO tagVO = new PostDetailVO.TagVO();
+                tagVO.setId(tag.getTagId());
+                tagVO.setName(tag.getTagName());
+                return tagVO;
+            }).collect(Collectors.toList());
+            detailVO.setTags(tagVOList);
+        }
+
+        // 设置附件列表
+        List<PostAttachment> attachments = postAttachmentMapper.selectByPostId(id);
+        if (attachments != null && !attachments.isEmpty()) {
+            List<PostDetailVO.AttachmentVO> attachmentVOList = attachments.stream().map(att -> {
+                PostDetailVO.AttachmentVO attVO = new PostDetailVO.AttachmentVO();
+                attVO.setId(att.getId());
+                attVO.setType(att.getType());
+                attVO.setName(att.getName());
+                attVO.setUrl(att.getUrl());
+                attVO.setThumbnailUrl(att.getThumbnailUrl());
+                attVO.setSize(att.getSize());
+                attVO.setMimeType(att.getMimeType());
+                attVO.setWidth(att.getWidth());
+                attVO.setHeight(att.getHeight());
+                attVO.setDuration(att.getDuration());
+                return attVO;
+            }).collect(Collectors.toList());
+            detailVO.setAttachments(attachmentVOList);
+        }
+
+        // 设置用户状态
+        if (currentUserId != null) {
+            detailVO.setIsLiked(isLiked(id, currentUserId));
+            detailVO.setIsCollected(isCollected(id, currentUserId));
+            detailVO.setIsAuthor(post.getUserId().equals(currentUserId));
+        }
+
+        // 异步增加浏览量
+        incrementViewCount(id);
+
+        return detailVO;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Long publishPost(PostCreateDTO createDTO, Long userId, String ipAddress) {
+        log.info("发布帖子, userId: {}, title: {}", userId, createDTO.getTitle());
+
+        // 1. 参数校验
+        validatePost(createDTO);
+
+        // 2. 敏感词过滤
+        String content = filterSensitiveWords(createDTO.getContent());
+        String title = filterSensitiveWords(createDTO.getTitle());
+
+        // 3. 构建帖子实体
+        Post post = new Post();
+        post.setForumId(createDTO.getForumId());
+        post.setUserId(userId);
+        post.setTitle(title);
+        post.setContent(content);
+        post.setSummary(generateSummary(createDTO.getSummary(), content));
+        post.setType(createDTO.getType());
+        post.setStatus(1); // 已发布状态
+        post.setViewCount(0);
+        post.setLikeCount(0);
+        post.setCommentCount(0);
+        post.setCollectCount(0);
+        post.setShareCount(0);
+        post.setIsTop(0);
+        post.setIsEssence(0);
+        post.setAllowComment(createDTO.getAllowComment() ? 1 : 0);
+        post.setCoverImage(createDTO.getCoverImage());
+        post.setSourceType(createDTO.getSourceType());
+        post.setIpAddress(ipAddress);
+        post.setAuditStatus(1); // 审核通过（实际项目可能需要审核流程）
+
+        // 4. 保存帖子
+        postMapper.insert(post);
+
+        Long postId = post.getId();
+
+        // 5. 保存标签关联
+        if (createDTO.getTagIds() != null && !createDTO.getTagIds().isEmpty()) {
+            savePostTags(postId, createDTO.getTagIds());
+        }
+
+        // 6. 保存附件
+        if (createDTO.getAttachments() != null && !createDTO.getAttachments().isEmpty()) {
+            savePostAttachments(postId, createDTO.getAttachments());
+        }
+
+        // 7. 更新用户帖子数缓存
+        String countKey = REDIS_KEY_POST_COUNT + userId;
+        redisTemplate.opsForValue().increment(countKey);
+
+        log.info("帖子发布成功, postId: {}", postId);
+        return postId;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean updatePost(PostUpdateDTO updateDTO, Long userId) {
+        log.info("编辑帖子, postId: {}, userId: {}", updateDTO.getId(), userId);
+
+        // 1. 查询帖子
+        Post post = postMapper.selectById(updateDTO.getId());
+        if (post == null || post.getDeleteFlag() == 1) {
+            throw new BusinessException(ResultCode.POST_NOT_FOUND);
+        }
+
+        // 2. 权限校验（只能编辑自己的帖子）
+        if (!post.getUserId().equals(userId)) {
+            throw new BusinessException(ResultCode.POST_NO_PERMISSION);
+        }
+
+        // 3. 敏感词过滤
+        String content = updateDTO.getContent() != null ? filterSensitiveWords(updateDTO.getContent()) : null;
+        String title = updateDTO.getTitle() != null ? filterSensitiveWords(updateDTO.getTitle()) : null;
+
+        // 4. 更新帖子
+        if (updateDTO.getForumId() != null) {
+            post.setForumId(updateDTO.getForumId());
+        }
+        if (title != null) {
+            post.setTitle(title);
+        }
+        if (content != null) {
+            post.setContent(content);
+            post.setSummary(generateSummary(updateDTO.getSummary(), content));
+        }
+        if (updateDTO.getType() != null) {
+            post.setType(updateDTO.getType());
+        }
+        if (updateDTO.getCoverImage() != null) {
+            post.setCoverImage(updateDTO.getCoverImage());
+        }
+        if (updateDTO.getAllowComment() != null) {
+            post.setAllowComment(updateDTO.getAllowComment() ? 1 : 0);
+        }
+
+        postMapper.updateById(post);
+
+        // 5. 更新标签
+        if (updateDTO.getTagIds() != null) {
+            postTagMapper.deleteByPostId(updateDTO.getId());
+            if (!updateDTO.getTagIds().isEmpty()) {
+                savePostTags(updateDTO.getId(), updateDTO.getTagIds());
+            }
+        }
+
+        // 6. 更新附件
+        if (updateDTO.getAttachments() != null) {
+            postAttachmentMapper.deleteByPostId(updateDTO.getId());
+            if (!updateDTO.getAttachments().isEmpty()) {
+                savePostAttachments(updateDTO.getId(), updateDTO.getAttachments());
+            }
+        }
+
+        log.info("帖子编辑成功, postId: {}", updateDTO.getId());
+        return true;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean deletePost(Long id, Long userId) {
+        log.info("删除帖子, postId: {}, userId: {}", id, userId);
+
+        // 1. 查询帖子
+        Post post = postMapper.selectById(id);
+        if (post == null || post.getDeleteFlag() == 1) {
+            throw new BusinessException(ResultCode.POST_NOT_FOUND);
+        }
+
+        // 2. 权限校验（只能删除自己的帖子）
+        if (!post.getUserId().equals(userId)) {
+            throw new BusinessException(ResultCode.POST_NO_PERMISSION);
+        }
+
+        // 3. 逻辑删除
+        post.setDeleteFlag(1);
+        post.setStatus(3); // 已删除状态
+        postMapper.updateById(post);
+
+        // 4. 删除标签关联
+        postTagMapper.deleteByPostId(id);
+
+        // 5. 删除附件关联
+        postAttachmentMapper.deleteByPostId(id);
+
+        // 6. 更新用户帖子数缓存
+        String countKey = REDIS_KEY_POST_COUNT + userId;
+        redisTemplate.opsForValue().decrement(countKey);
+
+        log.info("帖子删除成功, postId: {}", id);
+        return true;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean setTop(Long id, Integer isTop, Long operatorId) {
+        log.info("置顶帖子, postId: {}, isTop: {}, operatorId: {}", id, isTop, operatorId);
+
+        // 1. 查询帖子
+        Post post = postMapper.selectById(id);
+        if (post == null || post.getDeleteFlag() == 1) {
+            throw new BusinessException(ResultCode.POST_NOT_FOUND);
+        }
+
+        // 2. 更新置顶状态
+        int rows = postMapper.updateTopStatus(id, isTop);
+        if (rows > 0 && isTop == 1) {
+            // 设置置顶时间
+            post.setIsTop(1);
+            post.setTopTime(LocalDateTime.now());
+            postMapper.updateById(post);
+        }
+
+        log.info("帖子置顶状态更新成功, postId: {}, isTop: {}", id, isTop);
+        return true;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean setEssence(Long id, Integer isEssence, Long operatorId) {
+        log.info("加精帖子, postId: {}, isEssence: {}, operatorId: {}", id, isEssence, operatorId);
+
+        // 1. 查询帖子
+        Post post = postMapper.selectById(id);
+        if (post == null || post.getDeleteFlag() == 1) {
+            throw new BusinessException(ResultCode.POST_NOT_FOUND);
+        }
+
+        // 2. 更新精华状态
+        int rows = postMapper.updateEssenceStatus(id, isEssence);
+        if (rows > 0 && isEssence == 1) {
+            // 设置精华时间
+            post.setIsEssence(1);
+            post.setEssenceTime(LocalDateTime.now());
+            postMapper.updateById(post);
+        }
+
+        log.info("帖子精华状态更新成功, postId: {}, isEssence: {}", id, isEssence);
+        return true;
+    }
+
+    @Override
+    public List<PostListVO> getHotPosts(Integer limit, Long currentUserId) {
+        log.info("获取热门帖子, limit: {}", limit);
+
+        // 先从缓存获取
+        String cachedKey = REDIS_KEY_HOT_POSTS;
+        // 这里简化处理，实际可以从缓存读取
+
+        // 从数据库查询
+        List<PostListVO> hotPosts = postMapper.selectHotPosts(limit);
+
+        // 处理每条帖子
+        for (PostListVO post : hotPosts) {
+            processPost(post, currentUserId);
+            // 计算热度分数
+            post.setHotScore(calculateHotScore(post));
+        }
+
+        // 按热度排序
+        hotPosts.sort((a, b) -> b.getHotScore().compareTo(a.getHotScore()));
+
+        return hotPosts;
+    }
+
+    @Override
+    public PageResult<PostListVO> searchPosts(String keyword, PostQueryDTO queryDTO, Long currentUserId) {
+        log.info("搜索帖子, keyword: {}", keyword);
+
+        if (StrUtil.isBlank(keyword)) {
+            return getPostList(queryDTO, currentUserId);
+        }
+
+        // 构建分页参数
+        Page<PostListVO> page = new Page<>(queryDTO.getCurrent(), queryDTO.getSize());
+
+        // 搜索帖子
+        Page<PostListVO> postPage = postMapper.searchPosts(page, keyword, queryDTO);
+
+        // 处理每条帖子
+        for (PostListVO post : postPage.getRecords()) {
+            processPost(post, currentUserId);
+        }
+
+        return PageResult.of(postPage);
+    }
+
+    @Override
+    public void incrementViewCount(Long id) {
+        // 使用Redis计数
+        String viewKey = REDIS_KEY_POST_VIEW + id;
+        redisTemplate.opsForValue().increment(viewKey);
+
+        // 定期同步到数据库（这里简化处理，每次都更新）
+        postMapper.incrementViewCount(id);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean likePost(Long id, Long userId) {
+        log.info("点赞帖子, postId: {}, userId: {}", id, userId);
+
+        // 1. 验证帖子是否存在
+        Post post = postMapper.selectById(id);
+        if (post == null || post.getDeleteFlag() == 1) {
+            throw new BusinessException(ResultCode.POST_NOT_FOUND);
+        }
+
+        // 2. 检查是否已点赞（使用Redis Set）
+        String likeKey = REDIS_KEY_POST_LIKE + id;
+        Boolean isMember = redisTemplate.opsForSet().isMember(likeKey, userId.toString());
+
+        boolean isLike;
+        if (Boolean.TRUE.equals(isMember)) {
+            // 已点赞，取消点赞
+            redisTemplate.opsForSet().remove(likeKey, userId.toString());
+            postMapper.incrementLikeCount(id, -1);
+            isLike = false;
+        } else {
+            // 未点赞，添加点赞
+            redisTemplate.opsForSet().add(likeKey, userId.toString());
+            postMapper.incrementLikeCount(id, 1);
+            isLike = true;
+        }
+
+        log.info("帖子{}成功, postId: {}, userId: {}", isLike ? "点赞" : "取消点赞", id, userId);
+        return isLike;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean collectPost(Long id, Long userId) {
+        log.info("收藏帖子, postId: {}, userId: {}", id, userId);
+
+        // 1. 验证帖子是否存在
+        Post post = postMapper.selectById(id);
+        if (post == null || post.getDeleteFlag() == 1) {
+            throw new BusinessException(ResultCode.POST_NOT_FOUND);
+        }
+
+        // 2. 检查是否已收藏（使用Redis Set）
+        String collectKey = REDIS_KEY_POST_COLLECT + userId;
+        Boolean isMember = redisTemplate.opsForSet().isMember(collectKey, id.toString());
+
+        boolean isCollect;
+        if (Boolean.TRUE.equals(isMember)) {
+            // 已收藏，取消收藏
+            redisTemplate.opsForSet().remove(collectKey, id.toString());
+            postMapper.incrementCollectCount(id, -1);
+            isCollect = false;
+        } else {
+            // 未收藏，添加收藏
+            redisTemplate.opsForSet().add(collectKey, id.toString());
+            postMapper.incrementCollectCount(id, 1);
+            isCollect = true;
+        }
+
+        log.info("帖子{}成功, postId: {}, userId: {}", isCollect ? "收藏" : "取消收藏", id, userId);
+        return isCollect;
+    }
+
+    @Override
+    public PageResult<PostListVO> getUserPosts(Long userId, PostQueryDTO queryDTO, Long currentUserId) {
+        log.info("获取用户帖子列表, userId: {}", userId);
+
+        Page<PostListVO> page = new Page<>(queryDTO.getCurrent(), queryDTO.getSize());
+        Page<PostListVO> postPage = postMapper.selectUserPosts(page, userId);
+
+        for (PostListVO post : postPage.getRecords()) {
+            processPost(post, currentUserId);
+        }
+
+        return PageResult.of(postPage);
+    }
+
+    @Override
+    public int countByUserId(Long userId) {
+        String countKey = REDIS_KEY_POST_COUNT + userId;
+        String count = redisTemplate.opsForValue().get(countKey);
+
+        if (count != null) {
+            return Integer.parseInt(count);
+        }
+
+        int postCount = postMapper.countByUserId(userId);
+        redisTemplate.opsForValue().set(countKey, String.valueOf(postCount), Duration.ofHours(1));
+
+        return postCount;
+    }
+
+    @Override
+    public void updateCommentCount(Long id, Integer delta) {
+        postMapper.incrementCommentCount(id, delta);
+    }
+
+    // ==================== 私有方法 ====================
+
+    /**
+     * 校验帖子参数
+     */
+    private void validatePost(PostCreateDTO createDTO) {
+        if (createDTO.getForumId() == null) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "板块ID不能为空");
+        }
+        if (StrUtil.isBlank(createDTO.getTitle())) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "帖子标题不能为空");
+        }
+        if (StrUtil.isBlank(createDTO.getContent())) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "帖子内容不能为空");
+        }
+    }
+
+    /**
+     * 敏感词过滤
+     */
+    private String filterSensitiveWords(String content) {
+        String result = content;
+        for (String word : SENSITIVE_WORDS) {
+            if (result.contains(word)) {
+                result = result.replace(word, "***");
+            }
+        }
+        return result;
+    }
+
+    /**
+     * 生成帖子摘要
+     */
+    private String generateSummary(String summary, String content) {
+        if (StrUtil.isNotBlank(summary)) {
+            return summary.length() > 200 ? summary.substring(0, 200) : summary;
+        }
+        // 从内容中提取摘要
+        String plainText = content.replaceAll("<[^>]+>", "").replaceAll("\\s+", " ");
+        return plainText.length() > 200 ? plainText.substring(0, 200) + "..." : plainText;
+    }
+
+    /**
+     * 保存帖子标签关联
+     */
+    private void savePostTags(Long postId, List<Long> tagIds) {
+        List<PostTag> postTags = new ArrayList<>();
+        int order = 0;
+        for (Long tagId : tagIds) {
+            PostTag postTag = new PostTag();
+            postTag.setPostId(postId);
+            postTag.setTagId(tagId);
+            postTag.setSortOrder(order++);
+            postTags.add(postTag);
+        }
+        postTagMapper.batchInsert(postId, postTags);
+    }
+
+    /**
+     * 保存帖子附件
+     */
+    private void savePostAttachments(Long postId, List<PostCreateDTO.AttachmentDTO> attachments) {
+        List<PostAttachment> postAttachments = new ArrayList<>();
+        int order = 0;
+        for (PostCreateDTO.AttachmentDTO att : attachments) {
+            PostAttachment attachment = new PostAttachment();
+            attachment.setPostId(postId);
+            attachment.setType(att.getType());
+            attachment.setName(att.getName());
+            attachment.setUrl(att.getUrl());
+            attachment.setThumbnailUrl(att.getThumbnailUrl());
+            attachment.setSize(att.getSize());
+            attachment.setMimeType(att.getMimeType());
+            attachment.setWidth(att.getWidth());
+            attachment.setHeight(att.getHeight());
+            attachment.setDuration(att.getDuration());
+            attachment.setSortOrder(order++);
+            attachment.setStatus(1);
+            postAttachments.add(attachment);
+        }
+        postAttachmentMapper.batchInsert(postAttachments);
+    }
+
+    /**
+     * 处理帖子VO
+     */
+    private void processPost(PostListVO post, Long currentUserId) {
+        // 设置是否为作者
+        if (currentUserId != null && post.getUserId() != null) {
+            post.setIsAuthor(post.getUserId().equals(currentUserId));
+        }
+
+        // 判断是否已点赞
+        if (currentUserId != null) {
+            post.setIsLiked(isLiked(post.getId(), currentUserId));
+            post.setIsCollected(isCollected(post.getId(), currentUserId));
+        }
+
+        // 查询图片列表
+        List<String> images = postAttachmentMapper.selectImageUrlsByPostId(post.getId(), 3);
+        post.setImages(images);
+    }
+
+    /**
+     * 检查是否已点赞
+     */
+    private boolean isLiked(Long postId, Long userId) {
+        String likeKey = REDIS_KEY_POST_LIKE + postId;
+        return Boolean.TRUE.equals(redisTemplate.opsForSet().isMember(likeKey, userId.toString()));
+    }
+
+    /**
+     * 检查是否已收藏
+     */
+    private boolean isCollected(Long postId, Long userId) {
+        String collectKey = REDIS_KEY_POST_COLLECT + userId;
+        return Boolean.TRUE.equals(redisTemplate.opsForSet().isMember(collectKey, postId.toString()));
+    }
+
+    /**
+     * 计算热度分数
+     */
+    private Integer calculateHotScore(PostListVO post) {
+        // 简单的热度计算公式：浏览量 + 点赞数*5 + 评论数*10 + 收藏数*8
+        int score = (post.getViewCount() != null ? post.getViewCount() : 0)
+                + (post.getLikeCount() != null ? post.getLikeCount() * 5 : 0)
+                + (post.getCommentCount() != null ? post.getCommentCount() * 10 : 0)
+                + (post.getCollectCount() != null ? post.getCollectCount() * 8 : 0);
+        return score;
+    }
+}

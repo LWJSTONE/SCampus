@@ -1,0 +1,366 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.campus.forum.mapper.PostMapper">
+
+    <!-- 帖子列表结果映射 -->
+    <resultMap id="PostListVOMap" type="com.campus.forum.vo.PostListVO">
+        <id column="id" property="id"/>
+        <result column="forum_id" property="forumId"/>
+        <result column="forum_name" property="forumName"/>
+        <result column="user_id" property="userId"/>
+        <result column="user_name" property="userName"/>
+        <result column="user_avatar" property="userAvatar"/>
+        <result column="title" property="title"/>
+        <result column="summary" property="summary"/>
+        <result column="type" property="type"/>
+        <result column="status" property="status"/>
+        <result column="view_count" property="viewCount"/>
+        <result column="like_count" property="likeCount"/>
+        <result column="comment_count" property="commentCount"/>
+        <result column="collect_count" property="collectCount"/>
+        <result column="is_top" property="isTop"/>
+        <result column="is_essence" property="isEssence"/>
+        <result column="last_reply_time" property="lastReplyTime"/>
+        <result column="cover_image" property="coverImage"/>
+        <result column="create_time" property="createTime"/>
+        <result column="ip_location" property="ipLocation"/>
+    </resultMap>
+
+    <!-- 帖子详情结果映射 -->
+    <resultMap id="PostResultMap" type="com.campus.forum.entity.Post">
+        <id column="id" property="id"/>
+        <result column="forum_id" property="forumId"/>
+        <result column="user_id" property="userId"/>
+        <result column="title" property="title"/>
+        <result column="content" property="content"/>
+        <result column="summary" property="summary"/>
+        <result column="type" property="type"/>
+        <result column="status" property="status"/>
+        <result column="view_count" property="viewCount"/>
+        <result column="like_count" property="likeCount"/>
+        <result column="comment_count" property="commentCount"/>
+        <result column="collect_count" property="collectCount"/>
+        <result column="share_count" property="shareCount"/>
+        <result column="is_top" property="isTop"/>
+        <result column="is_essence" property="isEssence"/>
+        <result column="allow_comment" property="allowComment"/>
+        <result column="top_time" property="topTime"/>
+        <result column="essence_time" property="essenceTime"/>
+        <result column="last_reply_time" property="lastReplyTime"/>
+        <result column="last_reply_user_id" property="lastReplyUserId"/>
+        <result column="cover_image" property="coverImage"/>
+        <result column="source_type" property="sourceType"/>
+        <result column="ip_address" property="ipAddress"/>
+        <result column="ip_location" property="ipLocation"/>
+        <result column="audit_status" property="auditStatus"/>
+        <result column="audit_user_id" property="auditUserId"/>
+        <result column="audit_time" property="auditTime"/>
+        <result column="audit_remark" property="auditRemark"/>
+        <result column="reject_reason" property="rejectReason"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+        <result column="delete_flag" property="deleteFlag"/>
+        <!-- 非数据库字段 -->
+        <result column="user_name" property="userName"/>
+        <result column="user_avatar" property="userAvatar"/>
+        <result column="forum_name" property="forumName"/>
+    </resultMap>
+
+    <!-- 分页查询帖子列表 -->
+    <select id="selectPostPage" resultMap="PostListVOMap">
+        SELECT
+            p.id,
+            p.forum_id,
+            p.user_id,
+            p.title,
+            p.summary,
+            p.type,
+            p.status,
+            p.view_count,
+            p.like_count,
+            p.comment_count,
+            p.collect_count,
+            p.is_top,
+            p.is_essence,
+            p.last_reply_time,
+            p.cover_image,
+            p.create_time,
+            p.ip_location,
+            u.nickname AS user_name,
+            u.avatar AS user_avatar,
+            f.name AS forum_name
+        FROM post p
+        LEFT JOIN user u ON p.user_id = u.id
+        LEFT JOIN forum f ON p.forum_id = f.id
+        WHERE p.delete_flag = 0
+        <if test="query.status != null">
+            AND p.status = #{query.status}
+        </if>
+        <if test="query.forumId != null">
+            AND p.forum_id = #{query.forumId}
+        </if>
+        <if test="query.userId != null">
+            AND p.user_id = #{query.userId}
+        </if>
+        <if test="query.type != null">
+            AND p.type = #{query.type}
+        </if>
+        <if test="query.isTop != null">
+            AND p.is_top = #{query.isTop}
+        </if>
+        <if test="query.isEssence != null">
+            AND p.is_essence = #{query.isEssence}
+        </if>
+        <if test="query.auditStatus != null">
+            AND p.audit_status = #{query.auditStatus}
+        </if>
+        <if test="query.tagId != null">
+            AND EXISTS (
+                SELECT 1 FROM post_tag pt
+                WHERE pt.post_id = p.id AND pt.tag_id = #{query.tagId}
+            )
+        </if>
+        <!-- 排序 -->
+        <choose>
+            <when test="query.sortType == 2">
+                ORDER BY p.last_reply_time DESC, p.create_time DESC
+            </when>
+            <when test="query.sortType == 3">
+                ORDER BY (p.view_count + p.like_count * 5 + p.comment_count * 10) DESC, p.create_time DESC
+            </when>
+            <when test="query.sortType == 4">
+                ORDER BY p.comment_count DESC, p.create_time DESC
+            </when>
+            <when test="query.sortType == 5">
+                ORDER BY p.like_count DESC, p.create_time DESC
+            </when>
+            <otherwise>
+                ORDER BY p.is_top DESC, p.create_time DESC
+            </otherwise>
+        </choose>
+    </select>
+
+    <!-- 查询热门帖子列表 -->
+    <select id="selectHotPosts" resultMap="PostListVOMap">
+        SELECT
+            p.id,
+            p.forum_id,
+            p.user_id,
+            p.title,
+            p.summary,
+            p.type,
+            p.status,
+            p.view_count,
+            p.like_count,
+            p.comment_count,
+            p.collect_count,
+            p.is_top,
+            p.is_essence,
+            p.last_reply_time,
+            p.cover_image,
+            p.create_time,
+            p.ip_location,
+            u.nickname AS user_name,
+            u.avatar AS user_avatar,
+            f.name AS forum_name
+        FROM post p
+        LEFT JOIN user u ON p.user_id = u.id
+        LEFT JOIN forum f ON p.forum_id = f.id
+        WHERE p.delete_flag = 0
+            AND p.status = 1
+            AND p.audit_status = 1
+        ORDER BY (p.view_count + p.like_count * 5 + p.comment_count * 10 + p.collect_count * 8) DESC
+        LIMIT #{limit}
+    </select>
+
+    <!-- 搜索帖子 -->
+    <select id="searchPosts" resultMap="PostListVOMap">
+        SELECT
+            p.id,
+            p.forum_id,
+            p.user_id,
+            p.title,
+            p.summary,
+            p.type,
+            p.status,
+            p.view_count,
+            p.like_count,
+            p.comment_count,
+            p.collect_count,
+            p.is_top,
+            p.is_essence,
+            p.last_reply_time,
+            p.cover_image,
+            p.create_time,
+            p.ip_location,
+            u.nickname AS user_name,
+            u.avatar AS user_avatar,
+            f.name AS forum_name
+        FROM post p
+        LEFT JOIN user u ON p.user_id = u.id
+        LEFT JOIN forum f ON p.forum_id = f.id
+        WHERE p.delete_flag = 0
+            AND p.status = 1
+            AND (
+                p.title LIKE CONCAT('%', #{keyword}, '%')
+                OR p.content LIKE CONCAT('%', #{keyword}, '%')
+            )
+        <if test="query.forumId != null">
+            AND p.forum_id = #{query.forumId}
+        </if>
+        ORDER BY p.is_top DESC, p.create_time DESC
+    </select>
+
+    <!-- 根据ID查询帖子详情 -->
+    <select id="selectPostDetailById" resultMap="PostResultMap">
+        SELECT
+            p.*,
+            u.nickname AS user_name,
+            u.avatar AS user_avatar,
+            f.name AS forum_name
+        FROM post p
+        LEFT JOIN user u ON p.user_id = u.id
+        LEFT JOIN forum f ON p.forum_id = f.id
+        WHERE p.id = #{id} AND p.delete_flag = 0
+    </select>
+
+    <!-- 增加浏览量 -->
+    <update id="incrementViewCount">
+        UPDATE post SET view_count = view_count + 1 WHERE id = #{id}
+    </update>
+
+    <!-- 增加点赞数 -->
+    <update id="incrementLikeCount">
+        UPDATE post SET like_count = like_count + #{count} WHERE id = #{id}
+    </update>
+
+    <!-- 增加评论数 -->
+    <update id="incrementCommentCount">
+        UPDATE post SET comment_count = comment_count + #{count} WHERE id = #{id}
+    </update>
+
+    <!-- 增加收藏数 -->
+    <update id="incrementCollectCount">
+        UPDATE post SET collect_count = collect_count + #{count} WHERE id = #{id}
+    </update>
+
+    <!-- 更新最后回复信息 -->
+    <update id="updateLastReply">
+        UPDATE post
+        SET last_reply_time = NOW(),
+            last_reply_user_id = #{userId}
+        WHERE id = #{id}
+    </update>
+
+    <!-- 置顶帖子 -->
+    <update id="updateTopStatus">
+        UPDATE post
+        SET is_top = #{isTop},
+            top_time = CASE WHEN #{isTop} = 1 THEN NOW() ELSE NULL END
+        WHERE id = #{id}
+    </update>
+
+    <!-- 加精帖子 -->
+    <update id="updateEssenceStatus">
+        UPDATE post
+        SET is_essence = #{isEssence},
+            essence_time = CASE WHEN #{isEssence} = 1 THEN NOW() ELSE NULL END
+        WHERE id = #{id}
+    </update>
+
+    <!-- 移动帖子 -->
+    <update id="movePost">
+        UPDATE post SET forum_id = #{forumId} WHERE id = #{id}
+    </update>
+
+    <!-- 关闭帖子 -->
+    <update id="closePost">
+        UPDATE post SET status = #{status} WHERE id = #{id}
+    </update>
+
+    <!-- 批量更新状态 -->
+    <update id="batchUpdateStatus">
+        UPDATE post SET status = #{status}
+        WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </update>
+
+    <!-- 统计用户帖子数量 -->
+    <select id="countByUserId" resultType="int">
+        SELECT COUNT(*) FROM post
+        WHERE user_id = #{userId} AND delete_flag = 0 AND status = 1
+    </select>
+
+    <!-- 统计板块帖子数量 -->
+    <select id="countByForumId" resultType="int">
+        SELECT COUNT(*) FROM post
+        WHERE forum_id = #{forumId} AND delete_flag = 0 AND status = 1
+    </select>
+
+    <!-- 查询用户帖子列表 -->
+    <select id="selectUserPosts" resultMap="PostListVOMap">
+        SELECT
+            p.id,
+            p.forum_id,
+            p.user_id,
+            p.title,
+            p.summary,
+            p.type,
+            p.status,
+            p.view_count,
+            p.like_count,
+            p.comment_count,
+            p.collect_count,
+            p.is_top,
+            p.is_essence,
+            p.last_reply_time,
+            p.cover_image,
+            p.create_time,
+            p.ip_location,
+            u.nickname AS user_name,
+            u.avatar AS user_avatar,
+            f.name AS forum_name
+        FROM post p
+        LEFT JOIN user u ON p.user_id = u.id
+        LEFT JOIN forum f ON p.forum_id = f.id
+        WHERE p.delete_flag = 0
+            AND p.user_id = #{userId}
+            AND p.status = 1
+        ORDER BY p.create_time DESC
+    </select>
+
+    <!-- 查询板块帖子列表 -->
+    <select id="selectForumPosts" resultMap="PostListVOMap">
+        SELECT
+            p.id,
+            p.forum_id,
+            p.user_id,
+            p.title,
+            p.summary,
+            p.type,
+            p.status,
+            p.view_count,
+            p.like_count,
+            p.comment_count,
+            p.collect_count,
+            p.is_top,
+            p.is_essence,
+            p.last_reply_time,
+            p.cover_image,
+            p.create_time,
+            p.ip_location,
+            u.nickname AS user_name,
+            u.avatar AS user_avatar,
+            f.name AS forum_name
+        FROM post p
+        LEFT JOIN user u ON p.user_id = u.id
+        LEFT JOIN forum f ON p.forum_id = f.id
+        WHERE p.delete_flag = 0
+            AND p.forum_id = #{forumId}
+            AND p.status = 1
+        ORDER BY p.is_top DESC, p.create_time DESC
+    </select>
+
+</mapper>

@@ -1,0 +1,446 @@
+package com.campus.forum.controller;
+
+import com.campus.forum.dto.PostCreateDTO;
+import com.campus.forum.dto.PostQueryDTO;
+import com.campus.forum.dto.PostUpdateDTO;
+import com.campus.forum.entity.PageResult;
+import com.campus.forum.entity.Result;
+import com.campus.forum.service.PostService;
+import com.campus.forum.utils.IpUtils;
+import com.campus.forum.vo.PostDetailVO;
+import com.campus.forum.vo.PostListVO;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.*;
+
+import javax.servlet.http.HttpServletRequest;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * 帖子控制器
+ * 提供帖子相关的REST API接口
+ *
+ * @author campus
+ * @since 2024-01-01
+ */
+@Slf4j
+@RestController
+@RequestMapping("/api/v1")
+@RequiredArgsConstructor
+@Tag(name = "帖子管理", description = "帖子相关接口")
+public class PostController {
+
+    private final PostService postService;
+
+    /**
+     * 获取帖子列表
+     *
+     * @param current  当前页
+     * @param size     每页大小
+     * @param forumId  板块ID
+     * @param type     帖子类型
+     * @param sortType 排序类型
+     * @param request  HTTP请求
+     * @return 帖子列表
+     */
+    @GetMapping
+    @Operation(summary = "获取帖子列表", description = "分页获取帖子列表，支持多种筛选条件")
+    public Result<PageResult<PostListVO>> getPostList(
+            @Parameter(description = "当前页") @RequestParam(defaultValue = "1") Integer current,
+            @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") Integer size,
+            @Parameter(description = "板块ID") @RequestParam(required = false) Long forumId,
+            @Parameter(description = "帖子类型") @RequestParam(required = false) Integer type,
+            @Parameter(description = "排序类型(1-最新发布 2-最新回复 3-热度排序)") @RequestParam(required = false) Integer sortType,
+            @Parameter(description = "是否置顶") @RequestParam(required = false) Integer isTop,
+            @Parameter(description = "是否精华") @RequestParam(required = false) Integer isEssence,
+            HttpServletRequest request) {
+
+        log.info("获取帖子列表, current: {}, size: {}, forumId: {}", current, size, forumId);
+
+        // 构建查询参数
+        PostQueryDTO queryDTO = new PostQueryDTO();
+        queryDTO.setCurrent(current);
+        queryDTO.setSize(size);
+        queryDTO.setForumId(forumId);
+        queryDTO.setType(type);
+        queryDTO.setSortType(sortType);
+        queryDTO.setIsTop(isTop);
+        queryDTO.setIsEssence(isEssence);
+        queryDTO.setStatus(1); // 只查询已发布的帖子
+
+        // 获取当前用户ID
+        Long currentUserId = getCurrentUserId(request);
+
+        // 查询帖子列表
+        PageResult<PostListVO> result = postService.getPostList(queryDTO, currentUserId);
+
+        return Result.success(result);
+    }
+
+    /**
+     * 获取帖子详情
+     *
+     * @param id      帖子ID
+     * @param request HTTP请求
+     * @return 帖子详情
+     */
+    @GetMapping("/{id}")
+    @Operation(summary = "获取帖子详情", description = "获取指定帖子的详细信息")
+    public Result<PostDetailVO> getPostDetail(
+            @Parameter(description = "帖子ID") @PathVariable Long id,
+            HttpServletRequest request) {
+
+        log.info("获取帖子详情, postId: {}", id);
+
+        // 获取当前用户ID
+        Long currentUserId = getCurrentUserId(request);
+
+        // 查询帖子详情
+        PostDetailVO detail = postService.getPostDetail(id, currentUserId);
+
+        return Result.success(detail);
+    }
+
+    /**
+     * 发布帖子
+     *
+     * @param createDTO 帖子创建DTO
+     * @param request   HTTP请求
+     * @return 帖子ID
+     */
+    @PostMapping
+    @Operation(summary = "发布帖子", description = "发布新帖子")
+    public Result<Long> publishPost(
+            @Validated @RequestBody PostCreateDTO createDTO,
+            HttpServletRequest request) {
+
+        log.info("发布帖子, title: {}", createDTO.getTitle());
+
+        // 获取当前用户ID
+        Long userId = getCurrentUserId(request);
+        if (userId == null) {
+            return Result.fail(401, "请先登录");
+        }
+
+        // 获取IP地址
+        String ipAddress = IpUtils.getIpAddress(request);
+
+        // 发布帖子
+        Long postId = postService.publishPost(createDTO, userId, ipAddress);
+
+        return Result.success("发布成功", postId);
+    }
+
+    /**
+     * 编辑帖子
+     *
+     * @param id        帖子ID
+     * @param updateDTO 帖子更新DTO
+     * @param request   HTTP请求
+     * @return 操作结果
+     */
+    @PutMapping("/{id}")
+    @Operation(summary = "编辑帖子", description = "编辑指定帖子内容")
+    public Result<Boolean> updatePost(
+            @Parameter(description = "帖子ID") @PathVariable Long id,
+            @Validated @RequestBody PostUpdateDTO updateDTO,
+            HttpServletRequest request) {
+
+        log.info("编辑帖子, postId: {}", id);
+
+        // 获取当前用户ID
+        Long userId = getCurrentUserId(request);
+        if (userId == null) {
+            return Result.fail(401, "请先登录");
+        }
+
+        // 设置帖子ID
+        updateDTO.setId(id);
+
+        // 编辑帖子
+        boolean result = postService.updatePost(updateDTO, userId);
+
+        return Result.success("编辑成功", result);
+    }
+
+    /**
+     * 删除帖子
+     *
+     * @param id      帖子ID
+     * @param request HTTP请求
+     * @return 操作结果
+     */
+    @DeleteMapping("/{id}")
+    @Operation(summary = "删除帖子", description = "删除指定帖子（只能删除自己的帖子）")
+    public Result<Boolean> deletePost(
+            @Parameter(description = "帖子ID") @PathVariable Long id,
+            HttpServletRequest request) {
+
+        log.info("删除帖子, postId: {}", id);
+
+        // 获取当前用户ID
+        Long userId = getCurrentUserId(request);
+        if (userId == null) {
+            return Result.fail(401, "请先登录");
+        }
+
+        // 删除帖子
+        boolean result = postService.deletePost(id, userId);
+
+        return Result.success("删除成功", result);
+    }
+
+    /**
+     * 置顶帖子
+     *
+     * @param id      帖子ID
+     * @param request HTTP请求
+     * @return 操作结果
+     */
+    @PutMapping("/{id}/top")
+    @Operation(summary = "置顶帖子", description = "设置或取消帖子置顶状态")
+    public Result<Map<String, Object>> setTop(
+            @Parameter(description = "帖子ID") @PathVariable Long id,
+            @Parameter(description = "是否置顶(0-取消 1-置顶)") @RequestParam(defaultValue = "1") Integer isTop,
+            HttpServletRequest request) {
+
+        log.info("置顶帖子, postId: {}, isTop: {}", id, isTop);
+
+        // 获取当前用户ID（需要管理员权限）
+        Long operatorId = getCurrentUserId(request);
+        if (operatorId == null) {
+            return Result.fail(401, "请先登录");
+        }
+
+        // 置顶帖子
+        boolean result = postService.setTop(id, isTop, operatorId);
+
+        Map<String, Object> resultMap = new HashMap<>();
+        resultMap.put("isTop", isTop);
+        resultMap.put("message", isTop == 1 ? "置顶成功" : "取消置顶成功");
+
+        return Result.success(resultMap);
+    }
+
+    /**
+     * 加精帖子
+     *
+     * @param id      帖子ID
+     * @param request HTTP请求
+     * @return 操作结果
+     */
+    @PutMapping("/{id}/essence")
+    @Operation(summary = "加精帖子", description = "设置或取消帖子精华状态")
+    public Result<Map<String, Object>> setEssence(
+            @Parameter(description = "帖子ID") @PathVariable Long id,
+            @Parameter(description = "是否精华(0-取消 1-精华)") @RequestParam(defaultValue = "1") Integer isEssence,
+            HttpServletRequest request) {
+
+        log.info("加精帖子, postId: {}, isEssence: {}", id, isEssence);
+
+        // 获取当前用户ID（需要管理员权限）
+        Long operatorId = getCurrentUserId(request);
+        if (operatorId == null) {
+            return Result.fail(401, "请先登录");
+        }
+
+        // 加精帖子
+        boolean result = postService.setEssence(id, isEssence, operatorId);
+
+        Map<String, Object> resultMap = new HashMap<>();
+        resultMap.put("isEssence", isEssence);
+        resultMap.put("message", isEssence == 1 ? "加精成功" : "取消加精成功");
+
+        return Result.success(resultMap);
+    }
+
+    /**
+     * 获取热门帖子
+     *
+     * @param limit   数量限制
+     * @param request HTTP请求
+     * @return 热门帖子列表
+     */
+    @GetMapping("/hot")
+    @Operation(summary = "获取热门帖子", description = "获取热门帖子列表")
+    public Result<List<PostListVO>> getHotPosts(
+            @Parameter(description = "数量限制") @RequestParam(defaultValue = "10") Integer limit,
+            HttpServletRequest request) {
+
+        log.info("获取热门帖子, limit: {}", limit);
+
+        // 获取当前用户ID
+        Long currentUserId = getCurrentUserId(request);
+
+        // 查询热门帖子
+        List<PostListVO> hotPosts = postService.getHotPosts(limit, currentUserId);
+
+        return Result.success(hotPosts);
+    }
+
+    /**
+     * 搜索帖子
+     *
+     * @param keyword 关键词
+     * @param current 当前页
+     * @param size    每页大小
+     * @param request HTTP请求
+     * @return 搜索结果
+     */
+    @GetMapping("/search")
+    @Operation(summary = "搜索帖子", description = "根据关键词搜索帖子")
+    public Result<PageResult<PostListVO>> searchPosts(
+            @Parameter(description = "搜索关键词") @RequestParam(required = false) String keyword,
+            @Parameter(description = "当前页") @RequestParam(defaultValue = "1") Integer current,
+            @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") Integer size,
+            @Parameter(description = "板块ID") @RequestParam(required = false) Long forumId,
+            HttpServletRequest request) {
+
+        log.info("搜索帖子, keyword: {}, current: {}, size: {}", keyword, current, size);
+
+        // 构建查询参数
+        PostQueryDTO queryDTO = new PostQueryDTO();
+        queryDTO.setCurrent(current);
+        queryDTO.setSize(size);
+        queryDTO.setForumId(forumId);
+        queryDTO.setStatus(1);
+
+        // 获取当前用户ID
+        Long currentUserId = getCurrentUserId(request);
+
+        // 搜索帖子
+        PageResult<PostListVO> result = postService.searchPosts(keyword, queryDTO, currentUserId);
+
+        return Result.success(result);
+    }
+
+    /**
+     * 点赞帖子
+     *
+     * @param id      帖子ID
+     * @param request HTTP请求
+     * @return 操作结果
+     */
+    @PostMapping("/{id}/like")
+    @Operation(summary = "点赞帖子", description = "点赞或取消点赞帖子")
+    public Result<Map<String, Object>> likePost(
+            @Parameter(description = "帖子ID") @PathVariable Long id,
+            HttpServletRequest request) {
+
+        log.info("点赞帖子, postId: {}", id);
+
+        // 获取当前用户ID
+        Long userId = getCurrentUserId(request);
+        if (userId == null) {
+            return Result.fail(401, "请先登录");
+        }
+
+        // 点赞帖子
+        boolean isLike = postService.likePost(id, userId);
+
+        Map<String, Object> resultMap = new HashMap<>();
+        resultMap.put("isLike", isLike);
+        resultMap.put("message", isLike ? "点赞成功" : "已取消点赞");
+
+        return Result.success(resultMap);
+    }
+
+    /**
+     * 收藏帖子
+     *
+     * @param id      帖子ID
+     * @param request HTTP请求
+     * @return 操作结果
+     */
+    @PostMapping("/{id}/collect")
+    @Operation(summary = "收藏帖子", description = "收藏或取消收藏帖子")
+    public Result<Map<String, Object>> collectPost(
+            @Parameter(description = "帖子ID") @PathVariable Long id,
+            HttpServletRequest request) {
+
+        log.info("收藏帖子, postId: {}", id);
+
+        // 获取当前用户ID
+        Long userId = getCurrentUserId(request);
+        if (userId == null) {
+            return Result.fail(401, "请先登录");
+        }
+
+        // 收藏帖子
+        boolean isCollect = postService.collectPost(id, userId);
+
+        Map<String, Object> resultMap = new HashMap<>();
+        resultMap.put("isCollect", isCollect);
+        resultMap.put("message", isCollect ? "收藏成功" : "已取消收藏");
+
+        return Result.success(resultMap);
+    }
+
+    /**
+     * 获取用户帖子列表
+     *
+     * @param userId  用户ID
+     * @param current 当前页
+     * @param size    每页大小
+     * @param request HTTP请求
+     * @return 帖子列表
+     */
+    @GetMapping("/user/{userId}")
+    @Operation(summary = "获取用户帖子列表", description = "获取指定用户发布的帖子列表")
+    public Result<PageResult<PostListVO>> getUserPosts(
+            @Parameter(description = "用户ID") @PathVariable Long userId,
+            @Parameter(description = "当前页") @RequestParam(defaultValue = "1") Integer current,
+            @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") Integer size,
+            HttpServletRequest request) {
+
+        log.info("获取用户帖子列表, userId: {}", userId);
+
+        // 构建查询参数
+        PostQueryDTO queryDTO = new PostQueryDTO();
+        queryDTO.setCurrent(current);
+        queryDTO.setSize(size);
+        queryDTO.setStatus(1);
+
+        // 获取当前用户ID
+        Long currentUserId = getCurrentUserId(request);
+
+        // 查询用户帖子
+        PageResult<PostListVO> result = postService.getUserPosts(userId, queryDTO, currentUserId);
+
+        return Result.success(result);
+    }
+
+    // ==================== 私有方法 ====================
+
+    /**
+     * 从请求中获取当前用户ID
+     *
+     * @param request HTTP请求
+     * @return 用户ID（未登录返回null）
+     */
+    private Long getCurrentUserId(HttpServletRequest request) {
+        // 从请求头获取用户ID（由网关解析JWT后传递）
+        String userIdStr = request.getHeader("X-User-Id");
+        if (userIdStr != null && !userIdStr.isEmpty()) {
+            try {
+                return Long.parseLong(userIdStr);
+            } catch (NumberFormatException e) {
+                log.warn("解析用户ID失败: {}", userIdStr);
+            }
+        }
+
+        // 从请求属性获取（可选方式）
+        Object userIdAttr = request.getAttribute("userId");
+        if (userIdAttr instanceof Long) {
+            return (Long) userIdAttr;
+        }
+
+        return null;
+    }
+}

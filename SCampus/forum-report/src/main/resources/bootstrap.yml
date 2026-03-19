@@ -1,0 +1,38 @@
+# ============================================================
+# Bootstrap配置文件
+# 
+# 此配置文件在application.yml之前加载，用于配置：
+# - Nacos配置中心连接信息
+# - 命名空间
+# - 配置文件格式
+# ============================================================
+
+spring:
+  application:
+    name: forum-report
+  
+  profiles:
+    active: dev
+  
+  cloud:
+    nacos:
+      config:
+        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
+        namespace: ${NACOS_NAMESPACE:dev}
+        group: ${NACOS_GROUP:DEFAULT_GROUP}
+        file-extension: yaml
+        prefix: ${spring.application.name}
+        enabled: true
+        refresh-enabled: true
+        shared-configs:
+          - data-id: common.yaml
+            group: ${NACOS_GROUP:DEFAULT_GROUP}
+            refresh: true
+        
+        extension-configs:
+          - data-id: database.yaml
+            group: ${NACOS_GROUP:DEFAULT_GROUP}
+            refresh: true
+          - data-id: redis.yaml
+            group: ${NACOS_GROUP:DEFAULT_GROUP}
+            refresh: true

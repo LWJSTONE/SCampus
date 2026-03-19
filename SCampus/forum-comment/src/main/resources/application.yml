@@ -1,0 +1,260 @@
+# ============================================================
+# Forum Comment Service 主配置文件
+# 
+# 评论服务配置，包含：
+# - 服务基本信息
+# - 数据库配置
+# - Redis缓存配置
+# - MyBatis Plus配置
+# - Feign配置
+# - 日志配置
+# ============================================================
+
+# ==================== 服务配置 ====================
+server:
+  port: 9005
+
+spring:
+  application:
+    name: forum-comment
+  
+  # ==================== Nacos服务发现 ====================
+  cloud:
+    nacos:
+      discovery:
+        # Nacos服务器地址
+        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
+        # 命名空间
+        namespace: ${NACOS_NAMESPACE:dev}
+        # 分组
+        group: ${NACOS_GROUP:DEFAULT_GROUP}
+        # 服务名称
+        service: ${spring.application.name}
+        # 心跳间隔（毫秒）
+        heart-beat-interval: 5000
+        # 心跳超时（毫秒）
+        heart-beat-timeout: 15000
+
+    # ==================== Sentinel配置 ====================
+    sentinel:
+      enabled: true
+      eager: true
+      transport:
+        dashboard: ${SENTINEL_DASHBOARD:localhost:8080}
+        port: 8725
+      datasource:
+        flow:
+          nacos:
+            server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
+            namespace: ${NACOS_NAMESPACE:dev}
+            group-id: ${NACOS_GROUP:DEFAULT_GROUP}
+            data-id: ${spring.application.name}-flow-rules
+            rule-type: flow
+
+    # ==================== 负载均衡配置 ====================
+    loadbalancer:
+      ribbon:
+        enabled: false
+
+  # ==================== 数据源配置 ====================
+  datasource:
+    type: com.alibaba.druid.pool.DruidDataSource
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/forum_comment_db?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:root}
+    
+    # Druid连接池配置
+    druid:
+      # 初始化连接数
+      initial-size: 5
+      # 最小连接数
+      min-idle: 5
+      # 最大连接数
+      max-active: 20
+      # 获取连接等待超时时间
+      max-wait: 60000
+      # 配置间隔多久进行一次检测，检测需要关闭的空闲连接
+      time-between-eviction-runs-millis: 60000
+      # 配置一个连接在池中最小生存的时间
+      min-evictable-idle-time-millis: 300000
+      # 验证连接有效性的SQL
+      validation-query: SELECT 1
+      # 申请连接时执行validationQuery检测连接是否有效
+      test-while-idle: true
+      test-on-borrow: false
+      test-on-return: false
+      # 打开PSCache，并且指定每个连接上PSCache的大小
+      pool-prepared-statements: true
+      max-pool-prepared-statement-per-connection-size: 20
+      # 配置监控统计拦截的filters
+      filters: stat,wall
+      # 开启监控页面
+      stat-view-servlet:
+        enabled: true
+        url-pattern: /druid/*
+        login-username: admin
+        login-password: admin
+        reset-enable: false
+      # Web监控配置
+      web-stat-filter:
+        enabled: true
+        url-pattern: /*
+        exclusions: "*.js,*.gif,*.jpg,*.png,*.css,*.ico,/druid/*"
+
+  # ==================== Redis配置 ====================
+  redis:
+    host: ${REDIS_HOST:localhost}
+    port: ${REDIS_PORT:6379}
+    password: ${REDIS_PASSWORD:}
+    database: 5
+    timeout: 10000ms
+    lettuce:
+      pool:
+        max-active: 8
+        max-wait: -1ms
+        max-idle: 8
+        min-idle: 0
+
+  # ==================== Jackson配置 ====================
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+    serialization:
+      write-dates-as-timestamps: false
+
+  # ==================== 文件上传配置 ====================
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 20MB
+
+# ==================== MyBatis Plus配置 ====================
+mybatis-plus:
+  # Mapper XML文件位置
+  mapper-locations: classpath*:/mapper/**/*.xml
+  # 实体类扫描路径
+  type-aliases-package: com.campus.forum.entity
+  # 配置
+  configuration:
+    # 开启驼峰命名转换
+    map-underscore-to-camel-case: true
+    # 日志输出
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    # 二级缓存
+    cache-enabled: false
+    # 懒加载
+    lazy-loading-enabled: true
+  # 全局配置
+  global-config:
+    # 数据库配置
+    db-config:
+      # 主键类型 AUTO-自增 INPUT-用户输入 ID_WORKER-全局唯一ID UUID-UUID
+      id-type: AUTO
+      # 逻辑删除字段
+      logic-delete-field: deleteFlag
+      # 逻辑删除值
+      logic-delete-value: 1
+      # 逻辑未删除值
+      logic-not-delete-value: 0
+      # 字段策略
+      insert-strategy: not_null
+      update-strategy: not_null
+    # 关闭Banner
+    banner: false
+
+# ==================== Feign配置 ====================
+feign:
+  # 启用Sentinel
+  sentinel:
+    enabled: true
+  # 压缩配置
+  compression:
+    request:
+      enabled: true
+      mime-types: text/xml,application/xml,application/json
+      min-request-size: 2048
+    response:
+      enabled: true
+  # 客户端配置
+  client:
+    config:
+      default:
+        # 连接超时时间
+        connect-timeout: 5000
+        # 读取超时时间
+        read-timeout: 10000
+        # 日志级别
+        logger-level: BASIC
+
+# ==================== Knife4j配置 ====================
+knife4j:
+  # 是否启用增强功能
+  enable: true
+  # 生产环境屏蔽
+  production: false
+  # Basic认证
+  basic:
+    enable: false
+    username: admin
+    password: admin
+
+# ==================== Swagger配置 ====================
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+  group-configs:
+    - group: 评论服务API
+      paths-to-match: /api/v1/comments/**
+
+# ==================== 日志配置 ====================
+logging:
+  level:
+    root: INFO
+    com.campus.forum: DEBUG
+    org.springframework.web: INFO
+    org.springframework.cloud: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n"
+  file:
+    name: logs/forum-comment.log
+    max-size: 10MB
+    max-history: 30
+
+# ==================== Actuator配置 ====================
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+  health:
+    db:
+      enabled: true
+    redis:
+      enabled: true
+
+# ==================== 服务信息 ====================
+info:
+  app:
+    name: Forum Comment Service
+    description: 评论服务 - 提供帖子评论、回复、点赞等功能
+    version: 1.0.0
+    author: Campus Team
+
+# ==================== 业务配置 ====================
+comment:
+  # 评论内容最大长度
+  max-content-length: 500
+  # 每次获取回复数量限制
+  max-replies-size: 20
+  # 敏感词替换字符
+  sensitive-replacement: "***"
+  # 热门评论点赞阈值
+  hot-comment-threshold: 10

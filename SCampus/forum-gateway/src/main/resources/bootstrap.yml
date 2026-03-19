@@ -1,0 +1,47 @@
+# ============================================================
+# Bootstrap配置文件
+# 
+# 此配置文件在application.yml之前加载，用于配置：
+# - Nacos配置中心连接信息
+# - 命名空间
+# - 配置文件格式
+# ============================================================
+
+spring:
+  application:
+    # 应用名称
+    name: forum-gateway
+  
+  profiles:
+    # 激活的配置环境
+    active: dev
+  
+  cloud:
+    nacos:
+      # Nacos配置中心
+      config:
+        # Nacos服务器地址
+        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
+        # 命名空间（用于区分不同环境）
+        namespace: ${NACOS_NAMESPACE:dev}
+        # 配置分组
+        group: ${NACOS_GROUP:DEFAULT_GROUP}
+        # 配置文件格式
+        file-extension: yaml
+        # 配置文件前缀
+        prefix: ${spring.application.name}
+        # 是否启用配置中心
+        enabled: true
+        # 是否动态刷新配置
+        refresh-enabled: true
+        # 共享配置
+        shared-configs:
+          - data-id: common.yaml
+            group: ${NACOS_GROUP:DEFAULT_GROUP}
+            refresh: true
+        
+        # 扩展配置
+        extension-configs:
+          - data-id: gateway.yaml
+            group: ${NACOS_GROUP:DEFAULT_GROUP}
+            refresh: true

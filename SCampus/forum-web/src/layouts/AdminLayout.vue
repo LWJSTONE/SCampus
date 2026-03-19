@@ -1,0 +1,206 @@
+<template>
+  <el-container class="admin-layout">
+    <!-- 侧边栏 -->
+    <el-aside :width="isCollapse ? '64px' : '220px'" class="sidebar">
+      <div class="logo">
+        <el-icon size="24"><Setting /></el-icon>
+        <span v-show="!isCollapse">管理后台</span>
+      </div>
+
+      <el-menu
+        :default-active="activeMenu"
+        :collapse="isCollapse"
+        router
+        background-color="#304156"
+        text-color="#bfcbd9"
+        active-text-color="#409EFF"
+      >
+        <el-menu-item index="/admin">
+          <el-icon><DataAnalysis /></el-icon>
+          <span>控制台</span>
+        </el-menu-item>
+
+        <el-sub-menu index="user">
+          <template #title>
+            <el-icon><User /></el-icon>
+            <span>用户管理</span>
+          </template>
+          <el-menu-item index="/admin/users">用户列表</el-menu-item>
+        </el-sub-menu>
+
+        <el-sub-menu index="content">
+          <template #title>
+            <el-icon><Document /></el-icon>
+            <span>内容管理</span>
+          </template>
+          <el-menu-item index="/admin/categories">版块管理</el-menu-item>
+          <el-menu-item index="/admin/posts">帖子管理</el-menu-item>
+        </el-sub-menu>
+
+        <el-menu-item index="/admin/reports">
+          <el-icon><Warning /></el-icon>
+          <span>举报管理</span>
+        </el-menu-item>
+
+        <el-menu-item index="/admin/notices">
+          <el-icon><Bell /></el-icon>
+          <span>公告管理</span>
+        </el-menu-item>
+
+        <el-menu-item index="/admin/stats">
+          <el-icon><TrendCharts /></el-icon>
+          <span>统计分析</span>
+        </el-menu-item>
+
+        <el-menu-item index="/admin/config">
+          <el-icon><Tools /></el-icon>
+          <span>系统配置</span>
+        </el-menu-item>
+      </el-menu>
+    </el-aside>
+
+    <el-container>
+      <!-- 顶部导航 -->
+      <el-header class="header">
+        <div class="header-left">
+          <el-button text @click="isCollapse = !isCollapse">
+            <el-icon size="20">
+              <Fold v-if="!isCollapse" />
+              <Expand v-else />
+            </el-icon>
+          </el-button>
+          <el-breadcrumb separator="/">
+            <el-breadcrumb-item :to="{ path: '/admin' }">首页</el-breadcrumb-item>
+            <el-breadcrumb-item>{{ currentTitle }}</el-breadcrumb-item>
+          </el-breadcrumb>
+        </div>
+
+        <div class="header-right">
+          <el-button text @click="router.push('/')">
+            <el-icon><HomeFilled /></el-icon>
+            前台首页
+          </el-button>
+
+          <el-dropdown trigger="click" @command="handleCommand">
+            <div class="user-info">
+              <el-avatar :src="userStore.userInfo?.avatar" :size="32">
+                {{ userStore.username?.charAt(0) }}
+              </el-avatar>
+              <span>{{ userStore.username }}</span>
+            </div>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="logout">退出登录</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </div>
+      </el-header>
+
+      <!-- 主内容区 -->
+      <el-main class="main-content">
+        <router-view v-slot="{ Component }">
+          <transition name="fade" mode="out-in">
+            <component :is="Component" />
+          </transition>
+        </router-view>
+      </el-main>
+    </el-container>
+  </el-container>
+</template>
+
+<script setup lang="ts">
+import { ref, computed } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
+import { useUserStore } from '@/stores/user'
+
+const router = useRouter()
+const route = useRoute()
+const userStore = useUserStore()
+
+const isCollapse = ref(false)
+
+const activeMenu = computed(() => route.path)
+
+const currentTitle = computed(() => {
+  const meta = route.meta
+  return (meta?.title as string) || ''
+})
+
+function handleCommand(command: string) {
+  if (command === 'logout') {
+    userStore.logout()
+    router.push('/login')
+  }
+}
+</script>
+
+<style scoped lang="scss">
+.admin-layout {
+  height: 100vh;
+
+  .sidebar {
+    background: #304156;
+    transition: width 0.3s;
+
+    .logo {
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      color: #fff;
+      font-size: 18px;
+      font-weight: bold;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .el-menu {
+      border-right: none;
+    }
+  }
+
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #fff;
+    border-bottom: 1px solid #e4e7ed;
+    padding: 0 20px;
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+
+      .user-info {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+      }
+    }
+  }
+
+  .main-content {
+    background: #f0f2f5;
+    padding: 20px;
+  }
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+</style>

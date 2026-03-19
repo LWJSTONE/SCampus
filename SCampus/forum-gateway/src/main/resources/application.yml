@@ -1,0 +1,231 @@
+# ============================================================
+# Forum Gateway 主配置文件
+# 
+# API网关服务配置，包含：
+# - 服务基本信息
+# - Nacos服务发现
+# - 路由规则配置
+# - Sentinel限流配置
+# - JWT配置
+# - 日志配置
+# ============================================================
+
+# ==================== 服务配置 ====================
+server:
+  port: 8080
+
+spring:
+  application:
+    name: forum-gateway
+  
+  # ==================== Nacos服务发现 ====================
+  cloud:
+    nacos:
+      discovery:
+        # Nacos服务器地址
+        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
+        # 命名空间
+        namespace: ${NACOS_NAMESPACE:dev}
+        # 分组
+        group: ${NACOS_GROUP:DEFAULT_GROUP}
+        # 服务名称
+        service: ${spring.application.name}
+        # 心跳间隔（毫秒）
+        heart-beat-interval: 5000
+        # 心跳超时（毫秒）
+        heart-beat-timeout: 15000
+        # 是否启用服务发现
+        enabled: true
+
+    # ==================== Gateway路由配置 ====================
+    gateway:
+      # 路由规则
+      routes:
+        # ---------- 认证服务 ----------
+        - id: forum-auth
+          uri: lb://forum-auth
+          predicates:
+            - Path=/api/v1/auth/**
+          filters:
+            - StripPrefix=0
+
+        # ---------- 用户服务 ----------
+        - id: forum-user
+          uri: lb://forum-user
+          predicates:
+            - Path=/api/v1/users/**
+          filters:
+            - StripPrefix=0
+
+        # ---------- 分类服务 ----------
+        - id: forum-category
+          uri: lb://forum-category
+          predicates:
+            - Path=/api/v1/categories/**
+          filters:
+            - StripPrefix=0
+
+        # ---------- 帖子服务 ----------
+        - id: forum-post
+          uri: lb://forum-post
+          predicates:
+            - Path=/api/v1/posts/**
+          filters:
+            - StripPrefix=0
+
+        # ---------- 评论服务 ----------
+        - id: forum-comment
+          uri: lb://forum-comment
+          predicates:
+            - Path=/api/v1/comments/**
+          filters:
+            - StripPrefix=0
+
+        # ---------- 交互服务 ----------
+        - id: forum-interaction
+          uri: lb://forum-interaction
+          predicates:
+            - Path=/api/v1/interactions/**
+          filters:
+            - StripPrefix=0
+
+        # ---------- 举报服务 ----------
+        - id: forum-report
+          uri: lb://forum-report
+          predicates:
+            - Path=/api/v1/reports/**
+          filters:
+            - StripPrefix=0
+
+        # ---------- 统计服务 ----------
+        - id: forum-stats
+          uri: lb://forum-stats
+          predicates:
+            - Path=/api/v1/stats/**
+          filters:
+            - StripPrefix=0
+
+        # ---------- 通知服务 ----------
+        - id: forum-notify
+          uri: lb://forum-notify
+          predicates:
+            - Path=/api/v1/notices/**
+          filters:
+            - StripPrefix=0
+
+        # ---------- 文件服务 ----------
+        - id: forum-file
+          uri: lb://forum-file
+          predicates:
+            - Path=/api/v1/files/**
+          filters:
+            - StripPrefix=0
+
+      # 全局跨域配置
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOriginPatterns: "*"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+              - PATCH
+            allowedHeaders: "*"
+            allowCredentials: true
+            maxAge: 3600
+
+      # 默认过滤器
+      default-filters:
+        - AddRequestHeader=X-Gateway-Name, forum-gateway
+
+    # ==================== Sentinel配置 ====================
+    sentinel:
+      # 是否启用Sentinel
+      enabled: true
+      # 是否立即初始化
+      eager: true
+      # Transport配置（用于Dashboard连接）
+      transport:
+        dashboard: ${SENTINEL_DASHBOARD:localhost:8080}
+        port: 8719
+      # 网关限流配置
+      scg:
+        # 限流响应模式
+        mode: response
+        # 限流响应状态码
+        response-status: 429
+        # 限流响应体
+        response-body: '{"code":429,"message":"系统繁忙，请求过于频繁，请稍后重试","data":null}'
+      # 数据源配置（用于持久化限流规则）
+      datasource:
+        # Nacos数据源
+        gw-flow:
+          nacos:
+            server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
+            namespace: ${NACOS_NAMESPACE:dev}
+            group-id: ${NACOS_GROUP:DEFAULT_GROUP}
+            data-id: ${spring.application.name}-flow-rules
+            rule-type: gw-flow
+        gw-api-group:
+          nacos:
+            server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
+            namespace: ${NACOS_NAMESPACE:dev}
+            group-id: ${NACOS_GROUP:DEFAULT_GROUP}
+            data-id: ${spring.application.name}-api-rules
+            rule-type: gw-api-group
+
+    # ==================== 负载均衡配置 ====================
+    loadbalancer:
+      ribbon:
+        enabled: false
+
+# ==================== JWT配置 ====================
+jwt:
+  # JWT签名密钥（生产环境应从配置中心获取）
+  secret: ${JWT_SECRET:campus-forum-jwt-secret-key-2024}
+  # Token过期时间（毫秒），默认7天
+  expiration: ${JWT_EXPIRATION:604800000}
+  # Token前缀
+  prefix: Bearer
+  # Token请求头名称
+  header: Authorization
+
+# ==================== 日志配置 ====================
+logging:
+  level:
+    root: INFO
+    com.campus.forum: DEBUG
+    org.springframework.cloud.gateway: DEBUG
+    org.springframework.web: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n"
+  file:
+    name: logs/forum-gateway.log
+    max-size: 10MB
+    max-history: 30
+
+# ==================== Actuator配置 ====================
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway
+  endpoint:
+    health:
+      show-details: always
+    gateway:
+      enabled: true
+  health:
+    db:
+      enabled: false
+
+# ==================== 服务信息 ====================
+info:
+  app:
+    name: Forum Gateway
+    description: API网关服务 - 统一入口、路由转发、认证鉴权、限流熔断
+    version: 1.0.0
+    author: Campus Team

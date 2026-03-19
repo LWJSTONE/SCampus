@@ -1,0 +1,253 @@
+# ============================================================
+# Forum File Service 主配置文件
+# 
+# 文件服务配置，包含：
+# - 服务基本信息
+# - 数据库配置
+# - Redis缓存配置
+# - MinIO配置
+# - 文件上传配置
+# ============================================================
+
+# ==================== 服务配置 ====================
+server:
+  port: 9010
+
+spring:
+  application:
+    name: forum-file
+  
+  # ==================== Nacos服务发现 ====================
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
+        namespace: ${NACOS_NAMESPACE:dev}
+        group: ${NACOS_GROUP:DEFAULT_GROUP}
+        service: ${spring.application.name}
+        heart-beat-interval: 5000
+        heart-beat-timeout: 15000
+
+    # ==================== Sentinel配置 ====================
+    sentinel:
+      enabled: true
+      eager: true
+      transport:
+        dashboard: ${SENTINEL_DASHBOARD:localhost:8080}
+        port: 8727
+      datasource:
+        flow:
+          nacos:
+            server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
+            namespace: ${NACOS_NAMESPACE:dev}
+            group-id: ${NACOS_GROUP:DEFAULT_GROUP}
+            data-id: ${spring.application.name}-flow-rules
+            rule-type: flow
+
+    # ==================== 负载均衡配置 ====================
+    loadbalancer:
+      ribbon:
+        enabled: false
+
+  # ==================== 数据源配置 ====================
+  datasource:
+    type: com.alibaba.druid.pool.DruidDataSource
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/forum_file_db?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:root}
+    
+    druid:
+      initial-size: 5
+      min-idle: 5
+      max-active: 20
+      max-wait: 60000
+      time-between-eviction-runs-millis: 60000
+      min-evictable-idle-time-millis: 300000
+      validation-query: SELECT 1
+      test-while-idle: true
+      test-on-borrow: false
+      test-on-return: false
+      pool-prepared-statements: true
+      max-pool-prepared-statement-per-connection-size: 20
+      filters: stat,wall
+      stat-view-servlet:
+        enabled: true
+        url-pattern: /druid/*
+        login-username: admin
+        login-password: admin
+        reset-enable: false
+      web-stat-filter:
+        enabled: true
+        url-pattern: /*
+        exclusions: "*.js,*.gif,*.jpg,*.png,*.css,*.ico,/druid/*"
+
+  # ==================== Redis配置 ====================
+  redis:
+    host: ${REDIS_HOST:localhost}
+    port: ${REDIS_PORT:6379}
+    password: ${REDIS_PASSWORD:}
+    database: 7
+    timeout: 10000ms
+    lettuce:
+      pool:
+        max-active: 8
+        max-wait: -1ms
+        max-idle: 8
+        min-idle: 0
+
+  # ==================== Jackson配置 ====================
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+    serialization:
+      write-dates-as-timestamps: false
+
+  # ==================== 文件上传配置 ====================
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 100MB
+
+# ==================== MyBatis Plus配置 ====================
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  type-aliases-package: com.campus.forum.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    cache-enabled: false
+    lazy-loading-enabled: true
+  global-config:
+    db-config:
+      id-type: AUTO
+      logic-delete-field: deleteFlag
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+      insert-strategy: not_null
+      update-strategy: not_null
+    banner: false
+
+# ==================== Feign配置 ====================
+feign:
+  sentinel:
+    enabled: true
+  compression:
+    request:
+      enabled: true
+      mime-types: text/xml,application/xml,application/json
+      min-request-size: 2048
+    response:
+      enabled: true
+  client:
+    config:
+      default:
+        connect-timeout: 5000
+        read-timeout: 30000
+        logger-level: BASIC
+
+# ==================== Knife4j配置 ====================
+knife4j:
+  enable: true
+  production: false
+  basic:
+    enable: false
+    username: admin
+    password: admin
+
+# ==================== Swagger配置 ====================
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+  group-configs:
+    - group: 文件服务API
+      paths-to-match: /api/v1/files/**
+
+# ==================== 日志配置 ====================
+logging:
+  level:
+    root: INFO
+    com.campus.forum: DEBUG
+    org.springframework.web: INFO
+    org.springframework.cloud: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n"
+  file:
+    name: logs/forum-file.log
+    max-size: 10MB
+    max-history: 30
+
+# ==================== Actuator配置 ====================
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+  health:
+    db:
+      enabled: true
+    redis:
+      enabled: true
+
+# ==================== 服务信息 ====================
+info:
+  app:
+    name: Forum File Service
+    description: 文件服务 - 提供文件上传、下载、管理等功能
+    version: 1.0.0
+    author: Campus Team
+
+# ==================== MinIO配置 ====================
+minio:
+  endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+  access-key: ${MINIO_ACCESS_KEY:minioadmin}
+  secret-key: ${MINIO_SECRET_KEY:minioadmin}
+  bucket-name: ${MINIO_BUCKET_NAME:forum}
+  secure: false
+
+# ==================== 文件存储配置 ====================
+file:
+  storage:
+    # 存储类型: LOCAL-本地存储, MINIO-MinIO存储
+    type: ${STORAGE_TYPE:LOCAL}
+    # 本地存储路径
+    local-path: ${FILE_LOCAL_PATH:/data/files}
+    # 访问URL前缀
+    url-prefix: ${FILE_URL_PREFIX:http://localhost:9010/files}
+  # 允许上传的文件类型
+  allowed-types:
+    - image/jpeg
+    - image/png
+    - image/gif
+    - image/webp
+    - image/bmp
+    - application/pdf
+    - application/msword
+    - application/vnd.openxmlformats-officedocument.wordprocessingml.document
+    - application/vnd.ms-excel
+    - application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+    - application/vnd.ms-powerpoint
+    - application/vnd.openxmlformats-officedocument.presentationml.presentation
+    - text/plain
+    - application/zip
+    - application/x-rar-compressed
+    - video/mp4
+    - video/quicktime
+    - audio/mpeg
+    - audio/wav
+  # 图片类型（用于图片上传接口）
+  image-types:
+    - image/jpeg
+    - image/png
+    - image/gif
+    - image/webp
+    - image/bmp
+  # 最大文件大小（字节）
+  max-size: 52428800

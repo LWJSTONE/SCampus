@@ -1,0 +1,110 @@
+/**
+ * 样式变量定义
+ * 定义全局使用的 CSS 变量和 SCSS 变量
+ */
+
+// ==================== 颜色变量 ====================
+
+// 主色调
+$primary-color: #409eff;
+$primary-light: #79bbff;
+$primary-dark: #337ecc;
+
+// 成功色
+$success-color: #67c23a;
+$success-light: #95d475;
+$success-dark: #529b2e;
+
+// 警告色
+$warning-color: #e6a23c;
+$warning-light: #eebe77;
+$warning-dark: #b88230;
+
+// 危险色
+$danger-color: #f56c6c;
+$danger-light: #f89898;
+$danger-dark: #c45656;
+
+// 信息色
+$info-color: #909399;
+$info-light: #b1b3b8;
+$info-dark: #73767a;
+
+// 文字颜色
+$text-primary: #303133;
+$text-regular: #606266;
+$text-secondary: #909399;
+$text-placeholder: #c0c4cc;
+
+// 边框颜色
+$border-color: #dcdfe6;
+$border-light: #e4e7ed;
+$border-lighter: #ebeef5;
+
+// 背景颜色
+$bg-white: #ffffff;
+$bg-page: #f5f7fa;
+$bg-light: #fafafa;
+
+// ==================== 字体变量 ====================
+
+$font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+  'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
+  'Noto Color Emoji';
+
+$font-size-xs: 12px;
+$font-size-sm: 13px;
+$font-size-base: 14px;
+$font-size-md: 16px;
+$font-size-lg: 18px;
+$font-size-xl: 20px;
+$font-size-xxl: 24px;
+
+// ==================== 间距变量 ====================
+
+$spacing-xs: 4px;
+$spacing-sm: 8px;
+$spacing-md: 12px;
+$spacing-base: 16px;
+$spacing-lg: 20px;
+$spacing-xl: 24px;
+$spacing-xxl: 32px;
+
+// ==================== 圆角变量 ====================
+
+$radius-sm: 2px;
+$radius-base: 4px;
+$radius-md: 6px;
+$radius-lg: 8px;
+$radius-xl: 12px;
+$radius-round: 20px;
+
+// ==================== 阴影变量 ====================
+
+$shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+$shadow-base: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+$shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+$shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+
+// ==================== 断点变量 ====================
+
+$breakpoint-xs: 480px;
+$breakpoint-sm: 576px;
+$breakpoint-md: 768px;
+$breakpoint-lg: 992px;
+$breakpoint-xl: 1200px;
+$breakpoint-xxl: 1600px;
+
+// ==================== 布局变量 ====================
+
+$header-height: 60px;
+$sidebar-width: 220px;
+$sidebar-collapsed-width: 64px;
+$footer-height: 50px;
+$content-max-width: 1200px;
+
+// ==================== 过渡变量 ====================
+
+$transition-base: all 0.3s ease;
+$transition-fast: all 0.2s ease;
+$transition-slow: all 0.5s ease;

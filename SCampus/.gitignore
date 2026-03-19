@@ -1,0 +1,82 @@
+# Maven
+target/
+!.mvn/wrapper/maven-wrapper.jar
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+
+# IDE
+.idea/
+*.iws
+*.iml
+*.ipr
+.vscode/
+.settings/
+.project
+.classpath
+*.swp
+*.swo
+*~
+
+# Logs
+logs/
+*.log
+log/
+
+# Package Files
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# Java
+*.class
+*.ctxt
+.mtj.tmp/
+hs_err_pid*
+
+# Spring Boot
+application-dev.yml
+application-prod.yml
+
+# Node.js / Frontend
+forum-web/node_modules/
+forum-web/dist/
+forum-web/.temp/
+forum-web/.cache/
+forum-web/*.local
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Sensitive Files
+*.pem
+*.key
+*.crt
+credentials.json
+
+# Test
+coverage/
+.nyc_output/
+
+# Build
+build/
+out/

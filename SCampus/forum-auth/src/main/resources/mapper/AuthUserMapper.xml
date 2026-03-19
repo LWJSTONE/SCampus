@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.campus.forum.mapper.AuthUserMapper">
+
+    <!-- 通用查询映射结果 -->
+    <resultMap id="BaseResultMap" type="com.campus.forum.entity.AuthUser">
+        <id column="id" property="id"/>
+        <result column="username" property="username"/>
+        <result column="password" property="password"/>
+        <result column="nickname" property="nickname"/>
+        <result column="email" property="email"/>
+        <result column="phone" property="phone"/>
+        <result column="avatar" property="avatar"/>
+        <result column="gender" property="gender"/>
+        <result column="bio" property="bio"/>
+        <result column="school_id" property="schoolId"/>
+        <result column="student_no" property="studentNo"/>
+        <result column="major" property="major"/>
+        <result column="grade" property="grade"/>
+        <result column="status" property="status"/>
+        <result column="last_login_time" property="lastLoginTime"/>
+        <result column="last_login_ip" property="lastLoginIp"/>
+        <result column="login_fail_count" property="loginFailCount"/>
+        <result column="lock_time" property="lockTime"/>
+        <result column="password_update_time" property="passwordUpdateTime"/>
+        <result column="email_verified" property="emailVerified"/>
+        <result column="phone_verified" property="phoneVerified"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+        <result column="delete_flag" property="deleteFlag"/>
+    </resultMap>
+
+    <!-- 根据用户名查询用户 -->
+    <select id="selectByUsername" resultMap="BaseResultMap">
+        SELECT * FROM sys_user 
+        WHERE username = #{username} AND delete_flag = 0
+    </select>
+
+    <!-- 根据邮箱查询用户 -->
+    <select id="selectByEmail" resultMap="BaseResultMap">
+        SELECT * FROM sys_user 
+        WHERE email = #{email} AND delete_flag = 0
+    </select>
+
+    <!-- 根据手机号查询用户 -->
+    <select id="selectByPhone" resultMap="BaseResultMap">
+        SELECT * FROM sys_user 
+        WHERE phone = #{phone} AND delete_flag = 0
+    </select>
+
+</mapper>
