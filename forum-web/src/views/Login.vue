@@ -78,7 +78,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
-import { login, getCaptcha } from '@/api/auth'
+import { getCaptcha } from '@/api/auth'
 import { useUserStore } from '@/stores/user'
 
 const router = useRouter()

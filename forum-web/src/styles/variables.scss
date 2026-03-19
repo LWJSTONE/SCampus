@@ -3,6 +3,49 @@
  * 定义全局使用的 CSS 变量和 SCSS 变量
  */
 
+// ==================== 间距变量 ====================
+
+$spacing-xs: 4px;
+$spacing-sm: 8px;
+$spacing-md: 16px;
+$spacing-lg: 24px;
+$spacing-xl: 32px;
+
+// ==================== 字体大小变量 ====================
+
+$font-size-xs: 12px;
+$font-size-sm: 13px;
+$font-size-md: 14px;
+$font-size-lg: 16px;
+$font-size-xl: 18px;
+$font-size-xxl: 24px;
+
+// ==================== 文字颜色变量 ====================
+
+$text-primary: #303133;
+$text-regular: #606266;
+$text-secondary: #909399;
+$text-placeholder: #c0c4cc;
+
+// ==================== 背景颜色变量 ====================
+
+$bg-white: #ffffff;
+$bg-light: #f5f7fa;
+$bg-dark: #303133;
+
+// ==================== 边框变量 ====================
+
+$border-lighter: #e4e7ed;
+$border-light: #dcdfe6;
+$border-base: #d4d7de;
+
+// ==================== 圆角变量 ====================
+
+$radius-sm: 2px;
+$radius-md: 4px;
+$radius-lg: 8px;
+$radius-xl: 12px;
+
 // ==================== 颜色变量 ====================
 
 // 主色调

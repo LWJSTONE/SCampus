@@ -56,6 +56,7 @@ export interface RegisterDTO {
   email: string
   captcha: string
   captchaKey: string
+  code?: string
 }
 
 export interface LoginVO {
@@ -109,6 +110,12 @@ export interface PostDetailVO extends PostVO {
   ipAddress: string
   tags: string[]
   attachments: AttachmentVO[]
+  liked?: boolean
+  collected?: boolean
+  authorId?: number
+  authorName?: string
+  authorAvatar?: string
+  categoryName?: string
 }
 
 export interface PostQueryDTO {
@@ -145,12 +152,23 @@ export interface CommentVO {
   replyCount: number
   createTime: string
   children?: CommentVO[]
+  authorName?: string
+  rootId?: number
 }
 
 export interface CommentCreateDTO {
   postId: number
   parentId?: number
   replyToUserId?: number
+  content: string
+}
+
+// 评论创建参数（兼容旧代码）
+export interface CommentCreateParams {
+  postId: number
+  parentId?: number
+  replyToId?: number
+  rootId?: number
   content: string
 }
 
@@ -200,3 +218,19 @@ export interface PageQuery {
   page: number
   size: number
 }
+
+// 分页结果类型
+export interface PageResult<T = any> {
+  records: T[]
+  total: number
+  size: number
+  current: number
+  pages: number
+  list?: T[]
+}
+
+// 类型别名（向后兼容）
+export type PostDetail = PostDetailVO
+export type Comment = CommentVO
+export type Category = CategoryVO
+export type Forum = ForumVO

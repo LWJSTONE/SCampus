@@ -18,6 +18,7 @@ export interface PageResult<T = any> {
   size: number
   current: number
   pages: number
+  list?: T[]
 }
 
 // 创建axios实例
@@ -137,7 +138,7 @@ export const request = {
   },
 
   download(url: string, params?: any, filename?: string): void {
-    service.get(url, params, { responseType: 'blob' }).then((response: any) => {
+    service.get(url, { params, responseType: 'blob' }).then((response: any) => {
       const blob = new Blob([response.data])
       const link = document.createElement('a')
       link.href = URL.createObjectURL(blob)
@@ -147,5 +148,8 @@ export const request = {
     })
   }
 }
+
+// 导出单独的请求方法（向后兼容）
+export const { get, post, put, delete: del } = request
 
 export default service

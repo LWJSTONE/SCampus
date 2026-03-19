@@ -1,4 +1,4 @@
-import request, { PageResult } from './request'
+import { request, PageResult } from './request'
 import type { UserVO, UserDetailVO, UserQueryDTO, UserUpdateDTO } from '@/types'
 
 // 获取用户列表

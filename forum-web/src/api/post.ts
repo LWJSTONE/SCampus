@@ -1,4 +1,4 @@
-import request, { PageResult } from './request'
+import { request, PageResult } from './request'
 import type { PostVO, PostDetailVO, PostQueryDTO, PostCreateDTO } from '@/types'
 
 // 获取帖子列表
@@ -10,6 +10,9 @@ export function getPostList(params: PostQueryDTO): Promise<PageResult<PostVO>> {
 export function getPostById(id: number): Promise<PostDetailVO> {
   return request.get(`/posts/${id}`)
 }
+
+// 获取帖子详情（别名）
+export const getPostDetail = getPostById
 
 // 发布帖子
 export function createPost(data: PostCreateDTO): Promise<number> {
@@ -66,7 +69,17 @@ export function likePost(id: number): Promise<{ liked: boolean; likeCount: numbe
   return request.post(`/posts/${id}/like`)
 }
 
+// 取消点赞帖子
+export function unlikePost(id: number): Promise<{ liked: boolean; likeCount: number }> {
+  return request.delete(`/posts/${id}/like`)
+}
+
 // 收藏帖子
 export function collectPost(id: number): Promise<{ collected: boolean; collectCount: number }> {
   return request.post(`/posts/${id}/collect`)
+}
+
+// 取消收藏帖子
+export function uncollectPost(id: number): Promise<{ collected: boolean; collectCount: number }> {
+  return request.delete(`/posts/${id}/collect`)
 }

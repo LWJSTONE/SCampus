@@ -1,4 +1,4 @@
-import request, { Result } from './request'
+import { request } from './request'
 import type { LoginDTO, RegisterDTO, LoginVO, CaptchaVO, UserInfoVO } from '@/types'
 
 // 登录
@@ -24,6 +24,11 @@ export function refreshToken(refreshToken: string): Promise<LoginVO> {
 // 获取验证码
 export function getCaptcha(): Promise<CaptchaVO> {
   return request.get('/auth/captcha')
+}
+
+// 发送邮箱验证码
+export function sendEmailCode(email: string): Promise<void> {
+  return request.post('/auth/email/code', { email })
 }
 
 // 重置密码

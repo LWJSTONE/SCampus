@@ -78,7 +78,7 @@
                 <el-icon :color="todo.color"><component :is="todo.icon" /></el-icon>
                 <span>{{ todo.title }}</span>
               </div>
-              <el-tag :type="todo.type">{{ todo.count }}</el-tag>
+              <el-tag :type="todo.type as 'primary' | 'success' | 'warning' | 'danger' | 'info'">{{ todo.count }}</el-tag>
             </div>
           </div>
         </el-card>
@@ -100,10 +100,10 @@ let pieChart: ECharts
 const trendType = ref('day')
 
 const statistics = ref([
-  { title: '用户总数', value: '12,345', icon: 'User', color: '#409EFF', trend: 12.5 },
-  { title: '帖子总数', value: '8,888', icon: 'Document', color: '#67C23A', trend: 8.2 },
-  { title: '评论总数', value: '45,678', icon: 'ChatDotRound', color: '#E6A23C', trend: -3.1 },
-  { title: '今日活跃', value: '1,234', icon: 'TrendCharts', color: '#F56C6C', trend: 15.8 }
+  { title: '用户总数', value: '12,345', icon: 'User', color: '#409EFF', trend: 12.5, type: 'primary' },
+  { title: '帖子总数', value: '8,888', icon: 'Document', color: '#67C23A', trend: 8.2, type: 'success' },
+  { title: '评论总数', value: '45,678', icon: 'ChatDotRound', color: '#E6A23C', trend: -3.1, type: 'warning' },
+  { title: '今日活跃', value: '1,234', icon: 'TrendCharts', color: '#F56C6C', trend: 15.8, type: 'danger' }
 ])
 
 const latestPosts = ref([

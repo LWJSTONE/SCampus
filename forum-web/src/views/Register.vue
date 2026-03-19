@@ -126,7 +126,7 @@ import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, FormInstance, FormRules } from 'element-plus'
 import { School } from '@element-plus/icons-vue'
-import { register, sendEmailCode } from '@/api/auth'
+import { register, sendEmailCode, getCaptcha } from '@/api/auth'
 
 // ==================== 状态定义 ====================
 
@@ -152,10 +152,12 @@ const registerForm = reactive({
   password: '',
   confirmPassword: '',
   agreement: false,
+  captcha: '',
+  captchaKey: ''
 })
 
 // 密码确认验证
-const validateConfirmPassword = (rule: any, value: string, callback: any) => {
+const validateConfirmPassword = (_rule: any, value: string, callback: any) => {
   if (value !== registerForm.password) {
     callback(new Error('两次输入的密码不一致'))
   } else {
@@ -187,7 +189,7 @@ const registerRules: FormRules = {
   ],
   agreement: [
     {
-      validator: (rule, value, callback) => {
+      validator: (_rule, value, callback) => {
         if (!value) {
           callback(new Error('请同意用户协议和隐私政策'))
         } else {
@@ -246,6 +248,15 @@ const handleRegister = async () => {
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
 
+  // 获取图形验证码
+  try {
+    const captchaData = await getCaptcha()
+    registerForm.captchaKey = captchaData.key
+    registerForm.captcha = 'skip' // 跳过图形验证码
+  } catch (e) {
+    console.error('获取验证码失败:', e)
+  }
+
   loading.value = true
   try {
     await register({
@@ -253,6 +264,8 @@ const handleRegister = async () => {
       password: registerForm.password,
       confirmPassword: registerForm.confirmPassword,
       email: registerForm.email,
+      captcha: registerForm.captcha,
+      captchaKey: registerForm.captchaKey,
       code: registerForm.code,
     })
 
@@ -273,37 +286,37 @@ const handleRegister = async () => {
   align-items: center;
   justify-content: center;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  padding: $spacing-lg 0;
+  padding: 24px 0;
 }
 
 .register-container {
   width: 400px;
-  padding: $spacing-xl;
-  background-color: $bg-white;
-  border-radius: $radius-xl;
-  box-shadow: $shadow-lg;
+  padding: 32px;
+  background-color: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12);
 }
 
 .register-header {
   text-align: center;
-  margin-bottom: $spacing-xl;
+  margin-bottom: 32px;
 
   h1 {
-    margin: $spacing-sm 0;
-    font-size: $font-size-xl;
-    color: $text-primary;
+    margin: 8px 0;
+    font-size: 18px;
+    color: #303133;
   }
 
   p {
-    color: $text-secondary;
-    font-size: $font-size-sm;
+    color: #909399;
+    font-size: 13px;
   }
 }
 
 .register-form {
   .code-row {
     display: flex;
-    gap: $spacing-sm;
+    gap: 8px;
 
     .code-input {
       flex: 1;
@@ -316,11 +329,11 @@ const handleRegister = async () => {
 
   .login-link {
     text-align: center;
-    color: $text-secondary;
-    font-size: $font-size-sm;
+    color: #909399;
+    font-size: 13px;
 
     a {
-      color: $primary-color;
+      color: var(--el-color-primary);
       font-weight: 500;
 
       &:hover {

@@ -14,27 +14,27 @@
 
         <!-- 作者信息 -->
         <div class="post-author">
-          <el-avatar :size="40" :src="postDetail.authorAvatar">
-            {{ postDetail.authorName?.charAt(0) }}
+          <el-avatar :size="40" :src="postDetail.authorAvatar || postDetail.userAvatar">
+            {{ (postDetail.authorName || postDetail.username)?.charAt(0) }}
           </el-avatar>
           <div class="author-info">
-            <router-link :to="`/user/${postDetail.authorId}`" class="author-name">
-              {{ postDetail.authorName }}
+            <router-link :to="`/user/${postDetail.authorId || postDetail.userId}`" class="author-name">
+              {{ postDetail.authorName || postDetail.username }}
             </router-link>
             <div class="post-meta">
               <span>{{ formatRelativeTime(postDetail.createTime) }}</span>
               <span>·</span>
-              <span>{{ postDetail.categoryName }}</span>
+              <span>{{ postDetail.categoryName || postDetail.forumName }}</span>
               <span>·</span>
               <span>{{ postDetail.viewCount }} 浏览</span>
             </div>
           </div>
           <div class="post-actions">
             <!-- 标签 -->
-            <template v-if="postDetail.isTop === 1">
+            <template v-if="postDetail.isTop">
               <el-tag type="danger" size="small">置顶</el-tag>
             </template>
-            <template v-if="postDetail.isEssence === 1">
+            <template v-if="postDetail.isEssence">
               <el-tag type="warning" size="small">精华</el-tag>
             </template>
           </div>
@@ -62,19 +62,17 @@
         <div class="post-interaction">
           <el-button
             :type="postDetail.liked ? 'primary' : 'default'"
-            :icon="postDetail.liked ? 'StarFilled' : 'Star'"
             @click="handleLike"
           >
             点赞 ({{ postDetail.likeCount }})
           </el-button>
           <el-button
             :type="postDetail.collected ? 'warning' : 'default'"
-            :icon="postDetail.collected ? 'CollectionTag' : 'Collection'"
             @click="handleCollect"
           >
             收藏 ({{ postDetail.collectCount }})
           </el-button>
-          <el-button icon="Share" @click="handleShare">分享</el-button>
+          <el-button @click="handleShare">分享</el-button>
         </div>
       </el-card>
 
@@ -120,10 +118,10 @@
         </div>
 
         <!-- 分页 -->
-        <div class="pagination-wrapper" v-if="commentTotal > queryParams.pageSize">
+        <div class="pagination-wrapper" v-if="commentTotal > queryParams.size">
           <el-pagination
-            v-model:current-page="queryParams.pageNum"
-            v-model:page-size="queryParams.pageSize"
+            v-model:current-page="queryParams.page"
+            v-model:page-size="queryParams.size"
             :total="commentTotal"
             layout="prev, pager, next"
             @current-change="fetchComments"
@@ -143,12 +141,17 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getPostDetail, likePost, unlikePost, collectPost, uncollectPost } from '@/api/post'
+import { getPostById, likePost, unlikePost, collectPost, uncollectPost } from '@/api/post'
 import { getPostComments, createComment, deleteComment } from '@/api/comment'
-import { PostDetail, Comment, PageQuery } from '@/types'
-import { formatRelativeTime } from '@/utils/date'
+import type { PostDetailVO, CommentVO, PageQuery } from '@/types'
+import dayjs from 'dayjs'
+import relativeTime from 'dayjs/plugin/relativeTime'
+import 'dayjs/locale/zh-cn'
 import { useUserStore } from '@/stores/user'
 import CommentItem from '@/components/CommentItem.vue'
+
+dayjs.extend(relativeTime)
+dayjs.locale('zh-cn')
 
 // ==================== 状态定义 ====================
 
@@ -164,25 +167,29 @@ const loading = ref(false)
 const submitting = ref(false)
 
 // 帖子详情
-const postDetail = ref<PostDetail | null>(null)
+const postDetail = ref<PostDetailVO | null>(null)
 
 // 评论列表
-const commentList = ref<Comment[]>([])
+const commentList = ref<CommentVO[]>([])
 const commentTotal = ref(0)
 
 // 评论内容
 const commentContent = ref('')
 
 // 回复的评论
-const replyTo = ref<Comment | null>(null)
+const replyTo = ref<CommentVO | null>(null)
 
 // 查询参数
 const queryParams = reactive<PageQuery>({
-  pageNum: 1,
-  pageSize: 10,
+  page: 1,
+  size: 10,
 })
 
 // ==================== 方法定义 ====================
+
+function formatRelativeTime(time: string) {
+  return dayjs(time).fromNow()
+}
 
 /**
  * 获取帖子详情
@@ -190,8 +197,7 @@ const queryParams = reactive<PageQuery>({
 const fetchPostDetail = async () => {
   loading.value = true
   try {
-    const { data } = await getPostDetail(postId)
-    postDetail.value = data
+    postDetail.value = await getPostById(postId)
   } catch (error) {
     console.error('获取帖子详情失败：', error)
   } finally {
@@ -204,9 +210,9 @@ const fetchPostDetail = async () => {
  */
 const fetchComments = async () => {
   try {
-    const { data } = await getPostComments(postId, queryParams)
-    commentList.value = data.list
-    commentTotal.value = data.total
+    const res = await getPostComments(postId, queryParams)
+    commentList.value = res.records || res.list || []
+    commentTotal.value = res.total
   } catch (error) {
     console.error('获取评论失败：', error)
   }
@@ -297,14 +303,12 @@ const handleComment = async () => {
       postId,
       content: commentContent.value,
       parentId: replyTo.value?.id,
-      rootId: replyTo.value?.rootId || replyTo.value?.id,
-      replyToId: replyTo.value?.id,
     })
 
     ElMessage.success('评论成功')
     commentContent.value = ''
     replyTo.value = null
-    queryParams.pageNum = 1
+    queryParams.page = 1
     fetchComments()
   } catch (error) {
     console.error('评论失败：', error)
@@ -316,9 +320,9 @@ const handleComment = async () => {
 /**
  * 处理回复
  */
-const handleReply = (comment: Comment) => {
+const handleReply = (comment: CommentVO) => {
   replyTo.value = comment
-  commentContent.value = `@${comment.authorName} `
+  commentContent.value = `@${comment.username} `
 }
 
 /**
@@ -355,77 +359,77 @@ onMounted(() => {
 }
 
 .post-card {
-  margin-bottom: $spacing-md;
+  margin-bottom: 16px;
 
   .post-title {
-    font-size: $font-size-xxl;
+    font-size: 24px;
     font-weight: bold;
-    color: $text-primary;
-    margin-bottom: $spacing-md;
+    color: #303133;
+    margin-bottom: 16px;
   }
 
   .post-author {
     display: flex;
     align-items: center;
-    gap: $spacing-md;
+    gap: 16px;
 
     .author-info {
       flex: 1;
 
       .author-name {
-        font-size: $font-size-md;
+        font-size: 14px;
         font-weight: 500;
-        color: $text-primary;
+        color: #303133;
 
         &:hover {
-          color: $primary-color;
+          color: var(--el-color-primary);
         }
       }
 
       .post-meta {
-        font-size: $font-size-xs;
-        color: $text-secondary;
-        margin-top: $spacing-xs;
+        font-size: 12px;
+        color: #909399;
+        margin-top: 4px;
 
         span {
-          margin-right: $spacing-xs;
+          margin-right: 4px;
         }
       }
     }
   }
 
   .post-content {
-    font-size: $font-size-md;
+    font-size: 14px;
     line-height: 1.8;
-    color: $text-regular;
+    color: #606266;
 
     :deep(img) {
       max-width: 100%;
-      border-radius: $radius-md;
+      border-radius: 4px;
     }
 
     :deep(pre) {
-      background-color: $bg-light;
-      padding: $spacing-md;
-      border-radius: $radius-md;
+      background-color: #f5f7fa;
+      padding: 16px;
+      border-radius: 4px;
       overflow-x: auto;
     }
   }
 
   .post-tags {
-    margin-top: $spacing-lg;
+    margin-top: 24px;
 
     .tag-item {
-      margin-right: $spacing-sm;
+      margin-right: 8px;
     }
   }
 
   .post-interaction {
-    margin-top: $spacing-lg;
-    padding-top: $spacing-lg;
-    border-top: 1px solid $border-lighter;
+    margin-top: 24px;
+    padding-top: 24px;
+    border-top: 1px solid #e4e7ed;
     display: flex;
-    gap: $spacing-md;
+    gap: 16px;
   }
 }
 
@@ -438,16 +442,16 @@ onMounted(() => {
     .form-actions {
       display: flex;
       justify-content: flex-end;
-      margin-top: $spacing-sm;
+      margin-top: 8px;
     }
   }
 
   .comment-list {
-    margin-top: $spacing-md;
+    margin-top: 16px;
   }
 
   .pagination-wrapper {
-    margin-top: $spacing-lg;
+    margin-top: 24px;
     display: flex;
     justify-content: center;
   }
