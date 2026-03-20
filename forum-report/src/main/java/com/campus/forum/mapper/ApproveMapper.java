@@ -32,8 +32,8 @@ public interface ApproveMapper extends BaseMapper<Approve> {
             "<if test='status != null'> AND a.status = #{status} </if>" +
             "<if test='contentType != null'> AND a.content_type = #{contentType} </if>" +
             "<if test='userId != null'> AND a.user_id = #{userId} </if>" +
-            "<if test='startTime != null and startTime != \"\"> AND a.create_time &gt;= #{startTime} </if>" +
-            "<if test='endTime != null and endTime != \"\"> AND a.create_time &lt;= #{endTime} </if>" +
+            "<if test='startTime != null and startTime != \"\"'> AND a.create_time &gt;= #{startTime} </if>" +
+            "<if test='endTime != null and endTime != \"\"'> AND a.create_time &lt;= #{endTime} </if>" +
             "ORDER BY a.priority DESC, a.create_time ASC" +
             "</script>")
     IPage<ApproveVO> selectApprovePage(Page<ApproveVO> page,

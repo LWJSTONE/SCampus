@@ -39,8 +39,8 @@ public interface ReportMapper extends BaseMapper<Report> {
             "<if test='reasonType != null'> AND r.reason_type = #{reasonType} </if>" +
             "<if test='reporterId != null'> AND r.reporter_id = #{reporterId} </if>" +
             "<if test='reportedUserId != null'> AND r.reported_user_id = #{reportedUserId} </if>" +
-            "<if test='startTime != null and startTime != \"\"> AND r.create_time &gt;= #{startTime} </if>" +
-            "<if test='endTime != null and endTime != \"\"> AND r.create_time &lt;= #{endTime} </if>" +
+            "<if test='startTime != null and startTime != \"\"'> AND r.create_time &gt;= #{startTime} </if>" +
+            "<if test='endTime != null and endTime != \"\"'> AND r.create_time &lt;= #{endTime} </if>" +
             "ORDER BY r.status ASC, r.create_time DESC" +
             "</script>")
     IPage<ReportVO> selectReportPage(Page<ReportVO> page,
