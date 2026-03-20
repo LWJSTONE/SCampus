@@ -1,9 +1,12 @@
 package com.campus.forum;
 
+import com.campus.forum.config.WebMvcConfig;
 import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cloud.openfeign.EnableFeignClients;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.FilterType;
 
 /**
  * 认证授权服务启动类
@@ -24,6 +27,12 @@ import org.springframework.cloud.openfeign.EnableFeignClients;
 @SpringBootApplication
 @EnableFeignClients(basePackages = "com.campus.forum.api")
 @MapperScan("com.campus.forum.mapper")
+@ComponentScan(
+    basePackages = "com.campus.forum",
+    excludeFilters = {
+        @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = WebMvcConfig.class)
+    }
+)
 public class ForumAuthApplication {
 
     public static void main(String[] args) {

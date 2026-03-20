@@ -67,7 +67,7 @@ public interface UserBanMapper extends BaseMapper<UserBan> {
     /**
      * 批量过期禁言记录
      */
-    @Update("UPDATE t_user_ban SET status = 2 WHERE status = 1 AND end_time < NOW()")
+    @Update("UPDATE t_user_ban SET status = 2 WHERE status = 1 AND end_time &lt; NOW()")
     int expireBans();
 
     /**
