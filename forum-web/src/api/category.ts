@@ -9,7 +9,7 @@ import type { CategoryVO, ForumVO } from '@/types'
  * 获取所有分类（带版块）
  */
 export function getCategoryList() {
-  return request.get<CategoryVO[]>('/category/list')
+  return request.get<CategoryVO[]>('/categories')
 }
 
 /**
@@ -17,7 +17,7 @@ export function getCategoryList() {
  * @param id 分类ID
  */
 export function getCategoryDetail(id: number) {
-  return request.get<CategoryVO>(`/category/${id}`)
+  return request.get<CategoryVO>(`/categories/${id}`)
 }
 
 /**
@@ -25,7 +25,7 @@ export function getCategoryDetail(id: number) {
  * @param data 分类数据
  */
 export function createCategory(data: Partial<CategoryVO>) {
-  return request.post('/category', data)
+  return request.post('/categories', data)
 }
 
 /**
@@ -34,7 +34,7 @@ export function createCategory(data: Partial<CategoryVO>) {
  * @param data 分类数据
  */
 export function updateCategory(id: number, data: Partial<CategoryVO>) {
-  return request.put(`/category/${id}`, data)
+  return request.put(`/categories/${id}`, data)
 }
 
 /**
@@ -42,7 +42,7 @@ export function updateCategory(id: number, data: Partial<CategoryVO>) {
  * @param id 分类ID
  */
 export function deleteCategory(id: number) {
-  return request.delete(`/category/${id}`)
+  return request.delete(`/categories/${id}`)
 }
 
 /**
@@ -50,7 +50,7 @@ export function deleteCategory(id: number) {
  * @param categoryId 分类ID（可选）
  */
 export function getForumList(categoryId?: number) {
-  return request.get<ForumVO[]>('/forum/list', categoryId ? { categoryId } : undefined)
+  return request.get<ForumVO[]>('/forums', categoryId ? { categoryId } : undefined)
 }
 
 /**
@@ -58,7 +58,7 @@ export function getForumList(categoryId?: number) {
  * @param id 版块ID
  */
 export function getForumDetail(id: number) {
-  return request.get<ForumVO>(`/forum/${id}`)
+  return request.get<ForumVO>(`/forums/${id}`)
 }
 
 /**
@@ -66,7 +66,7 @@ export function getForumDetail(id: number) {
  * @param data 版块数据
  */
 export function createForum(data: Partial<ForumVO>) {
-  return request.post('/forum', data)
+  return request.post('/forums', data)
 }
 
 /**
@@ -75,7 +75,7 @@ export function createForum(data: Partial<ForumVO>) {
  * @param data 版块数据
  */
 export function updateForum(id: number, data: Partial<ForumVO>) {
-  return request.put(`/forum/${id}`, data)
+  return request.put(`/forums/${id}`, data)
 }
 
 /**
@@ -83,7 +83,7 @@ export function updateForum(id: number, data: Partial<ForumVO>) {
  * @param id 版块ID
  */
 export function deleteForum(id: number) {
-  return request.delete(`/forum/${id}`)
+  return request.delete(`/forums/${id}`)
 }
 
 /**
@@ -92,7 +92,7 @@ export function deleteForum(id: number) {
  * @param userId 用户ID
  */
 export function setModerator(forumId: number, userId: number) {
-  return request.post(`/forum/${forumId}/moderator`, { userId })
+  return request.post(`/forums/${forumId}/moderator`, { userId })
 }
 
 /**
@@ -101,5 +101,5 @@ export function setModerator(forumId: number, userId: number) {
  * @param userId 用户ID
  */
 export function removeModerator(forumId: number, userId: number) {
-  return request.delete(`/forum/${forumId}/moderator/${userId}`)
+  return request.delete(`/forums/${forumId}/moderator/${userId}`)
 }

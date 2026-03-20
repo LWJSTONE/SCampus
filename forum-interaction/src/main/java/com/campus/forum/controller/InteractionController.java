@@ -31,7 +31,7 @@ import java.util.Map;
  */
 @Slf4j
 @RestController
-@RequestMapping("/api/v1/interaction")
+@RequestMapping("/api/v1/interactions")
 @RequiredArgsConstructor
 @Tag(name = "互动管理", description = "点赞、收藏、@提及相关接口")
 public class InteractionController {

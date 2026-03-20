@@ -18,7 +18,7 @@ interface CommentQueryParams extends PageQuery {
  * @param params 查询参数
  */
 export function getCommentList(params: CommentQueryParams) {
-  return request.get<PageResult<CommentVO>>('/comment/list', params)
+  return request.get<PageResult<CommentVO>>('/comments/list', params)
 }
 
 /**
@@ -27,7 +27,7 @@ export function getCommentList(params: CommentQueryParams) {
  * @param params 分页参数
  */
 export function getPostComments(postId: number, params: PageQuery) {
-  return request.get<PageResult<CommentVO>>(`/comment/post/${postId}`, params)
+  return request.get<PageResult<CommentVO>>(`/comments/post/${postId}`, params)
 }
 
 /**
@@ -35,7 +35,7 @@ export function getPostComments(postId: number, params: PageQuery) {
  * @param data 评论数据
  */
 export function createComment(data: CommentCreateDTO) {
-  return request.post<{ id: number }>('/comment', data)
+  return request.post<{ id: number }>('/comments', data)
 }
 
 /**
@@ -43,7 +43,7 @@ export function createComment(data: CommentCreateDTO) {
  * @param id 评论ID
  */
 export function deleteComment(id: number) {
-  return request.delete(`/comment/${id}`)
+  return request.delete(`/comments/${id}`)
 }
 
 /**
@@ -51,7 +51,7 @@ export function deleteComment(id: number) {
  * @param id 评论ID
  */
 export function likeComment(id: number) {
-  return request.post(`/comment/${id}/like`)
+  return request.post(`/comments/${id}/like`)
 }
 
 /**
@@ -59,7 +59,7 @@ export function likeComment(id: number) {
  * @param id 评论ID
  */
 export function unlikeComment(id: number) {
-  return request.post(`/comment/${id}/unlike`)
+  return request.post(`/comments/${id}/unlike`)
 }
 
 /**
@@ -68,7 +68,7 @@ export function unlikeComment(id: number) {
  * @param params 分页参数
  */
 export function getUserComments(userId: number, params: PageQuery) {
-  return request.get<PageResult<CommentVO>>(`/comment/user/${userId}`, params)
+  return request.get<PageResult<CommentVO>>(`/comments/user/${userId}`, params)
 }
 
 /**
@@ -77,5 +77,5 @@ export function getUserComments(userId: number, params: PageQuery) {
  * @param status 状态
  */
 export function auditComment(id: number, status: number) {
-  return request.put(`/comment/${id}/audit`, { status })
+  return request.put(`/comments/${id}/audit`, { status })
 }

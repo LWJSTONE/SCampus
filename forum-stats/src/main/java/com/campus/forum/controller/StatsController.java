@@ -27,7 +27,7 @@ import javax.servlet.http.HttpServletResponse;
  */
 @Tag(name = "统计接口", description = "系统统计数据相关接口")
 @RestController
-@RequestMapping("/stats")
+@RequestMapping("/api/v1/stats")
 @RequiredArgsConstructor
 public class StatsController {
 

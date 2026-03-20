@@ -39,7 +39,7 @@ import javax.servlet.http.HttpServletRequest;
  */
 @Slf4j
 @RestController
-@RequestMapping
+@RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
 @Tag(name = "认证管理", description = "用户认证相关接口，包括登录、注册、登出等")
 public class AuthController {
