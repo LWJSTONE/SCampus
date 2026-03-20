@@ -3,11 +3,9 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Spring%20Boot-2.7.18-brightgreen" alt="Spring Boot">
   <img src="https://img.shields.io/badge/Spring%20Cloud-2021.0.8-blue" alt="Spring Cloud">
-  <img src="https://img.shields.io/badge/Spring%20Cloud%20Alibaba-2022.0.0.0-orange" alt="Spring Cloud Alibaba">
   <img src="https://img.shields.io/badge/JDK-1.8-green" alt="JDK">
   <img src="https://img.shields.io/badge/MySQL-8.0-blue" alt="MySQL">
   <img src="https://img.shields.io/badge/Redis-7.x-red" alt="Redis">
-  <img src="https://img.shields.io/badge/Nacos-2.3.x-green" alt="Nacos">
   <img src="https://img.shields.io/badge/License-MIT-yellow" alt="License">
 </p>
 
@@ -40,7 +38,7 @@
 
 ### 项目名称
 
-**SCampus** - 基于 Spring Cloud Alibaba 的校园论坛微服务系统
+**SCampus** - 基于 Spring Cloud 的校园论坛微服务系统
 
 ### 项目描述
 
@@ -52,13 +50,10 @@ SCampus 是一个功能完善的校园论坛系统，采用微服务架构设计
 |------|------|------|
 | Spring Boot | 2.7.18 | 基础框架 |
 | Spring Cloud | 2021.0.8 | 微服务框架 |
-| Spring Cloud Alibaba | 2022.0.0.0 | 微服务组件 |
 | MySQL | 8.0.33 | 关系型数据库 |
 | MyBatis Plus | 3.5.5 | ORM框架 |
 | Druid | 1.2.21 | 数据库连接池 |
 | Redis | 7.x | 缓存中间件 |
-| Nacos | 2.3.x | 服务注册与配置中心 |
-| Sentinel | - | 流量控制与熔断降级 |
 | Gateway | - | API网关 |
 | JWT | 4.4.0 | 身份认证 |
 | Knife4j | 4.3.0 | API文档 |
@@ -122,7 +117,7 @@ SCampus 是一个功能完善的校园论坛系统，采用微服务架构设计
                     ┌─────────────────────────────────┐
                     │         基础设施层               │
                     │  ┌───────┐  ┌───────┐  ┌──────┐ │
-                    │  │ Nacos │  │ Redis │  │MySQL │ │
+                    │  │ Redis │  │ MySQL │  │MinIO │ │
                     │  └───────┘  └───────┘  └──────┘ │
                     └─────────────────────────────────┘
 ```
@@ -150,8 +145,6 @@ SCampus 是一个功能完善的校园论坛系统，采用微服务架构设计
 | 技术 | 说明 |
 |------|------|
 | Spring Cloud Gateway | API网关，实现路由转发、限流熔断 |
-| Nacos | 服务注册发现与配置管理中心 |
-| Sentinel | 流量控制、熔断降级、系统负载保护 |
 | OpenFeign | 声明式HTTP客户端，服务间调用 |
 | JWT | JSON Web Token，无状态身份认证 |
 | MyBatis Plus | 增强版MyBatis，简化CRUD操作 |
@@ -269,7 +262,6 @@ SCampus 是一个功能完善的校园论坛系统，采用微服务架构设计
 | JDK | 1.8+ | Java开发环境 |
 | MySQL | 8.0+ | 数据库 |
 | Redis | 7.x | 缓存服务 |
-| Nacos | 2.3.x | 服务注册与配置中心 |
 | Maven | 3.6+ | 项目构建工具 |
 | Node.js | 18+ | 前端开发环境（可选） |
 
@@ -304,20 +296,7 @@ git clone https://github.com/your-repo/SCampus.git
 cd SCampus
 ```
 
-2. **配置Nacos**
-
-确保 Nacos 服务已启动，并在各服务的 `bootstrap.yml` 中配置正确的 Nacos 地址：
-
-```yaml
-spring:
-  cloud:
-    nacos:
-      discovery:
-        server-addr: localhost:8848
-        namespace: dev
-```
-
-3. **修改数据库配置**
+2. **修改数据库配置**
 
 修改各服务 `application.yml` 中的数据库连接信息：
 
@@ -329,7 +308,7 @@ spring:
     password: your_password
 ```
 
-4. **修改Redis配置**
+3. **修改Redis配置**
 
 ```yaml
 spring:
@@ -340,13 +319,13 @@ spring:
       password: 
 ```
 
-5. **编译项目**
+4. **编译项目**
 
 ```bash
 mvn clean install -DskipTests
 ```
 
-6. **启动服务**
+5. **启动服务**
 
 按以下顺序启动各服务：
 
@@ -576,28 +555,6 @@ SCampus/
 
 ## 配置说明
 
-### Nacos配置
-
-在 Nacos 控制台创建以下配置：
-
-**命名空间**: `dev`
-
-**配置列表**:
-
-| Data ID | Group | 说明 |
-|---------|-------|------|
-| forum-gateway.yml | DEFAULT_GROUP | 网关服务配置 |
-| forum-auth.yml | DEFAULT_GROUP | 认证服务配置 |
-| forum-user.yml | DEFAULT_GROUP | 用户服务配置 |
-| forum-category.yml | DEFAULT_GROUP | 版块服务配置 |
-| forum-post.yml | DEFAULT_GROUP | 帖子服务配置 |
-| forum-comment.yml | DEFAULT_GROUP | 评论服务配置 |
-| forum-interaction.yml | DEFAULT_GROUP | 互动服务配置 |
-| forum-report.yml | DEFAULT_GROUP | 审核服务配置 |
-| forum-stats.yml | DEFAULT_GROUP | 统计服务配置 |
-| forum-notify.yml | DEFAULT_GROUP | 通知服务配置 |
-| forum-file.yml | DEFAULT_GROUP | 文件服务配置 |
-
 ### 数据库配置
 
 系统采用分库设计，每个微服务使用独立的数据库：
@@ -638,7 +595,7 @@ SCampus/
 
 ### 本地部署
 
-1. 准备基础环境（JDK、MySQL、Redis、Nacos）
+1. 准备基础环境（JDK、MySQL、Redis）
 2. 执行数据库初始化脚本
 3. 修改配置文件中的连接信息
 4. 按顺序启动各微服务
@@ -670,16 +627,6 @@ services:
     container_name: forum-redis
     ports:
       - "6379:6379"
-
-  # Nacos
-  nacos:
-    image: nacos/nacos-server:v2.3.0
-    container_name: forum-nacos
-    environment:
-      MODE: standalone
-    ports:
-      - "8848:8848"
-      - "9848:9848"
 
   # MinIO
   minio:
@@ -717,12 +664,6 @@ docker-compose up -d
 | 地址 | localhost:3306 |
 | 用户名 | root |
 | 密码 | root |
-
-### Nacos控制台
-
-| 账号 | 密码 |
-|------|------|
-| nacos | nacos |
 
 ### MinIO控制台
 

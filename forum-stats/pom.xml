@@ -49,18 +49,6 @@
         </dependency>
 
         <!-- ==================== Spring Cloud 相关 ==================== -->
-        <!-- Nacos服务发现 -->
-        <dependency>
-            <groupId>com.alibaba.cloud</groupId>
-            <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
-        </dependency>
-
-        <!-- Nacos配置中心 -->
-        <dependency>
-            <groupId>com.alibaba.cloud</groupId>
-            <artifactId>spring-cloud-starter-alibaba-nacos-config</artifactId>
-        </dependency>
-
         <!-- OpenFeign -->
         <dependency>
             <groupId>org.springframework.cloud</groupId>

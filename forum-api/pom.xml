@@ -39,13 +39,6 @@
             <artifactId>spring-web</artifactId>
             <scope>provided</scope>
         </dependency>
-
-        <!-- Spring Cloud Alibaba Nacos Discovery (用于服务发现) -->
-        <dependency>
-            <groupId>com.alibaba.cloud</groupId>
-            <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
-            <scope>provided</scope>
-        </dependency>
     </dependencies>
 
 </project>
