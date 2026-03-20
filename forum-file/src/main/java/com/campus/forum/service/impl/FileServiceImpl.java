@@ -231,7 +231,7 @@ public class FileServiceImpl extends ServiceImpl<FileMapper, File> implements Fi
             // 增加下载次数
             fileMapper.incrementDownloadCount(id);
 
-            String encodedFilename = URLEncoder.encode(file.getOriginalName(), StandardCharsets.UTF_8)
+            String encodedFilename = URLEncoder.encode(file.getOriginalName(), "UTF-8")
                     .replaceAll("\\+", "%20");
 
             return ResponseEntity.ok()
