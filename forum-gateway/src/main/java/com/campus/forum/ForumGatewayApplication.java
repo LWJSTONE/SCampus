@@ -20,7 +20,16 @@ import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
  * @version 1.0.0
  * @since 2024-01-01
  */
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = {
+    "com.campus.forum",
+    "com.alibaba.nacos",
+    "com.alibaba.cloud"
+}, excludeFilters = {
+    @org.springframework.context.annotation.ComponentScan.Filter(
+        type = org.springframework.context.annotation.FilterType.REGEX,
+        pattern = "com\\.campus\\.forum\\.exception\\..*"
+    )
+})
 @EnableDiscoveryClient
 public class ForumGatewayApplication {
 
