@@ -8,8 +8,8 @@
     <artifactId>scampus</artifactId>
     <version>1.0.0</version>
     <packaging>pom</packaging>
-    <name>SCampus - 校园论坛系统</name>
-    <description>基于Spring Cloud Alibaba的校园论坛微服务系统</description>
+    <name>SCampus - Campus Forum System</name>
+    <description>Campus Forum Microservice System based on Spring Cloud</description>
 
     <modules>
         <module>forum-common</module>
@@ -39,7 +39,6 @@
 
         <!-- Spring Cloud -->
         <spring-cloud.version>2021.0.8</spring-cloud.version>
-        <spring-cloud-alibaba.version>2021.0.5.0</spring-cloud-alibaba.version>
 
         <!-- Database -->
         <mysql.version>8.0.33</mysql.version>
@@ -84,15 +83,6 @@
                 <scope>import</scope>
             </dependency>
 
-            <!-- Spring Cloud Alibaba Dependencies -->
-            <dependency>
-                <groupId>com.alibaba.cloud</groupId>
-                <artifactId>spring-cloud-alibaba-dependencies</artifactId>
-                <version>${spring-cloud-alibaba.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-
             <!-- Internal Modules -->
             <dependency>
                 <groupId>com.campus</groupId>
@@ -107,8 +97,8 @@
 
             <!-- MySQL -->
             <dependency>
-                <groupId>mysql</groupId>
-                <artifactId>mysql-connector-java</artifactId>
+                <groupId>com.mysql</groupId>
+                <artifactId>mysql-connector-j</artifactId>
                 <version>${mysql.version}</version>
             </dependency>
 
@@ -222,12 +212,6 @@
     </dependencyManagement>
 
     <dependencies>
-        <!-- Spring Cloud Bootstrap (required for Spring Cloud 2021.x) -->
-        <dependency>
-            <groupId>org.springframework.cloud</groupId>
-            <artifactId>spring-cloud-starter-bootstrap</artifactId>
-        </dependency>
-
         <!-- Lombok -->
         <dependency>
             <groupId>org.projectlombok</groupId>

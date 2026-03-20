@@ -8,38 +8,38 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
 /**
- * 用户服务Feign客户端接口
+ * User Service Feign Client
  *
  * @author campus
  */
-@FeignClient(name = "forum-user", fallback = UserApiFallback.class)
+@FeignClient(name = "forum-user", url = "${feign.user.url:http://localhost:9002}", fallback = UserApiFallback.class)
 public interface UserApi {
 
     /**
-     * 根据ID获取用户
+     * Get user by ID
      *
-     * @param id 用户ID
-     * @return 用户信息
+     * @param id User ID
+     * @return User info
      */
-    @GetMapping("/api/user/{id}")
+    @GetMapping("/api/internal/user/{id}")
     Result<UserDTO> getUserById(@PathVariable("id") Long id);
 
     /**
-     * 根据用户名获取用户
+     * Get user by username
      *
-     * @param username 用户名
-     * @return 用户信息
+     * @param username Username
+     * @return User info
      */
-    @GetMapping("/api/user/username/{username}")
+    @GetMapping("/api/internal/user/username/{username}")
     Result<UserDTO> getUserByUsername(@PathVariable("username") String username);
 
     /**
-     * 更新用户状态
+     * Update user status
      *
-     * @param id     用户ID
-     * @param status 用户状态
-     * @return 操作结果
+     * @param id     User ID
+     * @param status User status
+     * @return Result
      */
-    @PutMapping("/api/user/{id}/status")
+    @PutMapping("/api/internal/user/{id}/status")
     Result<Boolean> updateUserStatus(@PathVariable("id") Long id, @RequestParam("status") Integer status);
 }

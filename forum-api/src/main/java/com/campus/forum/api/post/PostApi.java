@@ -1,6 +1,7 @@
 package com.campus.forum.api.post;
 
 import com.campus.forum.entity.Result;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -8,45 +9,45 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
 /**
- * 帖子服务Feign客户端接口
+ * Post Service Feign Client
  *
  * @author campus
  */
-@FeignClient(name = "forum-post", fallback = PostApiFallback.class)
+@FeignClient(name = "forum-post", url = "${feign.post.url:http://localhost:9004}")
 public interface PostApi {
 
     /**
-     * 根据ID获取帖子
+     * Get post by ID
      *
-     * @param id 帖子ID
-     * @return 帖子信息
+     * @param id Post ID
+     * @return Post info
      */
-    @GetMapping("/api/post/{id}")
+    @GetMapping("/api/internal/post/{id}")
     Result<PostDTO> getPostById(@PathVariable("id") Long id);
 
     /**
-     * 更新帖子统计信息
+     * Update post stats
      *
-     * @param id    帖子ID
-     * @param field 统计字段（viewCount, likeCount, commentCount, collectCount）
-     * @param delta 增量（正数增加，负数减少）
-     * @return 操作结果
+     * @param id    Post ID
+     * @param field Stats field (viewCount, likeCount, commentCount, collectCount)
+     * @param delta Delta (positive to increase, negative to decrease)
+     * @return Result
      */
-    @PostMapping("/api/post/{id}/stats")
+    @PostMapping("/api/internal/post/{id}/stats")
     Result<Boolean> updatePostStats(@PathVariable("id") Long id,
-                               @RequestParam("field") String field,
-                               @RequestParam("delta") int delta);
+                                    @RequestParam("field") String field,
+                                    @RequestParam("delta") int delta);
 
     /**
-     * 获取用户帖子列表
+     * Get user posts
      *
-     * @param userId 用户ID
-     * @param page   页码
-     * @param size   每页大小
-     * @return 帖子列表
+     * @param userId User ID
+     * @param page   Page number
+     * @param size   Page size
+     * @return Post list
      */
-    @GetMapping("/api/post/user/{userId}")
-    Result<com.baomidou.mybatisplus.extension.plugins.pagination.Page<PostDTO>> getPostsByUserId(
+    @GetMapping("/api/internal/post/user/{userId}")
+    Result<Page<PostDTO>> getPostsByUserId(
             @PathVariable("userId") Long userId,
             @RequestParam("page") int page,
             @RequestParam("size") int size);

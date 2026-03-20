@@ -9,36 +9,36 @@ import org.springframework.web.bind.annotation.RequestParam;
 import java.util.List;
 
 /**
- * 通知服务Feign客户端接口
+ * Notify Service Feign Client
  *
  * @author campus
  */
-@FeignClient(name = "forum-notify", fallback = NotifyApiFallback.class)
+@FeignClient(name = "forum-notify", url = "${feign.notify.url:http://localhost:9009}", fallback = NotifyApiFallback.class)
 public interface NotifyApi {
 
     /**
-     * 发送通知
+     * Send notification
      *
-     * @param userId  用户ID
-     * @param title   通知标题
-     * @param content 通知内容
-     * @return 操作结果
+     * @param userId  User ID
+     * @param title   Notification title
+     * @param content Notification content
+     * @return Result
      */
-    @PostMapping("/api/notify/send")
+    @PostMapping("/api/internal/notify/send")
     Result<Boolean> sendNotice(@RequestParam("userId") Long userId,
-                          @RequestParam("title") String title,
-                          @RequestParam("content") String content);
-
-    /**
-     * 批量发送通知
-     *
-     * @param userIds 用户ID列表
-     * @param title   通知标题
-     * @param content 通知内容
-     * @return 操作结果
-     */
-    @PostMapping("/api/notify/send/batch")
-    Result<Boolean> sendBatchNotice(@RequestParam("userIds") List<Long> userIds,
                                @RequestParam("title") String title,
                                @RequestParam("content") String content);
+
+    /**
+     * Batch send notifications
+     *
+     * @param userIds User ID list
+     * @param title   Notification title
+     * @param content Notification content
+     * @return Result
+     */
+    @PostMapping("/api/internal/notify/send/batch")
+    Result<Boolean> sendBatchNotice(@RequestParam("userIds") List<Long> userIds,
+                                    @RequestParam("title") String title,
+                                    @RequestParam("content") String content);
 }

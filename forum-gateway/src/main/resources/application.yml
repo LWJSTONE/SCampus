@@ -1,127 +1,86 @@
 # ============================================================
-# Forum Gateway 主配置文件
+# Forum Gateway Main Configuration
 # 
-# API网关服务配置，包含：
-# - 服务基本信息
-# - Nacos服务发现
-# - 路由规则配置
-# - Sentinel限流配置
-# - JWT配置
-# - 日志配置
+# API Gateway Service Configuration:
+# - Service basic info
+# - Route rules
+# - JWT configuration
+# - Logging
 # ============================================================
 
-# ==================== 服务配置 ====================
+# ==================== Server ====================
 server:
   port: 8080
 
 spring:
   application:
     name: forum-gateway
-  
-  # ==================== Nacos服务发现 ====================
-  cloud:
-    nacos:
-      discovery:
-        # Nacos服务器地址
-        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
-        # 命名空间
-        namespace: ${NACOS_NAMESPACE:dev}
-        # 分组
-        group: ${NACOS_GROUP:DEFAULT_GROUP}
-        # 服务名称
-        service: ${spring.application.name}
-        # 心跳间隔（毫秒）
-        heart-beat-interval: 5000
-        # 心跳超时（毫秒）
-        heart-beat-timeout: 15000
-        # 是否启用服务发现
-        enabled: true
 
-    # ==================== Gateway路由配置 ====================
+  # ==================== Gateway Routes ====================
+  cloud:
     gateway:
-      # 路由规则
       routes:
-        # ---------- 认证服务 ----------
+        # ---------- Auth Service ----------
         - id: forum-auth
-          uri: lb://forum-auth
+          uri: http://localhost:9001
           predicates:
             - Path=/api/v1/auth/**
-          filters:
-            - StripPrefix=0
 
-        # ---------- 用户服务 ----------
+        # ---------- User Service ----------
         - id: forum-user
-          uri: lb://forum-user
+          uri: http://localhost:9002
           predicates:
             - Path=/api/v1/users/**
-          filters:
-            - StripPrefix=0
 
-        # ---------- 分类服务 ----------
+        # ---------- Category Service ----------
         - id: forum-category
-          uri: lb://forum-category
+          uri: http://localhost:9003
           predicates:
             - Path=/api/v1/categories/**
-          filters:
-            - StripPrefix=0
 
-        # ---------- 帖子服务 ----------
+        # ---------- Post Service ----------
         - id: forum-post
-          uri: lb://forum-post
+          uri: http://localhost:9004
           predicates:
             - Path=/api/v1/posts/**
-          filters:
-            - StripPrefix=0
 
-        # ---------- 评论服务 ----------
+        # ---------- Comment Service ----------
         - id: forum-comment
-          uri: lb://forum-comment
+          uri: http://localhost:9005
           predicates:
             - Path=/api/v1/comments/**
-          filters:
-            - StripPrefix=0
 
-        # ---------- 交互服务 ----------
+        # ---------- Interaction Service ----------
         - id: forum-interaction
-          uri: lb://forum-interaction
+          uri: http://localhost:9006
           predicates:
             - Path=/api/v1/interactions/**
-          filters:
-            - StripPrefix=0
 
-        # ---------- 举报服务 ----------
+        # ---------- Report Service ----------
         - id: forum-report
-          uri: lb://forum-report
+          uri: http://localhost:9007
           predicates:
             - Path=/api/v1/reports/**
-          filters:
-            - StripPrefix=0
 
-        # ---------- 统计服务 ----------
+        # ---------- Stats Service ----------
         - id: forum-stats
-          uri: lb://forum-stats
+          uri: http://localhost:9008
           predicates:
             - Path=/api/v1/stats/**
-          filters:
-            - StripPrefix=0
 
-        # ---------- 通知服务 ----------
+        # ---------- Notify Service ----------
         - id: forum-notify
-          uri: lb://forum-notify
+          uri: http://localhost:9009
           predicates:
             - Path=/api/v1/notices/**
-          filters:
-            - StripPrefix=0
 
-        # ---------- 文件服务 ----------
+        # ---------- File Service ----------
         - id: forum-file
-          uri: lb://forum-file
+          uri: http://localhost:9010
           predicates:
             - Path=/api/v1/files/**
-          filters:
-            - StripPrefix=0
 
-      # 全局跨域配置
+      # Global CORS
       globalcors:
         cors-configurations:
           '[/**]':
@@ -137,63 +96,18 @@ spring:
             allowCredentials: true
             maxAge: 3600
 
-      # 默认过滤器
+      # Default Filters
       default-filters:
         - AddRequestHeader=X-Gateway-Name, forum-gateway
 
-    # ==================== Sentinel配置 ====================
-    sentinel:
-      # 是否启用Sentinel
-      enabled: true
-      # 是否立即初始化
-      eager: true
-      # Transport配置（用于Dashboard连接）
-      transport:
-        dashboard: ${SENTINEL_DASHBOARD:localhost:8080}
-        port: 8719
-      # 网关限流配置
-      scg:
-        # 限流响应模式
-        mode: response
-        # 限流响应状态码
-        response-status: 429
-        # 限流响应体
-        response-body: '{"code":429,"message":"系统繁忙，请求过于频繁，请稍后重试","data":null}'
-      # 数据源配置（用于持久化限流规则）
-      datasource:
-        # Nacos数据源
-        gw-flow:
-          nacos:
-            server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
-            namespace: ${NACOS_NAMESPACE:dev}
-            group-id: ${NACOS_GROUP:DEFAULT_GROUP}
-            data-id: ${spring.application.name}-flow-rules
-            rule-type: gw-flow
-        gw-api-group:
-          nacos:
-            server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
-            namespace: ${NACOS_NAMESPACE:dev}
-            group-id: ${NACOS_GROUP:DEFAULT_GROUP}
-            data-id: ${spring.application.name}-api-rules
-            rule-type: gw-api-group
-
-    # ==================== 负载均衡配置 ====================
-    loadbalancer:
-      ribbon:
-        enabled: false
-
-# ==================== JWT配置 ====================
+# ==================== JWT Configuration ====================
 jwt:
-  # JWT签名密钥（生产环境应从配置中心获取）
-  secret: ${JWT_SECRET:campus-forum-jwt-secret-key-2024}
-  # Token过期时间（毫秒），默认7天
-  expiration: ${JWT_EXPIRATION:604800000}
-  # Token前缀
+  secret: campus-forum-jwt-secret-key-2024
+  expiration: 604800000
   prefix: Bearer
-  # Token请求头名称
   header: Authorization
 
-# ==================== 日志配置 ====================
+# ==================== Logging ====================
 logging:
   level:
     root: INFO
@@ -202,12 +116,8 @@ logging:
     org.springframework.web: INFO
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n"
-  file:
-    name: logs/forum-gateway.log
-    max-size: 10MB
-    max-history: 30
 
-# ==================== Actuator配置 ====================
+# ==================== Actuator ====================
 management:
   endpoints:
     web:
@@ -218,14 +128,10 @@ management:
       show-details: always
     gateway:
       enabled: true
-  health:
-    db:
-      enabled: false
 
-# ==================== 服务信息 ====================
+# ==================== Service Info ====================
 info:
   app:
     name: Forum Gateway
-    description: API网关服务 - 统一入口、路由转发、认证鉴权、限流熔断
+    description: API Gateway Service - Unified entry, routing, authentication
     version: 1.0.0
-    author: Campus Team

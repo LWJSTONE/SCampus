@@ -17,38 +17,6 @@ server:
 spring:
   application:
     name: forum-notify
-  
-  # ==================== Nacos服务发现 ====================
-  cloud:
-    nacos:
-      discovery:
-        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
-        namespace: ${NACOS_NAMESPACE:dev}
-        group: ${NACOS_GROUP:DEFAULT_GROUP}
-        service: ${spring.application.name}
-        heart-beat-interval: 5000
-        heart-beat-timeout: 15000
-
-    # ==================== Sentinel配置 ====================
-    sentinel:
-      enabled: true
-      eager: true
-      transport:
-        dashboard: ${SENTINEL_DASHBOARD:localhost:8080}
-        port: 8729
-      datasource:
-        flow:
-          nacos:
-            server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
-            namespace: ${NACOS_NAMESPACE:dev}
-            group-id: ${NACOS_GROUP:DEFAULT_GROUP}
-            data-id: ${spring.application.name}-flow-rules
-            rule-type: flow
-
-    # ==================== 负载均衡配置 ====================
-    loadbalancer:
-      ribbon:
-        enabled: false
 
   # ==================== 数据源配置 ====================
   datasource:

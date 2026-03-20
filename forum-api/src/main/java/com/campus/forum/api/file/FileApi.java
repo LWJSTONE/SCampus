@@ -7,28 +7,28 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 
 /**
- * 文件服务Feign客户端接口
+ * File Service Feign Client
  *
  * @author campus
  */
-@FeignClient(name = "forum-file", fallback = FileApiFallback.class)
+@FeignClient(name = "forum-file", url = "${feign.file.url:http://localhost:9010}", fallback = FileApiFallback.class)
 public interface FileApi {
 
     /**
-     * 获取文件URL
+     * Get file URL
      *
-     * @param fileId 文件ID
-     * @return 文件URL
+     * @param fileId File ID
+     * @return File URL
      */
-    @GetMapping("/api/file/{fileId}/url")
+    @GetMapping("/api/internal/file/{fileId}/url")
     Result<String> getFileUrl(@PathVariable("fileId") Long fileId);
 
     /**
-     * 删除文件
+     * Delete file
      *
-     * @param fileId 文件ID
-     * @return 操作结果
+     * @param fileId File ID
+     * @return Result
      */
-    @DeleteMapping("/api/file/{fileId}")
+    @DeleteMapping("/api/internal/file/{fileId}")
     Result<Boolean> deleteFile(@PathVariable("fileId") Long fileId);
 }
