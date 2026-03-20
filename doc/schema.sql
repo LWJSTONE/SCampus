@@ -10,11 +10,14 @@ SET CHARACTER SET utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
 -- =====================================================
--- 系统基础表 (sys_ 前缀)
+-- 1. 用户服务数据库表 (forum_user_db)
+-- 包含: 用户表、用户关注表、角色权限相关表、字典表、配置表、敏感词表
 -- =====================================================
 
+USE `forum_user_db`;
+
 -- ---------------------------------------------------
--- 1. 用户表 (sys_user)
+-- 1.1 用户表 (sys_user)
 -- 存储用户基本信息
 -- ---------------------------------------------------
 DROP TABLE IF EXISTS `sys_user`;
@@ -48,7 +51,7 @@ CREATE TABLE `sys_user` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='用户表';
 
 -- ---------------------------------------------------
--- 2. 用户关注表 (sys_user_follow)
+-- 1.2 用户关注表 (sys_user_follow)
 -- 存储用户之间的关注关系
 -- ---------------------------------------------------
 DROP TABLE IF EXISTS `sys_user_follow`;
@@ -64,7 +67,7 @@ CREATE TABLE `sys_user_follow` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='用户关注表';
 
 -- ---------------------------------------------------
--- 3. 角色表 (sys_role)
+-- 1.3 角色表 (sys_role)
 -- 存储系统角色信息
 -- ---------------------------------------------------
 DROP TABLE IF EXISTS `sys_role`;
@@ -84,7 +87,7 @@ CREATE TABLE `sys_role` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='角色表';
 
 -- ---------------------------------------------------
--- 4. 权限表 (sys_permission)
+-- 1.4 权限表 (sys_permission)
 -- 存储系统权限信息
 -- ---------------------------------------------------
 DROP TABLE IF EXISTS `sys_permission`;
@@ -108,7 +111,7 @@ CREATE TABLE `sys_permission` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='权限表';
 
 -- ---------------------------------------------------
--- 5. 用户角色关联表 (sys_user_role)
+-- 1.5 用户角色关联表 (sys_user_role)
 -- 存储用户与角色的关联关系
 -- ---------------------------------------------------
 DROP TABLE IF EXISTS `sys_user_role`;
@@ -124,7 +127,7 @@ CREATE TABLE `sys_user_role` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='用户角色关联表';
 
 -- ---------------------------------------------------
--- 6. 角色权限关联表 (sys_role_permission)
+-- 1.6 角色权限关联表 (sys_role_permission)
 -- 存储角色与权限的关联关系
 -- ---------------------------------------------------
 DROP TABLE IF EXISTS `sys_role_permission`;
@@ -140,60 +143,7 @@ CREATE TABLE `sys_role_permission` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='角色权限关联表';
 
 -- ---------------------------------------------------
--- 7. 操作日志表 (sys_operation_log)
--- 存储用户操作日志
--- ---------------------------------------------------
-DROP TABLE IF EXISTS `sys_operation_log`;
-CREATE TABLE `sys_operation_log` (
-    `id` BIGINT(20) NOT NULL AUTO_INCREMENT COMMENT '日志ID',
-    `user_id` BIGINT(20) DEFAULT NULL COMMENT '操作用户ID',
-    `username` VARCHAR(50) DEFAULT NULL COMMENT '操作用户名',
-    `module` VARCHAR(50) DEFAULT NULL COMMENT '操作模块',
-    `operation` VARCHAR(100) DEFAULT NULL COMMENT '操作内容',
-    `method` VARCHAR(200) DEFAULT NULL COMMENT '请求方法',
-    `request_url` VARCHAR(255) DEFAULT NULL COMMENT '请求URL',
-    `request_method` VARCHAR(10) DEFAULT NULL COMMENT '请求方式',
-    `request_params` TEXT COMMENT '请求参数',
-    `response_result` TEXT COMMENT '响应结果',
-    `ip` VARCHAR(50) DEFAULT NULL COMMENT '操作IP',
-    `location` VARCHAR(100) DEFAULT NULL COMMENT '操作地点',
-    `browser` VARCHAR(100) DEFAULT NULL COMMENT '浏览器',
-    `os` VARCHAR(100) DEFAULT NULL COMMENT '操作系统',
-    `status` TINYINT(1) DEFAULT 1 COMMENT '状态：0-失败，1-成功',
-    `error_msg` TEXT COMMENT '错误信息',
-    `execute_time` INT(11) DEFAULT 0 COMMENT '执行时长(ms)',
-    `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '操作时间',
-    PRIMARY KEY (`id`),
-    KEY `idx_user_id` (`user_id`),
-    KEY `idx_module` (`module`),
-    KEY `idx_create_time` (`create_time`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='操作日志表';
-
--- ---------------------------------------------------
--- 8. 登录日志表 (sys_login_log)
--- 存储用户登录日志
--- ---------------------------------------------------
-DROP TABLE IF EXISTS `sys_login_log`;
-CREATE TABLE `sys_login_log` (
-    `id` BIGINT(20) NOT NULL AUTO_INCREMENT COMMENT '日志ID',
-    `user_id` BIGINT(20) DEFAULT NULL COMMENT '用户ID',
-    `username` VARCHAR(50) DEFAULT NULL COMMENT '用户名',
-    `login_type` VARCHAR(20) DEFAULT NULL COMMENT '登录方式：password-密码，sms-短信，oauth-第三方',
-    `ip` VARCHAR(50) DEFAULT NULL COMMENT '登录IP',
-    `location` VARCHAR(100) DEFAULT NULL COMMENT '登录地点',
-    `browser` VARCHAR(100) DEFAULT NULL COMMENT '浏览器',
-    `os` VARCHAR(100) DEFAULT NULL COMMENT '操作系统',
-    `status` TINYINT(1) DEFAULT 1 COMMENT '状态：0-失败，1-成功',
-    `message` VARCHAR(255) DEFAULT NULL COMMENT '提示消息',
-    `login_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '登录时间',
-    PRIMARY KEY (`id`),
-    KEY `idx_user_id` (`user_id`),
-    KEY `idx_username` (`username`),
-    KEY `idx_login_time` (`login_time`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='登录日志表';
-
--- ---------------------------------------------------
--- 9. 系统配置表 (sys_config)
+-- 1.7 系统配置表 (sys_config)
 -- 存储系统配置信息
 -- ---------------------------------------------------
 DROP TABLE IF EXISTS `sys_config`;
@@ -214,7 +164,7 @@ CREATE TABLE `sys_config` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='系统配置表';
 
 -- ---------------------------------------------------
--- 10. 数据字典表 (sys_dict)
+-- 1.8 数据字典表 (sys_dict)
 -- 存储数据字典
 -- ---------------------------------------------------
 DROP TABLE IF EXISTS `sys_dict`;
@@ -239,83 +189,7 @@ CREATE TABLE `sys_dict` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='数据字典表';
 
 -- ---------------------------------------------------
--- 11. 文件管理表 (sys_file)
--- 存储文件信息
--- ---------------------------------------------------
-DROP TABLE IF EXISTS `sys_file`;
-CREATE TABLE `sys_file` (
-    `id` BIGINT(20) NOT NULL AUTO_INCREMENT COMMENT '文件ID',
-    `file_name` VARCHAR(255) NOT NULL COMMENT '文件名称',
-    `original_name` VARCHAR(255) DEFAULT NULL COMMENT '原始文件名',
-    `file_path` VARCHAR(500) NOT NULL COMMENT '文件路径',
-    `file_url` VARCHAR(500) DEFAULT NULL COMMENT '文件URL',
-    `file_size` BIGINT(20) DEFAULT 0 COMMENT '文件大小(字节)',
-    `file_type` VARCHAR(50) DEFAULT NULL COMMENT '文件类型',
-    `file_ext` VARCHAR(20) DEFAULT NULL COMMENT '文件扩展名',
-    `md5` VARCHAR(32) DEFAULT NULL COMMENT '文件MD5',
-    `storage_type` VARCHAR(20) DEFAULT 'local' COMMENT '存储类型：local-本地，oss-阿里云OSS，cos-腾讯云COS',
-    `bucket_name` VARCHAR(100) DEFAULT NULL COMMENT '存储桶名称',
-    `uploader_id` BIGINT(20) DEFAULT NULL COMMENT '上传者ID',
-    `business_type` VARCHAR(50) DEFAULT NULL COMMENT '业务类型',
-    `business_id` BIGINT(20) DEFAULT NULL COMMENT '业务ID',
-    `status` TINYINT(1) DEFAULT 1 COMMENT '状态：0-禁用，1-正常',
-    `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-    `delete_flag` TINYINT(1) DEFAULT 0 COMMENT '删除标记：0-未删除，1-已删除',
-    PRIMARY KEY (`id`),
-    KEY `idx_md5` (`md5`),
-    KEY `idx_uploader_id` (`uploader_id`),
-    KEY `idx_business` (`business_type`, `business_id`),
-    KEY `idx_create_time` (`create_time`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='文件管理表';
-
--- ---------------------------------------------------
--- 12. 通知公告表 (sys_notice)
--- 存储系统通知公告
--- ---------------------------------------------------
-DROP TABLE IF EXISTS `sys_notice`;
-CREATE TABLE `sys_notice` (
-    `id` BIGINT(20) NOT NULL AUTO_INCREMENT COMMENT '通知ID',
-    `notice_title` VARCHAR(200) NOT NULL COMMENT '通知标题',
-    `notice_content` TEXT COMMENT '通知内容',
-    `notice_type` TINYINT(1) DEFAULT 1 COMMENT '类型：1-通知，2-公告',
-    `notice_level` TINYINT(1) DEFAULT 1 COMMENT '级别：1-普通，2-重要，3-紧急',
-    `target_type` TINYINT(1) DEFAULT 1 COMMENT '目标类型：1-全部用户，2-指定用户，3-指定角色',
-    `target_ids` VARCHAR(500) DEFAULT NULL COMMENT '目标ID列表',
-    `sender_id` BIGINT(20) DEFAULT NULL COMMENT '发送者ID',
-    `is_top` TINYINT(1) DEFAULT 0 COMMENT '是否置顶：0-否，1-是',
-    `publish_time` DATETIME DEFAULT NULL COMMENT '发布时间',
-    `expire_time` DATETIME DEFAULT NULL COMMENT '过期时间',
-    `status` TINYINT(1) DEFAULT 0 COMMENT '状态：0-草稿，1-已发布，2-已撤回',
-    `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-    `delete_flag` TINYINT(1) DEFAULT 0 COMMENT '删除标记：0-未删除，1-已删除',
-    PRIMARY KEY (`id`),
-    KEY `idx_notice_type` (`notice_type`),
-    KEY `idx_status` (`status`),
-    KEY `idx_publish_time` (`publish_time`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='通知公告表';
-
--- ---------------------------------------------------
--- 13. 用户通知阅读表 (sys_user_notice)
--- 存储用户通知阅读状态
--- ---------------------------------------------------
-DROP TABLE IF EXISTS `sys_user_notice`;
-CREATE TABLE `sys_user_notice` (
-    `id` BIGINT(20) NOT NULL AUTO_INCREMENT COMMENT 'ID',
-    `notice_id` BIGINT(20) NOT NULL COMMENT '通知ID',
-    `user_id` BIGINT(20) NOT NULL COMMENT '用户ID',
-    `is_read` TINYINT(1) DEFAULT 0 COMMENT '是否已读：0-未读，1-已读',
-    `read_time` DATETIME DEFAULT NULL COMMENT '阅读时间',
-    `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_notice_user` (`notice_id`, `user_id`),
-    KEY `idx_user_id` (`user_id`),
-    KEY `idx_is_read` (`is_read`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='用户通知阅读表';
-
--- ---------------------------------------------------
--- 14. 敏感词表 (sys_sensitive_word)
+-- 1.9 敏感词表 (sys_sensitive_word)
 -- 存储敏感词信息
 -- ---------------------------------------------------
 DROP TABLE IF EXISTS `sys_sensitive_word`;
@@ -337,11 +211,14 @@ CREATE TABLE `sys_sensitive_word` (
 
 
 -- =====================================================
--- 论坛业务表 (forum_ 前缀)
+-- 2. 版块服务数据库表 (forum_category_db)
+-- 包含: 版块分类表、版块表、版主表
 -- =====================================================
 
+USE `forum_category_db`;
+
 -- ---------------------------------------------------
--- 15. 版块分类表 (forum_category)
+-- 2.1 版块分类表 (forum_category)
 -- 存储版块分类信息
 -- ---------------------------------------------------
 DROP TABLE IF EXISTS `forum_category`;
@@ -361,7 +238,7 @@ CREATE TABLE `forum_category` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='版块分类表';
 
 -- ---------------------------------------------------
--- 16. 版块表 (forum_forum)
+-- 2.2 版块表 (forum_forum)
 -- 存储版块信息
 -- ---------------------------------------------------
 DROP TABLE IF EXISTS `forum_forum`;
@@ -391,7 +268,7 @@ CREATE TABLE `forum_forum` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='版块表';
 
 -- ---------------------------------------------------
--- 17. 版主关联表 (forum_moderator)
+-- 2.3 版主关联表 (forum_moderator)
 -- 存储版块与版主的关联关系
 -- ---------------------------------------------------
 DROP TABLE IF EXISTS `forum_moderator`;
@@ -409,8 +286,16 @@ CREATE TABLE `forum_moderator` (
     KEY `idx_user_id` (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='版主关联表';
 
+
+-- =====================================================
+-- 3. 帖子服务数据库表 (forum_post_db)
+-- 包含: 帖子表、帖子标签关联表、帖子附件表、标签表
+-- =====================================================
+
+USE `forum_post_db`;
+
 -- ---------------------------------------------------
--- 18. 帖子表 (forum_post)
+-- 3.1 帖子表 (forum_post)
 -- 存储帖子信息
 -- ---------------------------------------------------
 DROP TABLE IF EXISTS `forum_post`;
@@ -462,7 +347,27 @@ CREATE TABLE `forum_post` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='帖子表';
 
 -- ---------------------------------------------------
--- 19. 帖子标签关联表 (forum_post_tag)
+-- 3.2 标签表 (forum_tag)
+-- 存储标签信息
+-- ---------------------------------------------------
+DROP TABLE IF EXISTS `forum_tag`;
+CREATE TABLE `forum_tag` (
+    `id` BIGINT(20) NOT NULL AUTO_INCREMENT COMMENT '标签ID',
+    `tag_name` VARCHAR(50) NOT NULL COMMENT '标签名称',
+    `tag_color` VARCHAR(20) DEFAULT NULL COMMENT '标签颜色',
+    `use_count` INT(11) DEFAULT 0 COMMENT '使用次数',
+    `status` TINYINT(1) DEFAULT 1 COMMENT '状态：0-禁用，1-正常',
+    `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `delete_flag` TINYINT(1) DEFAULT 0 COMMENT '删除标记：0-未删除，1-已删除',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_tag_name` (`tag_name`),
+    KEY `idx_use_count` (`use_count`),
+    KEY `idx_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='标签表';
+
+-- ---------------------------------------------------
+-- 3.3 帖子标签关联表 (forum_post_tag)
 -- 存储帖子与标签的关联关系
 -- ---------------------------------------------------
 DROP TABLE IF EXISTS `forum_post_tag`;
@@ -478,7 +383,7 @@ CREATE TABLE `forum_post_tag` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='帖子标签关联表';
 
 -- ---------------------------------------------------
--- 20. 帖子附件表 (forum_post_attachment)
+-- 3.4 帖子附件表 (forum_post_attachment)
 -- 存储帖子附件信息
 -- ---------------------------------------------------
 DROP TABLE IF EXISTS `forum_post_attachment`;
@@ -494,8 +399,16 @@ CREATE TABLE `forum_post_attachment` (
     KEY `idx_file_id` (`file_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='帖子附件表';
 
+
+-- =====================================================
+-- 4. 评论服务数据库表 (forum_comment_db)
+-- 包含: 评论表
+-- =====================================================
+
+USE `forum_comment_db`;
+
 -- ---------------------------------------------------
--- 21. 评论表 (forum_comment)
+-- 4.1 评论表 (forum_comment)
 -- 存储评论信息
 -- ---------------------------------------------------
 DROP TABLE IF EXISTS `forum_comment`;
@@ -528,8 +441,16 @@ CREATE TABLE `forum_comment` (
     KEY `idx_create_time` (`create_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='评论表';
 
+
+-- =====================================================
+-- 5. 互动服务数据库表 (forum_interaction_db)
+-- 包含: 点赞表、收藏表、@提及表
+-- =====================================================
+
+USE `forum_interaction_db`;
+
 -- ---------------------------------------------------
--- 22. 点赞表 (forum_like)
+-- 5.1 点赞表 (forum_like)
 -- 存储点赞信息
 -- ---------------------------------------------------
 DROP TABLE IF EXISTS `forum_like`;
@@ -546,7 +467,7 @@ CREATE TABLE `forum_like` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='点赞表';
 
 -- ---------------------------------------------------
--- 23. 收藏表 (forum_collect)
+-- 5.2 收藏表 (forum_collect)
 -- 存储收藏信息
 -- ---------------------------------------------------
 DROP TABLE IF EXISTS `forum_collect`;
@@ -562,7 +483,7 @@ CREATE TABLE `forum_collect` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='收藏表';
 
 -- ---------------------------------------------------
--- 24. @提及表 (forum_mention)
+-- 5.3 @提及表 (forum_mention)
 -- 存储@提及信息
 -- ---------------------------------------------------
 DROP TABLE IF EXISTS `forum_mention`;
@@ -581,8 +502,16 @@ CREATE TABLE `forum_mention` (
     KEY `idx_is_read` (`is_read`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='@提及表';
 
+
+-- =====================================================
+-- 6. 审核服务数据库表 (forum_report_db)
+-- 包含: 举报表、审核记录表、用户禁言表
+-- =====================================================
+
+USE `forum_report_db`;
+
 -- ---------------------------------------------------
--- 25. 举报表 (forum_report)
+-- 6.1 举报表 (forum_report)
 -- 存储举报信息
 -- ---------------------------------------------------
 DROP TABLE IF EXISTS `forum_report`;
@@ -609,7 +538,7 @@ CREATE TABLE `forum_report` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='举报表';
 
 -- ---------------------------------------------------
--- 26. 审核记录表 (forum_approve)
+-- 6.2 审核记录表 (forum_approve)
 -- 存储审核记录
 -- ---------------------------------------------------
 DROP TABLE IF EXISTS `forum_approve`;
@@ -632,7 +561,7 @@ CREATE TABLE `forum_approve` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='审核记录表';
 
 -- ---------------------------------------------------
--- 27. 用户禁言表 (forum_user_ban)
+-- 6.3 用户禁言表 (forum_user_ban)
 -- 存储用户禁言信息
 -- ---------------------------------------------------
 DROP TABLE IF EXISTS `forum_user_ban`;
@@ -658,8 +587,16 @@ CREATE TABLE `forum_user_ban` (
     KEY `idx_end_time` (`end_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='用户禁言表';
 
+
+-- =====================================================
+-- 7. 统计服务数据库表 (forum_stats_db)
+-- 包含: 每日统计表、操作日志表、登录日志表
+-- =====================================================
+
+USE `forum_stats_db`;
+
 -- ---------------------------------------------------
--- 28. 每日统计表 (forum_daily_stats)
+-- 7.1 每日统计表 (forum_daily_stats)
 -- 存储每日统计数据
 -- ---------------------------------------------------
 DROP TABLE IF EXISTS `forum_daily_stats`;
@@ -683,24 +620,150 @@ CREATE TABLE `forum_daily_stats` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='每日统计表';
 
 -- ---------------------------------------------------
--- 29. 标签表 (forum_tag)
--- 存储标签信息
+-- 7.2 操作日志表 (sys_operation_log)
+-- 存储用户操作日志
 -- ---------------------------------------------------
-DROP TABLE IF EXISTS `forum_tag`;
-CREATE TABLE `forum_tag` (
-    `id` BIGINT(20) NOT NULL AUTO_INCREMENT COMMENT '标签ID',
-    `tag_name` VARCHAR(50) NOT NULL COMMENT '标签名称',
-    `tag_color` VARCHAR(20) DEFAULT NULL COMMENT '标签颜色',
-    `use_count` INT(11) DEFAULT 0 COMMENT '使用次数',
+DROP TABLE IF EXISTS `sys_operation_log`;
+CREATE TABLE `sys_operation_log` (
+    `id` BIGINT(20) NOT NULL AUTO_INCREMENT COMMENT '日志ID',
+    `user_id` BIGINT(20) DEFAULT NULL COMMENT '操作用户ID',
+    `username` VARCHAR(50) DEFAULT NULL COMMENT '操作用户名',
+    `module` VARCHAR(50) DEFAULT NULL COMMENT '操作模块',
+    `operation` VARCHAR(100) DEFAULT NULL COMMENT '操作内容',
+    `method` VARCHAR(200) DEFAULT NULL COMMENT '请求方法',
+    `request_url` VARCHAR(255) DEFAULT NULL COMMENT '请求URL',
+    `request_method` VARCHAR(10) DEFAULT NULL COMMENT '请求方式',
+    `request_params` TEXT COMMENT '请求参数',
+    `response_result` TEXT COMMENT '响应结果',
+    `ip` VARCHAR(50) DEFAULT NULL COMMENT '操作IP',
+    `location` VARCHAR(100) DEFAULT NULL COMMENT '操作地点',
+    `browser` VARCHAR(100) DEFAULT NULL COMMENT '浏览器',
+    `os` VARCHAR(100) DEFAULT NULL COMMENT '操作系统',
+    `status` TINYINT(1) DEFAULT 1 COMMENT '状态：0-失败，1-成功',
+    `error_msg` TEXT COMMENT '错误信息',
+    `execute_time` INT(11) DEFAULT 0 COMMENT '执行时长(ms)',
+    `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '操作时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_user_id` (`user_id`),
+    KEY `idx_module` (`module`),
+    KEY `idx_create_time` (`create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='操作日志表';
+
+-- ---------------------------------------------------
+-- 7.3 登录日志表 (sys_login_log)
+-- 存储用户登录日志
+-- ---------------------------------------------------
+DROP TABLE IF EXISTS `sys_login_log`;
+CREATE TABLE `sys_login_log` (
+    `id` BIGINT(20) NOT NULL AUTO_INCREMENT COMMENT '日志ID',
+    `user_id` BIGINT(20) DEFAULT NULL COMMENT '用户ID',
+    `username` VARCHAR(50) DEFAULT NULL COMMENT '用户名',
+    `login_type` VARCHAR(20) DEFAULT NULL COMMENT '登录方式：password-密码，sms-短信，oauth-第三方',
+    `ip` VARCHAR(50) DEFAULT NULL COMMENT '登录IP',
+    `location` VARCHAR(100) DEFAULT NULL COMMENT '登录地点',
+    `browser` VARCHAR(100) DEFAULT NULL COMMENT '浏览器',
+    `os` VARCHAR(100) DEFAULT NULL COMMENT '操作系统',
+    `status` TINYINT(1) DEFAULT 1 COMMENT '状态：0-失败，1-成功',
+    `message` VARCHAR(255) DEFAULT NULL COMMENT '提示消息',
+    `login_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '登录时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_user_id` (`user_id`),
+    KEY `idx_username` (`username`),
+    KEY `idx_login_time` (`login_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='登录日志表';
+
+
+-- =====================================================
+-- 8. 通知服务数据库表 (forum_notify_db)
+-- 包含: 通知公告表、用户通知阅读表
+-- =====================================================
+
+USE `forum_notify_db`;
+
+-- ---------------------------------------------------
+-- 8.1 通知公告表 (sys_notice)
+-- 存储系统通知公告
+-- ---------------------------------------------------
+DROP TABLE IF EXISTS `sys_notice`;
+CREATE TABLE `sys_notice` (
+    `id` BIGINT(20) NOT NULL AUTO_INCREMENT COMMENT '通知ID',
+    `notice_title` VARCHAR(200) NOT NULL COMMENT '通知标题',
+    `notice_content` TEXT COMMENT '通知内容',
+    `notice_type` TINYINT(1) DEFAULT 1 COMMENT '类型：1-通知，2-公告',
+    `notice_level` TINYINT(1) DEFAULT 1 COMMENT '级别：1-普通，2-重要，3-紧急',
+    `target_type` TINYINT(1) DEFAULT 1 COMMENT '目标类型：1-全部用户，2-指定用户，3-指定角色',
+    `target_ids` VARCHAR(500) DEFAULT NULL COMMENT '目标ID列表',
+    `sender_id` BIGINT(20) DEFAULT NULL COMMENT '发送者ID',
+    `is_top` TINYINT(1) DEFAULT 0 COMMENT '是否置顶：0-否，1-是',
+    `publish_time` DATETIME DEFAULT NULL COMMENT '发布时间',
+    `expire_time` DATETIME DEFAULT NULL COMMENT '过期时间',
+    `status` TINYINT(1) DEFAULT 0 COMMENT '状态：0-草稿，1-已发布，2-已撤回',
+    `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `delete_flag` TINYINT(1) DEFAULT 0 COMMENT '删除标记：0-未删除，1-已删除',
+    PRIMARY KEY (`id`),
+    KEY `idx_notice_type` (`notice_type`),
+    KEY `idx_status` (`status`),
+    KEY `idx_publish_time` (`publish_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='通知公告表';
+
+-- ---------------------------------------------------
+-- 8.2 用户通知阅读表 (sys_user_notice)
+-- 存储用户通知阅读状态
+-- ---------------------------------------------------
+DROP TABLE IF EXISTS `sys_user_notice`;
+CREATE TABLE `sys_user_notice` (
+    `id` BIGINT(20) NOT NULL AUTO_INCREMENT COMMENT 'ID',
+    `notice_id` BIGINT(20) NOT NULL COMMENT '通知ID',
+    `user_id` BIGINT(20) NOT NULL COMMENT '用户ID',
+    `is_read` TINYINT(1) DEFAULT 0 COMMENT '是否已读：0-未读，1-已读',
+    `read_time` DATETIME DEFAULT NULL COMMENT '阅读时间',
+    `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_notice_user` (`notice_id`, `user_id`),
+    KEY `idx_user_id` (`user_id`),
+    KEY `idx_is_read` (`is_read`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='用户通知阅读表';
+
+
+-- =====================================================
+-- 9. 文件服务数据库表 (forum_file_db)
+-- 包含: 文件管理表
+-- =====================================================
+
+USE `forum_file_db`;
+
+-- ---------------------------------------------------
+-- 9.1 文件管理表 (sys_file)
+-- 存储文件信息
+-- ---------------------------------------------------
+DROP TABLE IF EXISTS `sys_file`;
+CREATE TABLE `sys_file` (
+    `id` BIGINT(20) NOT NULL AUTO_INCREMENT COMMENT '文件ID',
+    `file_name` VARCHAR(255) NOT NULL COMMENT '文件名称',
+    `original_name` VARCHAR(255) DEFAULT NULL COMMENT '原始文件名',
+    `file_path` VARCHAR(500) NOT NULL COMMENT '文件路径',
+    `file_url` VARCHAR(500) DEFAULT NULL COMMENT '文件URL',
+    `file_size` BIGINT(20) DEFAULT 0 COMMENT '文件大小(字节)',
+    `file_type` VARCHAR(50) DEFAULT NULL COMMENT '文件类型',
+    `file_ext` VARCHAR(20) DEFAULT NULL COMMENT '文件扩展名',
+    `md5` VARCHAR(32) DEFAULT NULL COMMENT '文件MD5',
+    `storage_type` VARCHAR(20) DEFAULT 'local' COMMENT '存储类型：local-本地，oss-阿里云OSS，cos-腾讯云COS',
+    `bucket_name` VARCHAR(100) DEFAULT NULL COMMENT '存储桶名称',
+    `uploader_id` BIGINT(20) DEFAULT NULL COMMENT '上传者ID',
+    `business_type` VARCHAR(50) DEFAULT NULL COMMENT '业务类型',
+    `business_id` BIGINT(20) DEFAULT NULL COMMENT '业务ID',
     `status` TINYINT(1) DEFAULT 1 COMMENT '状态：0-禁用，1-正常',
     `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     `delete_flag` TINYINT(1) DEFAULT 0 COMMENT '删除标记：0-未删除，1-已删除',
     PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_tag_name` (`tag_name`),
-    KEY `idx_use_count` (`use_count`),
-    KEY `idx_status` (`status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='标签表';
+    KEY `idx_md5` (`md5`),
+    KEY `idx_uploader_id` (`uploader_id`),
+    KEY `idx_business` (`business_type`, `business_id`),
+    KEY `idx_create_time` (`create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='文件管理表';
+
 
 SET FOREIGN_KEY_CHECKS = 1;
 
