@@ -40,6 +40,12 @@
         <!-- Spring Cloud -->
         <spring-cloud.version>2021.0.8</spring-cloud.version>
 
+        <!-- Spring Cloud Alibaba -->
+        <spring-cloud-alibaba.version>2021.0.5.0</spring-cloud-alibaba.version>
+
+        <!-- Sentinel -->
+        <sentinel.version>1.8.6</sentinel.version>
+
         <!-- Database -->
         <mysql.version>8.0.33</mysql.version>
         <mybatis-plus.version>3.5.5</mybatis-plus.version>
@@ -81,6 +87,22 @@
                 <version>${spring-cloud.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
+            </dependency>
+
+            <!-- Spring Cloud Alibaba Dependencies -->
+            <dependency>
+                <groupId>com.alibaba.cloud</groupId>
+                <artifactId>spring-cloud-alibaba-dependencies</artifactId>
+                <version>${spring-cloud-alibaba.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- Sentinel -->
+            <dependency>
+                <groupId>com.alibaba.csp</groupId>
+                <artifactId>sentinel-spring-cloud-gateway-adapter</artifactId>
+                <version>${sentinel.version}</version>
             </dependency>
 
             <!-- Internal Modules -->
