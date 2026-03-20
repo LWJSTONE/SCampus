@@ -33,6 +33,18 @@ import org.springframework.context.annotation.FilterType;
         @ComponentScan.Filter(
             type = FilterType.REGEX,
             pattern = "com\\.campus\\.forum\\.exception\\..*"
+        ),
+        @ComponentScan.Filter(
+            type = FilterType.REGEX,
+            pattern = "com\\.campus\\.forum\\.config\\.WebMvcConfig"
+        ),
+        @ComponentScan.Filter(
+            type = FilterType.REGEX,
+            pattern = "com\\.campus\\.forum\\.config\\.MybatisPlusConfig"
+        ),
+        @ComponentScan.Filter(
+            type = FilterType.REGEX,
+            pattern = "com\\.campus\\.forum\\.config\\.RedisConfig"
         )
     }
 )

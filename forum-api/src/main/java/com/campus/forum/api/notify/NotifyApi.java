@@ -13,7 +13,7 @@ import java.util.List;
  *
  * @author campus
  */
-@FeignClient(name = "forum-notify", url = "${feign.notify.url:http://localhost:9009}", fallback = NotifyApiFallback.class)
+@FeignClient(name = "forum-notify", contextId = "notifyApi", url = "${feign.notify.url:http://localhost:9009}", fallback = NotifyApiFallback.class)
 public interface NotifyApi {
 
     /**

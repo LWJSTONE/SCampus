@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RequestParam;
  *
  * @author campus
  */
-@FeignClient(name = "forum-user", url = "${feign.user.url:http://localhost:9002}", fallback = UserApiFallback.class)
+@FeignClient(name = "forum-user", contextId = "userApi", url = "${feign.user.url:http://localhost:9002}", fallback = UserApiFallback.class)
 public interface UserApi {
 
     /**

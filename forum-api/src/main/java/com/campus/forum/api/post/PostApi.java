@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RequestParam;
  *
  * @author campus
  */
-@FeignClient(name = "forum-post", url = "${feign.post.url:http://localhost:9004}")
+@FeignClient(name = "forum-post", contextId = "postApi", url = "${feign.post.url:http://localhost:9004}")
 public interface PostApi {
 
     /**

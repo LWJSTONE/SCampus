@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.PathVariable;
  *
  * @author campus
  */
-@FeignClient(name = "forum-file", url = "${feign.file.url:http://localhost:9010}", fallback = FileApiFallback.class)
+@FeignClient(name = "forum-file", contextId = "fileApi", url = "${feign.file.url:http://localhost:9010}", fallback = FileApiFallback.class)
 public interface FileApi {
 
     /**

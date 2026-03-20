@@ -17,6 +17,10 @@ spring:
   application:
     name: forum-file
 
+  # ==================== 允许Bean覆盖 ====================
+  main:
+    allow-bean-definition-overriding: true
+
   # ==================== 数据源配置 ====================
   datasource:
     type: com.alibaba.druid.pool.DruidDataSource
