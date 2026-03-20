@@ -222,6 +222,12 @@
     </dependencyManagement>
 
     <dependencies>
+        <!-- Spring Cloud Bootstrap (required for Spring Cloud 2021.x) -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-bootstrap</artifactId>
+        </dependency>
+
         <!-- Lombok -->
         <dependency>
             <groupId>org.projectlombok</groupId>
