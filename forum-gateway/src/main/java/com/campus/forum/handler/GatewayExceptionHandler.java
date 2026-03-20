@@ -39,7 +39,7 @@ import java.util.Map;
 @Slf4j
 @Order(-1)
 @Component
-public class GlobalExceptionHandler implements ErrorWebExceptionHandler {
+public class GatewayExceptionHandler implements ErrorWebExceptionHandler {
 
     /**
      * 异常处理方法
