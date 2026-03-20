@@ -1,7 +1,7 @@
 -- =====================================================
 -- SCampus 论坛系统 - 初始化数据脚本
 -- 创建时间: 2024
--- 默认密码: admin123 (使用MD5加密)
+-- 默认密码: admin123 (使用BCrypt加密)
 -- =====================================================
 
 SET NAMES utf8mb4;
@@ -9,14 +9,13 @@ SET CHARACTER SET utf8mb4;
 
 -- =====================================================
 -- 1. 默认管理员账号
--- 密码: admin123 (MD5: 0192023a7bbd73250516f069df18b500)
--- 实际项目中请使用更安全的加密方式如BCrypt
+-- 密码: admin123 (BCrypt: $2a$10$GDHI0xdrkoPMgQpVdUX5GOXQky8a5rb4EuxgDZN9k1/h6/N05wNjS)
 -- =====================================================
 INSERT INTO `sys_user` (`id`, `username`, `password`, `nickname`, `avatar`, `gender`, `email`, `phone`, `signature`, `school`, `grade`, `experience`, `integral`, `status`, `create_time`) VALUES
-(1, 'admin', '0192023a7bbd73250516f069df18b500', '系统管理员', '/static/avatar/admin.png', 1, 'admin@scampus.com', '13800138000', '论坛系统管理员', 'SCampus大学', '2024级', 9999, 9999, 1, NOW()),
-(2, 'superadmin', '0192023a7bbd73250516f069df18b500', '超级管理员', '/static/avatar/superadmin.png', 1, 'superadmin@scampus.com', '13800138001', '超级管理员账号', 'SCampus大学', '2024级', 9999, 9999, 1, NOW()),
-(3, 'moderator', '0192023a7bbd73250516f069df18b500', '版主测试账号', '/static/avatar/moderator.png', 1, 'moderator@scampus.com', '13800138002', '版主测试账号', 'SCampus大学', '2023级', 1000, 500, 1, NOW()),
-(4, 'testuser', '0192023a7bbd73250516f069df18b500', '测试用户', '/static/avatar/testuser.png', 2, 'testuser@scampus.com', '13800138003', '这是一个测试用户账号', 'SCampus大学', '2022级', 100, 50, 1, NOW());
+(1, 'admin', '$2a$10$GDHI0xdrkoPMgQpVdUX5GOXQky8a5rb4EuxgDZN9k1/h6/N05wNjS', '系统管理员', '/static/avatar/admin.png', 1, 'admin@scampus.com', '13800138000', '论坛系统管理员', 'SCampus大学', '2024级', 9999, 9999, 1, NOW()),
+(2, 'superadmin', '$2a$10$GDHI0xdrkoPMgQpVdUX5GOXQky8a5rb4EuxgDZN9k1/h6/N05wNjS', '超级管理员', '/static/avatar/superadmin.png', 1, 'superadmin@scampus.com', '13800138001', '超级管理员账号', 'SCampus大学', '2024级', 9999, 9999, 1, NOW()),
+(3, 'moderator', '$2a$10$GDHI0xdrkoPMgQpVdUX5GOXQky8a5rb4EuxgDZN9k1/h6/N05wNjS', '版主测试账号', '/static/avatar/moderator.png', 1, 'moderator@scampus.com', '13800138002', '版主测试账号', 'SCampus大学', '2023级', 1000, 500, 1, NOW()),
+(4, 'testuser', '$2a$10$GDHI0xdrkoPMgQpVdUX5GOXQky8a5rb4EuxgDZN9k1/h6/N05wNjS', '测试用户', '/static/avatar/testuser.png', 2, 'testuser@scampus.com', '13800138003', '这是一个测试用户账号', 'SCampus大学', '2022级', 100, 50, 1, NOW());
 
 -- =====================================================
 -- 2. 默认角色

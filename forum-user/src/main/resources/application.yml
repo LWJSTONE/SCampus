@@ -24,7 +24,7 @@ spring:
     # 数据库用户名
     username: ${MYSQL_USERNAME:root}
     # 数据库密码
-    password: ${MYSQL_PASSWORD:root}
+    password: ${MYSQL_PASSWORD:123456}
     # 数据库驱动
     driver-class-name: com.mysql.cj.jdbc.Driver
     # Druid连接池配置
