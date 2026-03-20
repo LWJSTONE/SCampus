@@ -45,6 +45,9 @@ service.interceptors.request.use(
   }
 )
 
+// 401错误处理标记，防止多个弹窗
+let isRefreshing = false
+
 // 响应拦截器
 service.interceptors.response.use(
   (response: AxiosResponse<Result>) => {
@@ -72,16 +75,23 @@ service.interceptors.response.use(
 
       switch (status) {
         case 401:
-          // Token过期或未登录
-          ElMessageBox.confirm('登录状态已过期，请重新登录', '提示', {
-            confirmButtonText: '重新登录',
-            cancelButtonText: '取消',
-            type: 'warning'
-          }).then(() => {
-            const userStore = useUserStore()
-            userStore.logout()
-            router.push({ name: 'Login' })
-          })
+          // Token过期或未登录 - 使用防抖机制防止多个弹窗
+          if (!isRefreshing) {
+            isRefreshing = true
+            ElMessageBox.confirm('登录状态已过期，请重新登录', '提示', {
+              confirmButtonText: '重新登录',
+              cancelButtonText: '取消',
+              type: 'warning'
+            }).then(() => {
+              const userStore = useUserStore()
+              userStore.logout()
+              router.push({ name: 'Login' })
+            }).catch(() => {
+              // 用户取消
+            }).finally(() => {
+              isRefreshing = false
+            })
+          }
           break
         case 403:
           ElMessage.error('没有权限访问')

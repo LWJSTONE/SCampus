@@ -64,10 +64,38 @@ function formatTime(time: string) {
   return dayjs(time).fromNow()
 }
 
+/**
+ * 转义HTML特殊字符，防止XSS攻击
+ */
+function escapeHtml(text: string): string {
+  const map: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  }
+  return text.replace(/[&<>"']/g, m => map[m])
+}
+
+/**
+ * 转义正则表达式特殊字符
+ */
+function escapeRegExp(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/**
+ * 高亮关键词（XSS安全）
+ */
 function highlightKeyword(text: string) {
-  if (!keyword.value) return text
-  const regex = new RegExp(`(${keyword.value})`, 'gi')
-  return text.replace(regex, '<mark>$1</mark>')
+  if (!keyword.value) return escapeHtml(text)
+  // 先转义HTML
+  const escapedText = escapeHtml(text)
+  // 转义关键词中的正则特殊字符
+  const escapedKeyword = escapeRegExp(keyword.value)
+  const regex = new RegExp(`(${escapedKeyword})`, 'gi')
+  return escapedText.replace(regex, '<mark>$1</mark>')
 }
 
 async function handleSearch() {

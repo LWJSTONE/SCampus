@@ -122,7 +122,7 @@
 /**
  * 注册页面组件逻辑
  */
-import { ref, reactive } from 'vue'
+import { ref, reactive, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, FormInstance, FormRules } from 'element-plus'
 import { School } from '@element-plus/icons-vue'
@@ -143,6 +143,9 @@ const sendingCode = ref(false)
 
 // 倒计时
 const countdown = ref(0)
+
+// 定时器引用，用于组件卸载时清理
+let countdownTimer: ReturnType<typeof setInterval> | null = null
 
 // 注册表单
 const registerForm = reactive({
@@ -227,10 +230,13 @@ const handleSendCode = async () => {
 
     // 开始倒计时
     countdown.value = 60
-    const timer = setInterval(() => {
+    countdownTimer = setInterval(() => {
       countdown.value--
       if (countdown.value <= 0) {
-        clearInterval(timer)
+        if (countdownTimer) {
+          clearInterval(countdownTimer)
+          countdownTimer = null
+        }
       }
     }, 1000)
   } catch (error) {
@@ -277,6 +283,14 @@ const handleRegister = async () => {
     loading.value = false
   }
 }
+
+// 组件卸载时清理定时器，防止内存泄漏
+onUnmounted(() => {
+  if (countdownTimer) {
+    clearInterval(countdownTimer)
+    countdownTimer = null
+  }
+})
 </script>
 
 <style lang="scss" scoped>

@@ -88,7 +88,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import * as echarts from 'echarts'
 import type { ECharts } from 'echarts'
 
@@ -172,6 +172,16 @@ function initPieChart() {
 onMounted(() => {
   initTrendChart()
   initPieChart()
+})
+
+// 组件卸载时销毁ECharts实例，防止内存泄漏
+onUnmounted(() => {
+  if (trendChart) {
+    trendChart.dispose()
+  }
+  if (pieChart) {
+    pieChart.dispose()
+  }
 })
 
 watch(trendType, () => {

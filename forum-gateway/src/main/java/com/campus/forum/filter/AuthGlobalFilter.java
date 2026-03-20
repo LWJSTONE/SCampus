@@ -167,7 +167,9 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
             DecodedJWT jwt = verifyToken(token);
             
             // 提取用户信息
-            String userId = jwt.getClaim("userId").asString();
+            // 注意：userId在生成Token时是Long类型，需要使用asLong()获取
+            Long userIdLong = jwt.getClaim("userId").asLong();
+            String userId = String.valueOf(userIdLong);
             String username = jwt.getClaim("username").asString();
             String role = jwt.getClaim("role").asString();
             
