@@ -3,6 +3,8 @@ package com.campus.forum;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.FilterType;
 
 /**
  * Forum Gateway 应用启动类
@@ -16,21 +18,28 @@ import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
  *     <li>日志记录：请求日志统一记录</li>
  * </ul>
  * 
+ * <p>注意：Gateway使用WebFlux响应式编程，不兼容Servlet的@RestControllerAdvice</p>
+ * <p>因此需要排除forum-common中的Servlet异常处理器</p>
+ * 
  * @author Campus Team
  * @version 1.0.0
  * @since 2024-01-01
  */
-@SpringBootApplication(scanBasePackages = {
-    "com.campus.forum",
-    "com.alibaba.nacos",
-    "com.alibaba.cloud"
-}, excludeFilters = {
-    @org.springframework.context.annotation.ComponentScan.Filter(
-        type = org.springframework.context.annotation.FilterType.REGEX,
-        pattern = "com\\.campus\\.forum\\.exception\\..*"
-    )
-})
+@SpringBootApplication
 @EnableDiscoveryClient
+@ComponentScan(
+    basePackages = {
+        "com.campus.forum",
+        "com.alibaba.nacos",
+        "com.alibaba.cloud"
+    },
+    excludeFilters = {
+        @ComponentScan.Filter(
+            type = FilterType.REGEX,
+            pattern = "com\\.campus\\.forum\\.exception\\..*"
+        )
+    }
+)
 public class ForumGatewayApplication {
 
     /**
