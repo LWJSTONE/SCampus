@@ -50,7 +50,7 @@ public interface UserBanMapper extends BaseMapper<UserBan> {
             "FROM t_user_ban ub " +
             "LEFT JOIN t_user u ON ub.user_id = u.id " +
             "LEFT JOIN t_user o ON ub.operator_id = o.id " +
-            "WHERE ub.user_id = #{userId} AND ub.status = 1 AND ub.end_time > NOW() AND ub.delete_flag = 0 " +
+            "WHERE ub.user_id = #{userId} AND ub.status = 1 AND ub.end_time &gt; NOW() AND ub.delete_flag = 0 " +
             "ORDER BY ub.end_time DESC LIMIT 1")
     UserBanVO selectActiveBan(@Param("userId") Long userId);
 
