@@ -3,12 +3,26 @@ REM =====================================================
 REM SCampus Forum System - One-Click Start Script
 REM This script compiles and starts all backend services
 REM and frontend application
+REM 
+REM Prerequisites:
+REM - JDK 1.8
+REM - Maven 3.6+
+REM - Node.js 18+
+REM - MySQL 8.0 (running on port 3306)
+REM - Redis (running on port 6379)
 REM =====================================================
 
 echo.
 echo =====================================================
 echo   SCampus Forum System - One-Click Start Script
 echo =====================================================
+echo.
+echo Prerequisites:
+echo   - MySQL running on port 3306
+echo   - Redis running on port 6379
+echo   - JDK 1.8 installed
+echo   - Maven 3.6+ installed
+echo   - Node.js 18+ installed
 echo.
 
 REM Check if Maven is installed
@@ -38,6 +52,7 @@ echo.
 call mvn clean install -DskipTests
 if %errorlevel% neq 0 (
     echo [ERROR] Backend compilation failed
+    echo Please check the error messages above
     pause
     exit /b 1
 )
@@ -49,52 +64,55 @@ echo.
 echo Starting services in new windows...
 echo.
 
-REM Start Gateway Service (Must be first)
-echo Starting Gateway Service on port 8080...
-start "SCampus-Gateway" cmd /k "cd /d %PROJECT_ROOT%forum-gateway && mvn spring-boot:run"
-
-REM Wait for gateway to start
-timeout /t 10 /nobreak >nul
-
-REM Start Auth Service
+REM Start Auth Service (Port 9001)
 echo Starting Auth Service on port 9001...
 start "SCampus-Auth" cmd /k "cd /d %PROJECT_ROOT%forum-auth && mvn spring-boot:run"
 
-REM Start User Service
+REM Wait for auth to start
+timeout /t 5 /nobreak >nul
+
+REM Start User Service (Port 9002)
 echo Starting User Service on port 9002...
 start "SCampus-User" cmd /k "cd /d %PROJECT_ROOT%forum-user && mvn spring-boot:run"
 
-REM Start Category Service
+REM Start Category Service (Port 9003)
 echo Starting Category Service on port 9003...
 start "SCampus-Category" cmd /k "cd /d %PROJECT_ROOT%forum-category && mvn spring-boot:run"
 
-REM Start Post Service
+REM Start Post Service (Port 9004)
 echo Starting Post Service on port 9004...
 start "SCampus-Post" cmd /k "cd /d %PROJECT_ROOT%forum-post && mvn spring-boot:run"
 
-REM Start Comment Service
+REM Start Comment Service (Port 9005)
 echo Starting Comment Service on port 9005...
 start "SCampus-Comment" cmd /k "cd /d %PROJECT_ROOT%forum-comment && mvn spring-boot:run"
 
-REM Start Interaction Service
+REM Start Interaction Service (Port 9006)
 echo Starting Interaction Service on port 9006...
 start "SCampus-Interaction" cmd /k "cd /d %PROJECT_ROOT%forum-interaction && mvn spring-boot:run"
 
-REM Start Report Service
+REM Start Report Service (Port 9007)
 echo Starting Report Service on port 9007...
 start "SCampus-Report" cmd /k "cd /d %PROJECT_ROOT%forum-report && mvn spring-boot:run"
 
-REM Start Stats Service
+REM Start Stats Service (Port 9008)
 echo Starting Stats Service on port 9008...
 start "SCampus-Stats" cmd /k "cd /d %PROJECT_ROOT%forum-stats && mvn spring-boot:run"
 
-REM Start Notify Service
+REM Start Notify Service (Port 9009)
 echo Starting Notify Service on port 9009...
 start "SCampus-Notify" cmd /k "cd /d %PROJECT_ROOT%forum-notify && mvn spring-boot:run"
 
-REM Start File Service
+REM Start File Service (Port 9010)
 echo Starting File Service on port 9010...
 start "SCampus-File" cmd /k "cd /d %PROJECT_ROOT%forum-file && mvn spring-boot:run"
+
+REM Wait for services to start
+timeout /t 10 /nobreak >nul
+
+REM Start Gateway Service (Port 8080) - Must be last
+echo Starting Gateway Service on port 8080...
+start "SCampus-Gateway" cmd /k "cd /d %PROJECT_ROOT%forum-gateway && mvn spring-boot:run"
 
 echo.
 echo [SUCCESS] All backend services are starting...
@@ -120,8 +138,7 @@ echo =====================================================
 echo   All services have been started!
 echo =====================================================
 echo.
-echo   Backend Services:
-echo     - Gateway:    http://localhost:8080
+echo   Backend Services (Start in order):
 echo     - Auth:       http://localhost:9001
 echo     - User:       http://localhost:9002
 echo     - Category:   http://localhost:9003
@@ -132,17 +149,19 @@ echo     - Report:     http://localhost:9007
 echo     - Stats:      http://localhost:9008
 echo     - Notify:     http://localhost:9009
 echo     - File:       http://localhost:9010
+echo     - Gateway:    http://localhost:8080
 echo.
 echo   Frontend:
 echo     - Web UI:     http://localhost:3000
 echo.
-echo   API Documentation:
+echo   API Documentation (Swagger):
+echo     - Auth:       http://localhost:9001/doc.html
+echo     - User:       http://localhost:9002/doc.html
 echo     - Gateway:    http://localhost:8080/doc.html
 echo.
-echo   Prerequisites:
+echo   Database Requirements:
 echo     - MySQL running on port 3306
 echo     - Redis running on port 6379
-echo     - Nacos running on port 8848
 echo.
 echo =====================================================
 echo.
