@@ -10,7 +10,7 @@ export function getPostList(params: PostQueryDTO): Promise<PageResult<PostVO>> {
     forumId: params.forumId,
     userId: params.userId,
     keyword: params.keyword,
-    status: params.status,
+    status: params.status,  // 添加status参数，允许前端传递
     sortType: params.sortType,
     isTop: params.isTop,
     isEssence: params.isEssence,
@@ -80,7 +80,12 @@ export function searchPosts(params: { keyword: string; page: number; size: numbe
 
 // 获取版块帖子
 export function getPostsByForum(forumId: number, params: PostQueryDTO): Promise<PageResult<PostVO>> {
-  return request.get(`/posts/forum/${forumId}`, params)
+  // 兼容后端分页参数
+  const queryParams = {
+    current: params.page || params.current,
+    size: params.size
+  }
+  return request.get(`/posts/forum/${forumId}`, queryParams)
 }
 
 // 点赞帖子（toggle模式）

@@ -61,6 +61,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { getPostList } from '@/api/post'
+import { getNoticeList } from '@/api/notify'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import 'dayjs/locale/zh-cn'
@@ -88,19 +89,38 @@ interface Post {
   createTime: string
 }
 
+interface Announcement {
+  id: number
+  title: string
+}
+
 const posts = ref<Post[]>([])
 const loading = ref(false)
 const hasMore = ref(true)
 const page = ref(1)
 const size = 10
-
-const announcements = ref([
-  { id: 1, title: '欢迎使用SCampus校园论坛系统！' },
-  { id: 2, title: '新版功能上线，支持Markdown编辑器' }
-])
+const announcements = ref<Announcement[]>([])
 
 function formatTime(time: string) {
   return dayjs(time).fromNow()
+}
+
+async function fetchAnnouncements() {
+  try {
+    const res = await getNoticeList({ current: 1, size: 5 })
+    const records = res.records || res.list || []
+    announcements.value = records.map((item: any) => ({
+      id: item.id,
+      title: item.title
+    }))
+  } catch (e) {
+    console.error('获取公告失败:', e)
+    // 保留默认公告
+    announcements.value = [
+      { id: 1, title: '欢迎使用SCampus校园论坛系统！' },
+      { id: 2, title: '新版功能上线，支持Markdown编辑器' }
+    ]
+  }
 }
 
 async function fetchPosts() {
@@ -135,6 +155,7 @@ function viewPost(id: number) {
 }
 
 onMounted(() => {
+  fetchAnnouncements()
   fetchPosts()
 })
 </script>

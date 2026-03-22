@@ -13,9 +13,10 @@
         </el-form-item>
         <el-form-item label="状态">
           <el-select v-model="queryParams.status" placeholder="全部" clearable>
-            <el-option label="正常" :value="0" />
-            <el-option label="待审核" :value="1" />
-            <el-option label="已删除" :value="2" />
+            <el-option label="待审核" :value="0" />
+            <el-option label="已发布" :value="1" />
+            <el-option label="已关闭" :value="2" />
+            <el-option label="已删除" :value="3" />
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -77,9 +78,10 @@ const queryParams = reactive({
 })
 
 const statusMap: Record<number, { text: string; type: 'success' | 'primary' | 'warning' | 'info' | 'danger' }> = {
-  0: { text: '正常', type: 'success' },
-  1: { text: '待审核', type: 'warning' },
-  2: { text: '已删除', type: 'danger' }
+  0: { text: '待审核', type: 'warning' },
+  1: { text: '已发布', type: 'success' },
+  2: { text: '已关闭', type: 'info' },
+  3: { text: '已删除', type: 'danger' }
 }
 
 async function fetchPosts() {

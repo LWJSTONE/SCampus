@@ -46,6 +46,8 @@ public class PostController {
      * @param forumId  板块ID
      * @param type     帖子类型
      * @param sortType 排序类型
+     * @param status   帖子状态
+     * @param keyword  搜索关键词
      * @param request  HTTP请求
      * @return 帖子列表
      */
@@ -59,9 +61,11 @@ public class PostController {
             @Parameter(description = "排序类型(1-最新发布 2-最新回复 3-热度排序)") @RequestParam(required = false) Integer sortType,
             @Parameter(description = "是否置顶") @RequestParam(required = false) Integer isTop,
             @Parameter(description = "是否精华") @RequestParam(required = false) Integer isEssence,
+            @Parameter(description = "帖子状态") @RequestParam(required = false) Integer status,
+            @Parameter(description = "搜索关键词") @RequestParam(required = false) String keyword,
             HttpServletRequest request) {
 
-        log.info("获取帖子列表, current: {}, size: {}, forumId: {}", current, size, forumId);
+        log.info("获取帖子列表, current: {}, size: {}, forumId: {}, status: {}", current, size, forumId, status);
 
         // 构建查询参数
         PostQueryDTO queryDTO = new PostQueryDTO();
@@ -72,13 +76,20 @@ public class PostController {
         queryDTO.setSortType(sortType);
         queryDTO.setIsTop(isTop);
         queryDTO.setIsEssence(isEssence);
-        queryDTO.setStatus(1); // 只查询已发布的帖子
+        // 如果没有传递status参数，默认只查询已发布的帖子
+        queryDTO.setStatus(status != null ? status : 1);
 
         // 获取当前用户ID
         Long currentUserId = getCurrentUserId(request);
 
         // 查询帖子列表
-        PageResult<PostListVO> result = postService.getPostList(queryDTO, currentUserId);
+        PageResult<PostListVO> result;
+        if (keyword != null && !keyword.trim().isEmpty()) {
+            // 有关键词时走搜索逻辑
+            result = postService.searchPosts(keyword, queryDTO, currentUserId);
+        } else {
+            result = postService.getPostList(queryDTO, currentUserId);
+        }
 
         return Result.success(result);
     }
@@ -539,25 +550,8 @@ public class PostController {
             case "viewCount":
                 postService.incrementViewCount(id);
                 break;
-            case "likeCount":
-                // likePost 是 toggle 操作，这里直接调用统计更新
-                // 使用现有的 incrementViewCount 模式
-                for (int i = 0; i < Math.abs(delta); i++) {
-                    if (delta > 0) {
-                        postService.likePost(id, -1L); // 使用特殊ID表示系统操作
-                    }
-                }
-                break;
             case "commentCount":
                 postService.updateCommentCount(id, delta);
-                break;
-            case "collectCount":
-                // collectPost 也是 toggle 操作
-                for (int i = 0; i < Math.abs(delta); i++) {
-                    if (delta > 0) {
-                        postService.collectPost(id, -1L);
-                    }
-                }
                 break;
             default:
                 return Result.fail(400, "未知的统计字段: " + field);

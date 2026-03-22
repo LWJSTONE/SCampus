@@ -116,7 +116,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/user'
@@ -148,7 +148,10 @@ async function fetchCategories() {
 
 // 获取未读消息数
 async function fetchUnreadCount() {
-  if (!userStore.isLoggedIn) return
+  if (!userStore.isLoggedIn) {
+    unreadCount.value = 0
+    return
+  }
   try {
     const res = await getUnreadCount()
     unreadCount.value = res.count || 0
@@ -191,6 +194,18 @@ function handleCommand(command: string) {
       break
   }
 }
+
+// 监听登录状态变化
+watch(
+  () => userStore.isLoggedIn,
+  (isLoggedIn) => {
+    if (isLoggedIn) {
+      fetchUnreadCount()
+    } else {
+      unreadCount.value = 0
+    }
+  }
+)
 
 onMounted(() => {
   // 获取分类列表
