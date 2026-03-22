@@ -101,4 +101,25 @@ public interface CommentService {
      * @return 是否已点赞
      */
     boolean isLiked(Long commentId, Long userId);
+
+    /**
+     * 获取用户的评论列表
+     * 
+     * @param userId 用户ID
+     * @param page 页码
+     * @param size 每页大小
+     * @param currentUserId 当前用户ID
+     * @return 评论分页列表
+     */
+    IPage<CommentVO> getCommentsByUserId(Long userId, Integer page, Integer size, Long currentUserId);
+
+    /**
+     * 审核评论
+     * 
+     * @param commentId 评论ID
+     * @param status 审核状态（1-通过，2-驳回）
+     * @param remark 审核备注
+     * @return 是否成功
+     */
+    boolean auditComment(Long commentId, Integer status, String remark);
 }

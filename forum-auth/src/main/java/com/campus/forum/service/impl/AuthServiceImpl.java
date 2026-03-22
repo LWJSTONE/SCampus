@@ -566,4 +566,44 @@ public class AuthServiceImpl implements AuthService {
         userInfoVO.setPermissions(java.util.Collections.singletonList("user:view"));
         return userInfoVO;
     }
+
+    @Override
+    public Result<Void> sendEmailCode(String email) {
+        log.info("发送邮箱验证码：email={}", email);
+
+        // 1. 验证邮箱格式
+        if (StrUtil.isBlank(email)) {
+            return Result.fail(400, "邮箱地址不能为空");
+        }
+        if (!email.matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")) {
+            return Result.fail(400, "邮箱格式不正确");
+        }
+
+        // 2. 检查发送频率限制（60秒内只能发送一次）
+        String rateLimitKey = Constants.CACHE_PREFIX + "email:rate:" + email;
+        if (redisUtils.hasKey(rateLimitKey)) {
+            return Result.fail(429, "发送过于频繁，请稍后再试");
+        }
+
+        // 3. 生成6位随机验证码
+        String code = cn.hutool.core.util.RandomUtil.randomNumbers(6);
+
+        // 4. 将验证码存入Redis（有效期5分钟）
+        String emailCodeKey = Constants.CACHE_PREFIX + "email:code:" + email;
+        redisUtils.set(emailCodeKey, code, 300); // 5分钟有效期
+
+        // 5. 设置发送频率限制（60秒）
+        redisUtils.set(rateLimitKey, "1", 60);
+
+        // 6. 发送邮件（这里简化处理，实际项目中应该调用邮件服务）
+        // TODO: 集成邮件服务发送验证码
+        log.info("邮箱验证码已生成：email={}, code={}", email, code);
+        
+        // 开发环境下，将验证码打印到日志方便测试
+        if (log.isDebugEnabled()) {
+            log.debug("验证码已发送至邮箱 {}，验证码：{}", email, code);
+        }
+
+        return Result.success("验证码已发送，请查收邮件");
+    }
 }

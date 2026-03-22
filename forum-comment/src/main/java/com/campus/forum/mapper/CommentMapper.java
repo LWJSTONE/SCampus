@@ -120,15 +120,31 @@ public interface CommentMapper extends BaseMapper<Comment> {
      * 
      * @param page 分页参数
      * @param userId 用户ID
+     * @param currentUserId 当前用户ID（用于判断是否点赞）
      * @return 评论列表
      */
-    @Select("SELECT c.*, p.title as post_title " +
+    @Select("<script>" +
+            "SELECT c.*, " +
+            "       p.title as post_title, " +
+            "       u.nickname as user_name, " +
+            "       u.avatar as user_avatar, " +
+            "       u.level as user_level, " +
+            "       ru.nickname as reply_to_user_name, " +
+            "       CASE WHEN cl.id IS NOT NULL THEN 1 ELSE 0 END as is_liked " +
             "FROM t_comment c " +
             "LEFT JOIN t_post p ON c.post_id = p.id " +
+            "LEFT JOIN t_user u ON c.user_id = u.id " +
+            "LEFT JOIN t_user ru ON c.reply_to_user_id = ru.id " +
+            "<if test='currentUserId != null'>" +
+            "LEFT JOIN t_comment_like cl ON c.id = cl.comment_id AND cl.user_id = #{currentUserId} AND cl.delete_flag = 0 " +
+            "</if>" +
             "WHERE c.user_id = #{userId} " +
             "AND c.delete_flag = 0 " +
-            "ORDER BY c.create_time DESC")
-    IPage<Comment> selectCommentsByUserId(Page<Comment> page, @Param("userId") Long userId);
+            "ORDER BY c.create_time DESC" +
+            "</script>")
+    IPage<CommentVO> selectCommentsByUserId(Page<CommentVO> page, 
+                                            @Param("userId") Long userId,
+                                            @Param("currentUserId") Long currentUserId);
 
     /**
      * 增加评论点赞数

@@ -162,6 +162,24 @@ public class AuthController {
     }
 
     /**
+     * 发送邮箱验证码
+     * 
+     * <p>发送邮箱验证码，用于注册或重置密码</p>
+     *
+     * @param request 包含邮箱地址的请求体
+     * @return 操作结果
+     */
+    @PostMapping("/email/code")
+    @Operation(summary = "发送邮箱验证码", description = "发送邮箱验证码，用于注册或重置密码验证")
+    public Result<Void> sendEmailCode(
+            @Parameter(description = "邮箱地址", required = true) 
+            @RequestBody java.util.Map<String, String> request) {
+        String email = request.get("email");
+        log.info("发送邮箱验证码请求：email={}", email);
+        return authService.sendEmailCode(email);
+    }
+
+    /**
      * 健康检查
      * 
      * <p>用于服务健康状态检查</p>

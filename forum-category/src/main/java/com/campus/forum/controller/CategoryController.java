@@ -56,6 +56,21 @@ public class CategoryController {
     }
 
     /**
+     * 获取分类详情
+     */
+    @GetMapping("/categories/{id}")
+    @Operation(summary = "获取分类详情", description = "根据ID获取分类详细信息")
+    public Result<Category> getCategoryDetail(
+            @Parameter(description = "分类ID", required = true) @PathVariable Long id) {
+        log.info("获取分类详情：{}", id);
+        Category category = categoryService.getById(id);
+        if (category == null) {
+            return Result.fail(404, "分类不存在");
+        }
+        return Result.success(category);
+    }
+
+    /**
      * 创建分类
      */
     @PostMapping("/categories")

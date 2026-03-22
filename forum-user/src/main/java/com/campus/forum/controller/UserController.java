@@ -159,6 +159,29 @@ public class UserController {
         return Result.success(result);
     }
 
+    /**
+     * 更新用户状态（管理员）
+     *
+     * @param id     用户ID
+     * @param status 状态（0-禁用，1-正常）
+     * @return 操作结果
+     */
+    @PutMapping("/{id}/status")
+    @Operation(summary = "更新用户状态", description = "管理员启用/禁用用户账户")
+    public Result<Boolean> updateUserStatus(
+            @Parameter(description = "用户ID", required = true) @PathVariable Long id,
+            @Parameter(description = "状态（0-禁用，1-正常）", required = true) @RequestParam Integer status) {
+        log.info("更新用户状态，用户ID：{}，状态：{}", id, status);
+        
+        // 验证状态值
+        if (status != 0 && status != 1) {
+            return Result.fail(400, "状态值无效，只能为0（禁用）或1（正常）");
+        }
+        
+        boolean result = userService.updateStatus(id, status);
+        return Result.success(result);
+    }
+
     // ==================== 关注功能 ====================
 
     /**

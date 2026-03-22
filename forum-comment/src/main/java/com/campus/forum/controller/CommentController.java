@@ -262,6 +262,61 @@ public class CommentController {
         return Result.success(result);
     }
 
+    /**
+     * 获取用户的评论列表
+     * 
+     * @param userId 用户ID
+     * @param current 当前页
+     * @param size 每页大小
+     * @return 评论列表
+     */
+    @GetMapping("/user/{userId}")
+    @Operation(summary = "获取用户评论列表", description = "分页获取指定用户发表的评论列表")
+    public Result<IPage<CommentVO>> getUserComments(
+            @Parameter(description = "用户ID") @PathVariable Long userId,
+            @Parameter(description = "当前页") @RequestParam(defaultValue = "1") Integer current,
+            @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") Integer size,
+            HttpServletRequest request) {
+        
+        log.info("获取用户评论列表, userId: {}, current: {}, size: {}", userId, current, size);
+        
+        // 获取当前用户ID
+        Long currentUserId = getCurrentUserId(request);
+        
+        // 查询用户评论列表
+        IPage<CommentVO> commentPage = commentService.getCommentsByUserId(userId, current, size, currentUserId);
+        
+        return Result.success(commentPage);
+    }
+
+    /**
+     * 审核评论（管理员）
+     * 
+     * @param id 评论ID
+     * @param request HTTP请求
+     * @return 操作结果
+     */
+    @PutMapping("/{id}/audit")
+    @Operation(summary = "审核评论", description = "管理员审核评论状态（通过/驳回）")
+    public Result<Boolean> auditComment(
+            @Parameter(description = "评论ID") @PathVariable Long id,
+            @Parameter(description = "审核状态（1-通过，2-驳回）") @RequestParam Integer status,
+            @Parameter(description = "审核备注") @RequestParam(required = false) String remark,
+            HttpServletRequest request) {
+        
+        log.info("审核评论, commentId: {}, status: {}", id, status);
+        
+        // 验证状态值
+        if (status != 1 && status != 2) {
+            return Result.fail(400, "状态值无效，只能为1（通过）或2（驳回）");
+        }
+        
+        // 审核评论
+        boolean result = commentService.auditComment(id, status, remark);
+        
+        return Result.success("审核完成", result);
+    }
+
     // ==================== 私有方法 ====================
 
     /**

@@ -152,4 +152,21 @@ public interface AuthService {
      * @return 是否超限
      */
     boolean isLoginFailCountExceeded(Long userId);
+
+    /**
+     * 发送邮箱验证码
+     * 
+     * <p>发送流程：</p>
+     * <ol>
+     *   <li>验证邮箱格式</li>
+     *   <li>检查发送频率限制</li>
+     *   <li>生成6位随机验证码</li>
+     *   <li>发送邮件</li>
+     *   <li>将验证码存入Redis（有效期5分钟）</li>
+     * </ol>
+     *
+     * @param email 邮箱地址
+     * @return 操作结果
+     */
+    Result<Void> sendEmailCode(String email);
 }

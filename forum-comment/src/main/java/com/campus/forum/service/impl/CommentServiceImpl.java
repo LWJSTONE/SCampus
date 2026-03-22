@@ -384,6 +384,56 @@ public class CommentServiceImpl implements CommentService {
         return isLiked;
     }
 
+    /**
+     * 获取用户的评论列表
+     */
+    @Override
+    public IPage<CommentVO> getCommentsByUserId(Long userId, Integer page, Integer size, Long currentUserId) {
+        log.info("获取用户评论列表, userId: {}, page: {}, size: {}", userId, page, size);
+        
+        // 构建分页参数
+        Page<CommentVO> pageParam = new Page<>(page, size);
+        
+        // 查询用户的评论列表
+        IPage<CommentVO> commentPage = commentMapper.selectCommentsByUserId(pageParam, userId, currentUserId);
+        
+        // 处理每条评论
+        for (CommentVO comment : commentPage.getRecords()) {
+            processComment(comment, currentUserId);
+        }
+        
+        return commentPage;
+    }
+
+    /**
+     * 审核评论
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean auditComment(Long commentId, Integer status, String remark) {
+        log.info("审核评论, commentId: {}, status: {}, remark: {}", commentId, status, remark);
+        
+        // 1. 查询评论
+        Comment comment = commentMapper.selectById(commentId);
+        if (comment == null || comment.getDeleteFlag() == 1) {
+            throw new BusinessException(ResultCode.COMMENT_NOT_FOUND);
+        }
+        
+        // 2. 更新审核状态
+        comment.setAuditStatus(status);
+        // 如果审核不通过，设置评论状态为不可见
+        if (status == 2) {
+            comment.setStatus(2); // 2表示审核未通过
+        } else {
+            comment.setStatus(0); // 审核通过，恢复正常状态
+        }
+        
+        int result = commentMapper.updateById(comment);
+        
+        log.info("审核评论完成, commentId: {}, status: {}", commentId, status);
+        return result > 0;
+    }
+
     // ==================== 私有方法 ====================
 
     /**
