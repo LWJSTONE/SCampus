@@ -8,17 +8,39 @@
         </div>
       </template>
 
-      <el-table :data="categories" v-loading="loading" row-key="id">
+      <el-table :data="flattenedCategories" v-loading="loading" row-key="id">
         <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="name" label="名称" />
-        <el-table-column prop="code" label="编码" />
-        <el-table-column prop="description" label="描述" />
-        <el-table-column prop="sortOrder" label="排序" width="80" />
+        <el-table-column prop="name" label="名称">
+          <template #default="{ row }">
+            <span :style="{ paddingLeft: (row._level || 0) * 20 + 'px' }">
+              {{ row.name }}
+            </span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="type" label="类型" width="100">
+          <template #default="{ row }">
+            <el-tag :type="row._isForum ? 'success' : 'primary'" size="small">
+              {{ row._isForum ? '版块' : '分类' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="description" label="描述" show-overflow-tooltip />
+        <el-table-column prop="sort" label="排序" width="80">
+          <template #default="{ row }">
+            {{ row.sort || row.sortOrder || 0 }}
+          </template>
+        </el-table-column>
         <el-table-column label="操作" width="200">
           <template #default="{ row }">
-            <el-button link type="primary" @click="handleEdit(row)">编辑</el-button>
-            <el-button link type="primary" @click="handleAddForum(row)">添加版块</el-button>
-            <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
+            <template v-if="!row._isForum">
+              <el-button link type="primary" @click="handleEdit(row)">编辑</el-button>
+              <el-button link type="primary" @click="handleAddForum(row)">添加版块</el-button>
+              <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
+            </template>
+            <template v-else>
+              <el-button link type="primary" @click="handleEditForum(row)">编辑</el-button>
+              <el-button link type="danger" @click="handleDeleteForum(row)">删除</el-button>
+            </template>
           </template>
         </el-table-column>
       </el-table>
@@ -30,14 +52,14 @@
         <el-form-item label="名称" required>
           <el-input v-model="categoryForm.name" placeholder="请输入分类名称" maxlength="50" />
         </el-form-item>
-        <el-form-item label="编码">
-          <el-input v-model="categoryForm.code" placeholder="请输入分类编码" maxlength="50" />
+        <el-form-item label="图标">
+          <el-input v-model="categoryForm.icon" placeholder="请输入图标名称" maxlength="50" />
         </el-form-item>
         <el-form-item label="描述">
           <el-input v-model="categoryForm.description" type="textarea" :rows="3" placeholder="请输入分类描述" maxlength="200" />
         </el-form-item>
         <el-form-item label="排序">
-          <el-input-number v-model="categoryForm.sortOrder" :min="0" :max="999" />
+          <el-input-number v-model="categoryForm.sort" :min="0" :max="999" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -47,7 +69,7 @@
     </el-dialog>
 
     <!-- 版块表单对话框 -->
-    <el-dialog v-model="forumDialogVisible" title="添加版块" width="500px">
+    <el-dialog v-model="forumDialogVisible" :title="forumDialogTitle" width="500px">
       <el-form :model="forumForm" label-width="80px">
         <el-form-item label="所属分类">
           <el-input :value="currentCategory?.name" disabled />
@@ -68,13 +90,55 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getCategoryList, createCategory, updateCategory, deleteCategory, createForum } from '@/api/category'
+import { getCategoryList, createCategory, updateCategory, deleteCategory, createForum, updateForum, deleteForum } from '@/api/category'
 import type { CategoryVO } from '@/types'
 
+interface CategoryTreeVO extends CategoryVO {
+  sort?: number
+  parentId?: number
+  children?: CategoryTreeVO[]
+  forums?: any[]
+  _level?: number
+  _isForum?: boolean
+  _parentId?: number
+}
+
 const loading = ref(false)
-const categories = ref<CategoryVO[]>([])
+const categories = ref<CategoryTreeVO[]>([])
+
+// 扁平化的分类列表，用于表格显示
+const flattenedCategories = computed(() => {
+  const result: CategoryTreeVO[] = []
+  function flatten(items: CategoryTreeVO[], level: number = 0, parentId?: number) {
+    items.forEach(item => {
+      result.push({ 
+        ...item, 
+        _level: level, 
+        _isForum: false,
+        _parentId: parentId 
+      })
+      // 添加版块
+      if (item.forums && item.forums.length > 0) {
+        item.forums.forEach(forum => {
+          result.push({ 
+            ...forum, 
+            _level: level + 1, 
+            _isForum: true,
+            _parentId: item.id 
+          })
+        })
+      }
+      // 递归处理子分类
+      if (item.children && item.children.length > 0) {
+        flatten(item.children, level + 1, item.id)
+      }
+    })
+  }
+  flatten(categories.value)
+  return result
+})
 
 // 分类表单对话框
 const dialogVisible = ref(false)
@@ -83,14 +147,16 @@ const editingId = ref<number | null>(null)
 const submitting = ref(false)
 const categoryForm = reactive({
   name: '',
-  code: '',
+  icon: '',
   description: '',
-  sortOrder: 0
+  sort: 0
 })
 
 // 版块表单对话框
 const forumDialogVisible = ref(false)
-const currentCategory = ref<CategoryVO | null>(null)
+const forumDialogTitle = ref('添加版块')
+const currentCategory = ref<CategoryTreeVO | null>(null)
+const editingForumId = ref<number | null>(null)
 const forumForm = reactive({
   name: '',
   description: ''
@@ -99,7 +165,8 @@ const forumForm = reactive({
 async function fetchCategories() {
   loading.value = true
   try {
-    categories.value = await getCategoryList()
+    const data = await getCategoryList()
+    categories.value = data || []
   } catch (e) {
     console.error('获取分类失败:', e)
     categories.value = []
@@ -113,21 +180,21 @@ function handleAdd() {
   editingId.value = null
   Object.assign(categoryForm, {
     name: '',
-    code: '',
+    icon: '',
     description: '',
-    sortOrder: 0
+    sort: 0
   })
   dialogVisible.value = true
 }
 
-function handleEdit(row: CategoryVO) {
+function handleEdit(row: CategoryTreeVO) {
   dialogTitle.value = '编辑分类'
   editingId.value = row.id
   Object.assign(categoryForm, {
     name: row.name,
-    code: row.code || '',
+    icon: row.icon || '',
     description: row.description || '',
-    sortOrder: row.sortOrder || 0
+    sort: row.sort || row.sortOrder || 0
   })
   dialogVisible.value = true
 }
@@ -156,11 +223,25 @@ async function handleSubmit() {
   }
 }
 
-function handleAddForum(row: CategoryVO) {
+function handleAddForum(row: CategoryTreeVO) {
+  forumDialogTitle.value = '添加版块'
   currentCategory.value = row
+  editingForumId.value = null
   Object.assign(forumForm, {
     name: '',
     description: ''
+  })
+  forumDialogVisible.value = true
+}
+
+function handleEditForum(row: CategoryTreeVO) {
+  forumDialogTitle.value = '编辑版块'
+  editingForumId.value = row.id
+  // 找到所属分类
+  currentCategory.value = flattenedCategories.value.find(c => c.id === row._parentId && !c._isForum) || null
+  Object.assign(forumForm, {
+    name: row.name,
+    description: row.description || ''
   })
   forumDialogVisible.value = true
 }
@@ -170,26 +251,34 @@ async function submitForum() {
     ElMessage.warning('请输入版块名称')
     return
   }
-  if (!currentCategory.value) return
+  if (!currentCategory.value && !editingForumId.value) return
   
   submitting.value = true
   try {
-    await createForum({
-      categoryId: currentCategory.value.id,
-      name: forumForm.name,
-      description: forumForm.description
-    })
-    ElMessage.success('创建成功')
+    if (editingForumId.value) {
+      await updateForum(editingForumId.value, {
+        name: forumForm.name,
+        description: forumForm.description
+      })
+      ElMessage.success('更新成功')
+    } else {
+      await createForum({
+        categoryId: currentCategory.value!.id,
+        name: forumForm.name,
+        description: forumForm.description
+      })
+      ElMessage.success('创建成功')
+    }
     forumDialogVisible.value = false
     fetchCategories()
   } catch (e) {
-    console.error('创建版块失败:', e)
+    console.error('操作版块失败:', e)
   } finally {
     submitting.value = false
   }
 }
 
-async function handleDelete(row: CategoryVO) {
+async function handleDelete(row: CategoryTreeVO) {
   try {
     await ElMessageBox.confirm('确定要删除该分类吗？删除分类将同时删除该分类下的所有版块', '提示', {
       confirmButtonText: '确定',
@@ -197,6 +286,21 @@ async function handleDelete(row: CategoryVO) {
       type: 'warning'
     })
     await deleteCategory(row.id)
+    ElMessage.success('删除成功')
+    fetchCategories()
+  } catch (e) {
+    // 用户取消
+  }
+}
+
+async function handleDeleteForum(row: CategoryTreeVO) {
+  try {
+    await ElMessageBox.confirm('确定要删除该版块吗？', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    await deleteForum(row.id)
     ElMessage.success('删除成功')
     fetchCategories()
   } catch (e) {

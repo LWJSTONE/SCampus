@@ -2,25 +2,25 @@
   <div class="stats-view-page">
     <el-row :gutter="16" class="stat-cards">
       <el-col :span="6">
-        <el-card class="stat-card">
+        <el-card class="stat-card" v-loading="loading">
           <div class="stat-value">{{ stats.userCount }}</div>
           <div class="stat-label">用户数</div>
         </el-card>
       </el-col>
       <el-col :span="6">
-        <el-card class="stat-card">
+        <el-card class="stat-card" v-loading="loading">
           <div class="stat-value">{{ stats.postCount }}</div>
           <div class="stat-label">帖子数</div>
         </el-card>
       </el-col>
       <el-col :span="6">
-        <el-card class="stat-card">
+        <el-card class="stat-card" v-loading="loading">
           <div class="stat-value">{{ stats.commentCount }}</div>
           <div class="stat-label">评论数</div>
         </el-card>
       </el-col>
       <el-col :span="6">
-        <el-card class="stat-card">
+        <el-card class="stat-card" v-loading="loading">
           <div class="stat-value">{{ stats.todayActive }}</div>
           <div class="stat-label">今日活跃</div>
         </el-card>
@@ -29,43 +29,193 @@
 
     <el-card class="chart-card">
       <template #header>
-        <span>数据趋势</span>
+        <div class="chart-header">
+          <span>数据趋势</span>
+          <el-radio-group v-model="trendType" size="small">
+            <el-radio-button value="day">日</el-radio-button>
+            <el-radio-button value="week">周</el-radio-button>
+            <el-radio-button value="month">月</el-radio-button>
+          </el-radio-group>
+        </div>
       </template>
-      <div ref="chartRef" class="chart-container"></div>
+      <div ref="chartRef" class="chart-container" v-loading="chartLoading"></div>
     </el-card>
+
+    <el-row :gutter="16" class="detail-cards">
+      <el-col :span="12">
+        <el-card>
+          <template #header>
+            <span>用户统计</span>
+          </template>
+          <el-descriptions :column="2" border v-loading="userLoading">
+            <el-descriptions-item label="总用户数">{{ userStats.totalUsers || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="今日新增">{{ userStats.todayNewUsers || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="活跃用户">{{ userStats.activeUsers || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="在线用户">{{ userStats.onlineUsers || '-' }}</el-descriptions-item>
+          </el-descriptions>
+        </el-card>
+      </el-col>
+      <el-col :span="12">
+        <el-card>
+          <template #header>
+            <span>互动统计</span>
+          </template>
+          <el-descriptions :column="2" border v-loading="interactionLoading">
+            <el-descriptions-item label="总点赞数">{{ interactionStats.totalLikes || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="总收藏数">{{ interactionStats.totalCollects || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="今日点赞">{{ interactionStats.todayLikes || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="今日收藏">{{ interactionStats.todayCollects || '-' }}</el-descriptions-item>
+          </el-descriptions>
+        </el-card>
+      </el-col>
+    </el-row>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, watch } from 'vue'
 import * as echarts from 'echarts'
+import { getOverviewStats, getTrendData, getUserStats, getInteractionStats } from '@/api/stats'
 
 const chartRef = ref<HTMLElement>()
 let chart: echarts.ECharts | null = null
 
+const loading = ref(false)
+const chartLoading = ref(false)
+const userLoading = ref(false)
+const interactionLoading = ref(false)
+
+const trendType = ref<'day' | 'week' | 'month'>('day')
+
 const stats = reactive({
-  userCount: 1234,
-  postCount: 5678,
-  commentCount: 9012,
-  todayActive: 345
+  userCount: '-',
+  postCount: '-',
+  commentCount: '-',
+  todayActive: '-'
 })
 
-function initChart() {
+const userStats = reactive({
+  totalUsers: '-',
+  todayNewUsers: '-',
+  activeUsers: '-',
+  onlineUsers: '-'
+})
+
+const interactionStats = reactive({
+  totalLikes: '-',
+  totalCollects: '-',
+  todayLikes: '-',
+  todayCollects: '-'
+})
+
+// 格式化数字
+function formatNumber(num: number | undefined): string {
+  if (num === undefined || num === null) return '-'
+  return num.toLocaleString()
+}
+
+// 获取概览统计
+async function fetchOverviewStats() {
+  loading.value = true
+  try {
+    const data = await getOverviewStats()
+    stats.userCount = formatNumber(data.userCount)
+    stats.postCount = formatNumber(data.postCount)
+    stats.commentCount = formatNumber(data.commentCount)
+    stats.todayActive = formatNumber(data.todayActive || data.todayPostCount || 0)
+  } catch (error) {
+    console.error('获取概览统计失败:', error)
+  } finally {
+    loading.value = false
+  }
+}
+
+// 获取用户统计
+async function fetchUserStats() {
+  userLoading.value = true
+  try {
+    const data = await getUserStats()
+    userStats.totalUsers = formatNumber(data.totalUsers || data.userCount)
+    userStats.todayNewUsers = formatNumber(data.todayNewUsers)
+    userStats.activeUsers = formatNumber(data.activeUsers)
+    userStats.onlineUsers = formatNumber(data.onlineUsers)
+  } catch (error) {
+    console.error('获取用户统计失败:', error)
+  } finally {
+    userLoading.value = false
+  }
+}
+
+// 获取互动统计
+async function fetchInteractionStats() {
+  interactionLoading.value = true
+  try {
+    const data = await getInteractionStats()
+    interactionStats.totalLikes = formatNumber(data.totalLikes)
+    interactionStats.totalCollects = formatNumber(data.totalCollects)
+    interactionStats.todayLikes = formatNumber(data.todayLikes)
+    interactionStats.todayCollects = formatNumber(data.todayCollects)
+  } catch (error) {
+    console.error('获取互动统计失败:', error)
+  } finally {
+    interactionLoading.value = false
+  }
+}
+
+// 获取趋势数据
+async function fetchTrendData() {
+  chartLoading.value = true
+  try {
+    const data = await getTrendData(trendType.value)
+    updateChart(data)
+  } catch (error) {
+    console.error('获取趋势数据失败:', error)
+    updateChart(null)
+  } finally {
+    chartLoading.value = false
+  }
+}
+
+// 更新图表
+function updateChart(data: any) {
   if (!chartRef.value) return
-  
-  chart = echarts.init(chartRef.value)
+
+  if (!chart) {
+    chart = echarts.init(chartRef.value)
+  }
+
+  let xData: string[] = []
+  let userData: number[] = []
+  let postData: number[] = []
+  let commentData: number[] = []
+
+  if (data && data.dates) {
+    xData = data.dates
+    userData = data.userData || []
+    postData = data.postData || []
+    commentData = data.commentData || []
+  } else {
+    // 默认数据
+    xData = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
+    userData = [120, 132, 101, 134, 90, 230, 210]
+    postData = [220, 182, 191, 234, 290, 330, 310]
+    commentData = [150, 232, 201, 154, 190, 330, 410]
+  }
+
   const option = {
     tooltip: { trigger: 'axis' },
     legend: { data: ['新增用户', '新增帖子', '新增评论'] },
+    grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
     xAxis: {
       type: 'category',
-      data: ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
+      boundaryGap: false,
+      data: xData
     },
     yAxis: { type: 'value' },
     series: [
-      { name: '新增用户', type: 'line', data: [120, 132, 101, 134, 90, 230, 210] },
-      { name: '新增帖子', type: 'line', data: [220, 182, 191, 234, 290, 330, 310] },
-      { name: '新增评论', type: 'line', data: [150, 232, 201, 154, 190, 330, 410] }
+      { name: '新增用户', type: 'line', smooth: true, data: userData },
+      { name: '新增帖子', type: 'line', smooth: true, data: postData },
+      { name: '新增评论', type: 'line', smooth: true, data: commentData }
     ]
   }
   chart.setOption(option)
@@ -75,8 +225,16 @@ function handleResize() {
   chart?.resize()
 }
 
+// 监听趋势类型变化
+watch(trendType, () => {
+  fetchTrendData()
+})
+
 onMounted(() => {
-  initChart()
+  fetchOverviewStats()
+  fetchUserStats()
+  fetchInteractionStats()
+  fetchTrendData()
   window.addEventListener('resize', handleResize)
 })
 
@@ -109,8 +267,22 @@ onUnmounted(() => {
   }
 
   .chart-card {
+    margin-bottom: 16px;
+    
+    .chart-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
     .chart-container {
       height: 400px;
+    }
+  }
+
+  .detail-cards {
+    .el-card {
+      margin-bottom: 16px;
     }
   }
 }

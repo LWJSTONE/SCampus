@@ -159,7 +159,8 @@ async function fetchUnreadCount() {
 
 function handleSearch() {
   if (searchKeyword.value.trim()) {
-    router.push({ path: '/search', query: { keyword: searchKeyword.value } })
+    // 使用 q 参数名，与 Search.vue 中 route.query.q 保持一致
+    router.push({ path: '/search', query: { q: searchKeyword.value } })
   }
 }
 

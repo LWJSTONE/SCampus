@@ -60,7 +60,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { getUserById, followUser, unfollowUser } from '@/api/user'
+import { getUserById, followUser, unfollowUser, getUserCollections } from '@/api/user'
 import { getPostList } from '@/api/post'
 import { useUserStore } from '@/stores/user'
 import type { UserDetailVO, PostVO } from '@/types'
@@ -114,21 +114,16 @@ async function fetchCollections() {
     return
   }
   try {
-    // 调用收藏列表API
-    const res = await fetch('/api/v1/interactions/collect/list?current=1&size=10', {
-      headers: {
-        'Authorization': `Bearer ${userStore.token}`
-      }
-    }).then(r => r.json())
-    if (res.code === 200 && res.data) {
-      collections.value = (res.data.records || []).map((item: any) => ({
-        id: item.id,
-        postId: item.postId,
-        postTitle: item.postTitle || item.title,
-        postSummary: item.postSummary || item.summary || '',
-        createTime: item.createTime
-      }))
-    }
+    // 使用封装好的 API 函数获取收藏列表
+    const res = await getUserCollections(userId, { page: 1, size: 10 })
+    const records = res.records || res.list || []
+    collections.value = records.map((item: any) => ({
+      id: item.id,
+      postId: item.postId,
+      postTitle: item.postTitle || item.title,
+      postSummary: item.postSummary || item.summary || '',
+      createTime: item.createTime
+    }))
   } catch (e) {
     console.error('获取收藏失败:', e)
     collections.value = []
