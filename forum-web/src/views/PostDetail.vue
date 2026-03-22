@@ -202,9 +202,14 @@ const fetchPostDetail = async () => {
     res.liked = res.liked ?? res.isLiked ?? false
     res.collected = res.collected ?? res.isCollected ?? false
     res.authorId = res.authorId ?? res.userId
-    res.authorName = res.authorName ?? res.username
+    // 兼容 userName 和 username 字段
+    res.authorName = res.authorName ?? res.username ?? res.userName
+    res.username = res.username ?? res.userName
     res.authorAvatar = res.authorAvatar ?? res.userAvatar
     res.categoryName = res.categoryName ?? res.forumName
+    // 兼容 isTop 和 isEssence 的不同格式
+    res.isTop = res.isTop === 1 || res.isTop === true
+    res.isEssence = res.isEssence === 1 || res.isEssence === true
     postDetail.value = res
   } catch (error) {
     console.error('获取帖子详情失败：', error)

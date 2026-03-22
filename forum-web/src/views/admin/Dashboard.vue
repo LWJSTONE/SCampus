@@ -276,7 +276,8 @@ async function fetchTodoStats() {
 async function fetchTrendData() {
   chartLoading.value = true
   try {
-    const data = await getTrendData(trendType.value)
+    // 后端API参数名为 rangeType，前端变量名为 trendType
+    const data = await getTrendData(trendType.value as 'day' | 'week' | 'month')
     updateTrendChart(data)
   } catch (error) {
     console.error('获取趋势数据失败:', error)

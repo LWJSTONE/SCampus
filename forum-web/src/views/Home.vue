@@ -107,7 +107,16 @@ async function fetchPosts() {
   loading.value = true
   try {
     const res = await getPostList({ page: page.value, size })
-    posts.value = [...posts.value, ...res.records]
+    // 兼容后端返回的字段名 userName -> username
+    const records = res.records.map((post: any) => ({
+      ...post,
+      username: post.username || post.userName,
+      userAvatar: post.userAvatar || post.avatar,
+      forumName: post.forumName || post.categoryName,
+      isTop: post.isTop === 1 || post.isTop === true,
+      isEssence: post.isEssence === 1 || post.isEssence === true
+    }))
+    posts.value = [...posts.value, ...records]
     hasMore.value = res.current < res.pages
   } catch (e) {
     console.error('获取帖子列表失败:', e)

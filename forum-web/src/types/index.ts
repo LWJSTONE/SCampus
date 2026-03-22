@@ -106,7 +106,8 @@ export interface PostVO {
   title: string
   summary: string
   content?: string
-  username: string
+  username: string  // 前端统一使用username
+  userName?: string // 兼容后端返回的字段名
   userAvatar: string
   userId: number
   forumId: number
