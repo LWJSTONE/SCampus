@@ -68,7 +68,10 @@ const isOwnProfile = computed(() => userStore.userInfo?.id === userId)
 
 async function fetchUser() {
   try {
-    user.value = await getUserById(userId)
+    const res = await getUserById(userId)
+    user.value = res
+    // 初始化关注状态 - 后端返回的字段名可能是 isFollowing 或 followed
+    isFollowing.value = res.isFollowing || res.followed || false
   } catch (e) {
     console.error('获取用户信息失败:', e)
   }

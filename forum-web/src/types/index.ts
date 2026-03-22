@@ -22,11 +22,16 @@ export interface UserDetailVO extends UserVO {
   followerCount: number
   followingCount: number
   roles: string[]
+  permissions: string[]
+  // 关注状态
+  isFollowing?: boolean
+  followed?: boolean
 }
 
 export interface UserQueryDTO {
   page: number
   size: number
+  current?: number
   keyword?: string
   status?: number
   orderBy?: string
@@ -52,17 +57,27 @@ export interface LoginDTO {
 export interface RegisterDTO {
   username: string
   password: string
-  confirmPassword: string
+  confirmPassword?: string
   email: string
-  captcha: string
-  captchaKey: string
-  code?: string
+  captcha?: string
+  captchaKey?: string
+  code?: string // 邮箱验证码
+  nickname?: string
+  phone?: string
+  schoolId?: number
+  studentNo?: string
 }
 
 export interface LoginVO {
   accessToken: string
   refreshToken: string
   expiresIn: number
+  tokenType?: string
+  userId?: number
+  username?: string
+  nickname?: string
+  avatar?: string
+  roles?: string[]
 }
 
 export interface CaptchaVO {
@@ -90,12 +105,14 @@ export interface PostVO {
   id: number
   title: string
   summary: string
-  content: string
+  content?: string
   username: string
   userAvatar: string
+  userId: number
   forumId: number
   forumName: string
-  cover: string
+  cover?: string
+  coverImage?: string
   viewCount: number
   commentCount: number
   likeCount: number
@@ -104,15 +121,18 @@ export interface PostVO {
   isEssence: boolean
   createTime: string
   updateTime: string
+  hotScore?: number
+  isAuthor?: boolean
+  isLiked?: boolean
+  isCollected?: boolean
 }
 
 export interface PostDetailVO extends PostVO {
-  userId: number
   type: number
   status: number
   isAnonymous: boolean
   ipAddress: string
-  tags: string[]
+  tags: TagVO[]
   attachments: AttachmentVO[]
   liked?: boolean
   collected?: boolean
@@ -122,25 +142,51 @@ export interface PostDetailVO extends PostVO {
   categoryName?: string
 }
 
+export interface TagVO {
+  id: number
+  name: string
+}
+
 export interface PostQueryDTO {
   page: number
   size: number
+  current?: number
   forumId?: number
   userId?: number
   keyword?: string
   status?: number
   orderBy?: string
   order?: 'asc' | 'desc'
+  sortType?: number
+  isTop?: number
+  isEssence?: number
+  type?: number
 }
 
 export interface PostCreateDTO {
   forumId: number
   title: string
   content: string
-  type: number
-  isAnonymous: boolean
-  tags: string[]
-  attachmentIds: number[]
+  type?: number
+  isAnonymous?: boolean
+  tags?: string[]
+  tagIds?: number[]
+  attachmentIds?: number[]
+  summary?: string
+  coverImage?: string
+  attachments?: AttachmentDTO[]
+}
+
+export interface AttachmentDTO {
+  type: string
+  name: string
+  url: string
+  thumbnailUrl?: string
+  size?: number
+  mimeType?: string
+  width?: number
+  height?: number
+  duration?: number
 }
 
 // 评论相关类型
@@ -148,6 +194,7 @@ export interface CommentVO {
   id: number
   postId: number
   parentId: number
+  rootId?: number
   userId: number
   username: string
   userAvatar: string
@@ -157,22 +204,16 @@ export interface CommentVO {
   createTime: string
   children?: CommentVO[]
   authorName?: string
-  rootId?: number
+  replyToUsername?: string
+  isLiked?: boolean
+  isAuthor?: boolean
 }
 
 export interface CommentCreateDTO {
   postId: number
   parentId?: number
-  replyToUserId?: number
-  content: string
-}
-
-// 评论创建参数（兼容旧代码）
-export interface CommentCreateParams {
-  postId: number
-  parentId?: number
-  replyToId?: number
   rootId?: number
+  replyToUserId?: number
   content: string
 }
 
@@ -184,7 +225,9 @@ export interface CategoryVO {
   icon: string
   description: string
   sortOrder: number
+  status?: number
   children?: CategoryVO[]
+  forums?: ForumVO[]
 }
 
 export interface ForumVO {
@@ -192,10 +235,13 @@ export interface ForumVO {
   categoryId: number
   name: string
   description: string
-  coverUrl: string
+  coverUrl?: string
+  icon?: string
   postCount: number
-  threadCount: number
-  moderators: UserVO[]
+  threadCount?: number
+  status?: number
+  sortOrder?: number
+  moderators?: UserVO[]
 }
 
 // 通知相关类型
@@ -204,8 +250,13 @@ export interface NoticeVO {
   title: string
   content: string
   type: number
-  isRead: boolean
+  status: number
+  publisherId?: number
+  publisherName?: string
+  isRead?: boolean
+  readTime?: string
   createTime: string
+  updateTime?: string
 }
 
 // 附件相关类型
@@ -215,6 +266,10 @@ export interface AttachmentVO {
   url: string
   size: number
   type: string
+  mimeType?: string
+  thumbnailUrl?: string
+  width?: number
+  height?: number
 }
 
 // 通用类型
@@ -233,6 +288,13 @@ export interface PageResult<T = any> {
   current: number
   pages: number
   list?: T[]
+}
+
+// API 响应类型
+export interface ApiResponse<T = any> {
+  code: number
+  message: string
+  data: T
 }
 
 // 类型别名（向后兼容）

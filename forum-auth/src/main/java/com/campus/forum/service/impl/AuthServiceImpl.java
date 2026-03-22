@@ -155,13 +155,31 @@ public class AuthServiceImpl implements AuthService {
     public Result<Void> register(RegisterDTO registerDTO) {
         log.info("用户注册请求：username={}", registerDTO.getUsername());
 
-        // 1. 验证码校验
-        if (!validateCaptcha(registerDTO.getCaptchaKey(), registerDTO.getCaptcha())) {
-            return Result.fail(400, "验证码错误或已过期");
+        // 1. 验证码校验 - 支持邮箱验证码或图形验证码
+        boolean isEmailCodeMode = StrUtil.isNotBlank(registerDTO.getCode());
+        
+        if (isEmailCodeMode) {
+            // 邮箱验证码方式
+            String emailCodeKey = Constants.CACHE_PREFIX + "email:code:" + registerDTO.getEmail();
+            Object cachedCode = redisUtils.get(emailCodeKey);
+            if (cachedCode == null) {
+                return Result.fail(400, "验证码已过期，请重新获取");
+            }
+            if (!cachedCode.toString().equalsIgnoreCase(registerDTO.getCode().trim())) {
+                return Result.fail(400, "验证码错误");
+            }
+            // 删除已使用的验证码
+            redisUtils.del(emailCodeKey);
+        } else {
+            // 图形验证码方式
+            if (!validateCaptcha(registerDTO.getCaptchaKey(), registerDTO.getCaptcha())) {
+                return Result.fail(400, "验证码错误或已过期");
+            }
         }
 
         // 2. 密码确认校验
-        if (!registerDTO.getPassword().equals(registerDTO.getConfirmPassword())) {
+        if (registerDTO.getConfirmPassword() != null && 
+            !registerDTO.getPassword().equals(registerDTO.getConfirmPassword())) {
             return Result.fail(400, "两次输入的密码不一致");
         }
 
@@ -191,7 +209,7 @@ public class AuthServiceImpl implements AuthService {
         user.setStatus(Constants.STATUS_ENABLE);
         user.setGender(Constants.GENDER_UNKNOWN);
         user.setLoginFailCount(0);
-        user.setEmailVerified(0);
+        user.setEmailVerified(isEmailCodeMode ? 1 : 0); // 邮箱验证码注册则标记邮箱已验证
         user.setPhoneVerified(0);
         user.setAvatar(Constants.DEFAULT_AVATAR);
 
@@ -284,33 +302,82 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Result<Void> resetPassword(ResetPasswordDTO resetPasswordDTO) {
-        log.info("重置密码请求：username={}", resetPasswordDTO.getUsername());
+        log.info("重置密码请求：email={}, username={}", resetPasswordDTO.getEmail(), resetPasswordDTO.getUsername());
 
-        // 1. 验证码校验
-        if (!validateCaptcha(resetPasswordDTO.getCaptchaKey(), resetPasswordDTO.getCaptcha())) {
-            return Result.fail(400, "验证码错误或已过期");
+        // 判断重置密码的方式：邮箱验证码方式 或 图形验证码方式
+        boolean isEmailMode = StrUtil.isNotBlank(resetPasswordDTO.getEmail()) && StrUtil.isNotBlank(resetPasswordDTO.getCode());
+
+        AuthUser user = null;
+        String newPassword = null;
+
+        if (isEmailMode) {
+            // 邮箱验证码方式
+            // 1. 校验邮箱格式
+            if (!resetPasswordDTO.getEmail().matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")) {
+                return Result.fail(400, "邮箱格式不正确");
+            }
+
+            // 2. 校验验证码
+            String emailCodeKey = Constants.CACHE_PREFIX + "email:code:" + resetPasswordDTO.getEmail();
+            Object cachedCode = redisUtils.get(emailCodeKey);
+            if (cachedCode == null) {
+                return Result.fail(400, "验证码已过期，请重新获取");
+            }
+            if (!cachedCode.toString().equalsIgnoreCase(resetPasswordDTO.getCode().trim())) {
+                return Result.fail(400, "验证码错误");
+            }
+
+            // 3. 校验密码
+            newPassword = resetPasswordDTO.getPassword();
+            if (StrUtil.isBlank(newPassword) || newPassword.length() < 6) {
+                return Result.fail(400, "密码长度不能少于6位");
+            }
+
+            // 4. 根据邮箱查询用户
+            user = authUserMapper.selectByEmail(resetPasswordDTO.getEmail());
+            if (user == null) {
+                return Result.fail(400, "该邮箱未绑定任何账号");
+            }
+
+            // 5. 删除已使用的验证码
+            redisUtils.del(emailCodeKey);
+
+        } else {
+            // 图形验证码方式
+            // 1. 验证码校验
+            if (!validateCaptcha(resetPasswordDTO.getCaptchaKey(), resetPasswordDTO.getCaptcha())) {
+                return Result.fail(400, "验证码错误或已过期");
+            }
+
+            // 2. 密码确认校验
+            newPassword = resetPasswordDTO.getNewPassword();
+            String confirmPassword = resetPasswordDTO.getConfirmPassword();
+            if (StrUtil.isBlank(newPassword)) {
+                return Result.fail(400, "新密码不能为空");
+            }
+            if (!newPassword.equals(confirmPassword)) {
+                return Result.fail(400, "两次输入的密码不一致");
+            }
+
+            // 3. 根据用户名查询用户
+            if (StrUtil.isBlank(resetPasswordDTO.getUsername())) {
+                return Result.fail(400, "用户名不能为空");
+            }
+            user = authUserMapper.selectByUsername(resetPasswordDTO.getUsername());
+            if (user == null) {
+                return Result.fail(400, "用户不存在");
+            }
         }
 
-        // 2. 密码确认校验
-        if (!resetPasswordDTO.getNewPassword().equals(resetPasswordDTO.getConfirmPassword())) {
-            return Result.fail(400, "两次输入的密码不一致");
-        }
-
-        // 3. 查询用户
-        AuthUser user = authUserMapper.selectByUsername(resetPasswordDTO.getUsername());
-        if (user == null) {
-            return Result.fail(400, "用户不存在");
-        }
-
-        // 4. 更新密码
-        String encodedPassword = PasswordUtils.encode(resetPasswordDTO.getNewPassword());
+        // 更新密码
+        String encodedPassword = PasswordUtils.encode(newPassword);
         int result = authUserMapper.updatePassword(user.getId(), encodedPassword);
         if (result <= 0) {
             log.error("密码重置失败：userId={}", user.getId());
             return Result.fail("密码重置失败，请稍后再试");
         }
 
-        // 5. 使旧Token失效
+        // 使旧Token失效
         String tokenKey = Constants.TOKEN_PREFIX + user.getId();
         redisUtils.del(tokenKey);
 

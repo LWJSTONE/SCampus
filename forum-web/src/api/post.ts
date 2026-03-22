@@ -30,13 +30,13 @@ export function deletePost(id: number): Promise<void> {
 }
 
 // 置顶帖子
-export function topPost(id: number, top: boolean): Promise<void> {
-  return request.put(`/posts/${id}/top`, { top })
+export function topPost(id: number, isTop: number): Promise<{ isTop: number; message: string }> {
+  return request.put(`/posts/${id}/top`, null, { params: { isTop } })
 }
 
 // 加精帖子
-export function essencePost(id: number, essence: boolean): Promise<void> {
-  return request.put(`/posts/${id}/essence`, { essence })
+export function essencePost(id: number, isEssence: number): Promise<{ isEssence: number; message: string }> {
+  return request.put(`/posts/${id}/essence`, null, { params: { isEssence } })
 }
 
 // 移动帖子

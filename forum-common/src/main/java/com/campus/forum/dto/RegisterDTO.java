@@ -77,16 +77,20 @@ public class RegisterDTO implements Serializable {
     private String studentNo;
 
     /**
-     * 验证码
+     * 图形验证码
      */
-    @Schema(description = "验证码", required = true)
-    @NotBlank(message = "验证码不能为空")
+    @Schema(description = "图形验证码")
     private String captcha;
 
     /**
-     * 验证码Key
+     * 图形验证码Key
      */
-    @Schema(description = "验证码Key", required = true)
-    @NotBlank(message = "验证码Key不能为空")
+    @Schema(description = "图形验证码Key")
     private String captchaKey;
+
+    /**
+     * 邮箱验证码
+     */
+    @Schema(description = "邮箱验证码")
+    private String code;
 }

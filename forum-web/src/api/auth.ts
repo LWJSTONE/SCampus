@@ -32,7 +32,11 @@ export function sendEmailCode(email: string): Promise<void> {
 }
 
 // 重置密码
-export function resetPassword(data: { email: string; code: string; password: string }): Promise<void> {
+export function resetPassword(data: { 
+  email: string
+  code: string
+  password: string
+}): Promise<void> {
   return request.post('/auth/password/reset', data)
 }
 

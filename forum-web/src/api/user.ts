@@ -12,17 +12,17 @@ export function getUserById(id: number): Promise<UserDetailVO> {
 }
 
 // 更新用户信息
-export function updateUser(id: number, data: UserUpdateDTO): Promise<void> {
+export function updateUser(id: number, data: UserUpdateDTO): Promise<boolean> {
   return request.put(`/users/${id}`, data)
 }
 
 // 更新头像
-export function updateAvatar(id: number, avatar: string): Promise<void> {
+export function updateAvatar(id: number, avatar: string): Promise<boolean> {
   return request.put(`/users/${id}/avatar`, { avatar })
 }
 
 // 修改密码
-export function updatePassword(id: number, data: { oldPassword: string; newPassword: string }): Promise<void> {
+export function updatePassword(id: number, data: { oldPassword: string; newPassword: string }): Promise<boolean> {
   return request.put(`/users/${id}/password`, data)
 }
 
@@ -37,12 +37,12 @@ export function getFollowing(id: number, params: { page: number; size: number })
 }
 
 // 关注用户
-export function followUser(id: number): Promise<void> {
+export function followUser(id: number): Promise<boolean> {
   return request.post(`/users/${id}/follow`)
 }
 
 // 取消关注
-export function unfollowUser(id: number): Promise<void> {
+export function unfollowUser(id: number): Promise<boolean> {
   return request.delete(`/users/${id}/follow`)
 }
 
@@ -67,6 +67,6 @@ export function getUserCollections(id: number, params: { page: number; size: num
 }
 
 // 更新用户状态（管理员）
-export function updateUserStatus(id: number, status: number): Promise<void> {
-  return request.put(`/users/${id}/status`, { status })
+export function updateUserStatus(id: number, status: number): Promise<boolean> {
+  return request.put(`/users/${id}/status`, null, { params: { status } })
 }

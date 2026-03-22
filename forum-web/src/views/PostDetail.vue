@@ -231,14 +231,17 @@ const handleLike = async () => {
   try {
     const result = await likePost(postId)
     if (postDetail.value) {
-      postDetail.value.liked = result.isLike
-      if (result.isLike) {
+      // 兼容后端返回的字段名 isLike 或 isLiked
+      const isLiked = result.isLike !== undefined ? result.isLike : result.isLiked
+      postDetail.value.liked = isLiked
+      postDetail.value.isLiked = isLiked
+      if (isLiked) {
         postDetail.value.likeCount++
       } else {
         postDetail.value.likeCount--
       }
+      ElMessage.success(result.message || (isLiked ? '点赞成功' : '已取消点赞'))
     }
-    ElMessage.success(result.message)
   } catch (error) {
     console.error('操作失败：', error)
   }
@@ -257,14 +260,17 @@ const handleCollect = async () => {
   try {
     const result = await collectPost(postId)
     if (postDetail.value) {
-      postDetail.value.collected = result.isCollect
-      if (result.isCollect) {
+      // 兼容后端返回的字段名 isCollect 或 isCollected
+      const isCollected = result.isCollect !== undefined ? result.isCollect : result.isCollected
+      postDetail.value.collected = isCollected
+      postDetail.value.isCollected = isCollected
+      if (isCollected) {
         postDetail.value.collectCount++
       } else {
         postDetail.value.collectCount--
       }
+      ElMessage.success(result.message || (isCollected ? '收藏成功' : '已取消收藏'))
     }
-    ElMessage.success(result.message)
   } catch (error) {
     console.error('操作失败：', error)
   }
