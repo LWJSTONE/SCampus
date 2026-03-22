@@ -3,7 +3,20 @@ import type { PostVO, PostDetailVO, PostQueryDTO, PostCreateDTO } from '@/types'
 
 // 获取帖子列表
 export function getPostList(params: PostQueryDTO): Promise<PageResult<PostVO>> {
-  return request.get('/posts', params)
+  // 兼容后端分页参数
+  const queryParams = {
+    current: params.page || params.current,
+    size: params.size,
+    forumId: params.forumId,
+    userId: params.userId,
+    keyword: params.keyword,
+    status: params.status,
+    sortType: params.sortType,
+    isTop: params.isTop,
+    isEssence: params.isEssence,
+    type: params.type
+  }
+  return request.get('/posts', queryParams)
 }
 
 // 获取帖子详情
@@ -56,7 +69,13 @@ export function getHotPosts(limit: number = 10): Promise<PostVO[]> {
 
 // 搜索帖子
 export function searchPosts(params: { keyword: string; page: number; size: number }): Promise<PageResult<PostVO>> {
-  return request.get('/posts/search', params)
+  // 兼容后端分页参数
+  const queryParams = {
+    keyword: params.keyword,
+    current: params.page,
+    size: params.size
+  }
+  return request.get('/posts/search', queryParams)
 }
 
 // 获取版块帖子

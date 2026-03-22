@@ -22,7 +22,7 @@ export function updateAvatar(id: number, avatar: string): Promise<boolean> {
 }
 
 // 修改密码
-export function updatePassword(id: number, data: { oldPassword: string; newPassword: string }): Promise<boolean> {
+export function updatePassword(id: number, data: { oldPassword: string; newPassword: string; confirmPassword?: string }): Promise<boolean> {
   return request.put(`/users/${id}/password`, data)
 }
 

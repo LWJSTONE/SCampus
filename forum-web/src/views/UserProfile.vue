@@ -16,7 +16,7 @@
           </div>
         </div>
         <div class="profile-actions" v-if="!isOwnProfile">
-          <el-button type="primary" @click="handleFollow">
+          <el-button type="primary" @click="handleFollow" :loading="followLoading">
             {{ isFollowing ? '取消关注' : '关注' }}
           </el-button>
         </div>
@@ -24,7 +24,7 @@
     </el-card>
 
     <el-card class="content-card">
-      <el-tabs v-model="activeTab">
+      <el-tabs v-model="activeTab" @tab-change="handleTabChange">
         <el-tab-pane label="帖子" name="posts">
           <div v-if="posts.length" class="post-list">
             <div v-for="post in posts" :key="post.id" class="post-item" @click="$router.push(`/post/${post.id}`)">
@@ -40,7 +40,16 @@
           <el-empty v-else description="暂无帖子" />
         </el-tab-pane>
         <el-tab-pane label="收藏" name="collections">
-          <el-empty description="暂无收藏" />
+          <div v-if="collections.length" class="post-list">
+            <div v-for="item in collections" :key="item.id" class="post-item" @click="$router.push(`/post/${item.postId}`)">
+              <h3>{{ item.postTitle }}</h3>
+              <p>{{ item.postSummary }}</p>
+              <div class="meta">
+                <span>收藏于 {{ item.createTime }}</span>
+              </div>
+            </div>
+          </div>
+          <el-empty v-else description="暂无收藏" />
         </el-tab-pane>
       </el-tabs>
     </el-card>
@@ -50,10 +59,20 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { getUserById, followUser, unfollowUser } from '@/api/user'
 import { getPostList } from '@/api/post'
 import { useUserStore } from '@/stores/user'
 import type { UserDetailVO, PostVO } from '@/types'
+
+// 收藏项类型
+interface CollectionItem {
+  id: number
+  postId: number
+  postTitle: string
+  postSummary: string
+  createTime: string
+}
 
 const route = useRoute()
 const userStore = useUserStore()
@@ -61,8 +80,10 @@ const userId = Number(route.params.id)
 
 const user = ref<UserDetailVO | null>(null)
 const posts = ref<PostVO[]>([])
+const collections = ref<CollectionItem[]>([])
 const activeTab = ref('posts')
 const isFollowing = ref(false)
+const followLoading = ref(false)
 
 const isOwnProfile = computed(() => userStore.userInfo?.id === userId)
 
@@ -86,17 +107,65 @@ async function fetchPosts() {
   }
 }
 
+async function fetchCollections() {
+  // 只有查看自己的收藏时才加载
+  if (!isOwnProfile.value) {
+    collections.value = []
+    return
+  }
+  try {
+    // 调用收藏列表API
+    const res = await fetch('/api/v1/interactions/collect/list?current=1&size=10', {
+      headers: {
+        'Authorization': `Bearer ${userStore.token}`
+      }
+    }).then(r => r.json())
+    if (res.code === 200 && res.data) {
+      collections.value = (res.data.records || []).map((item: any) => ({
+        id: item.id,
+        postId: item.postId,
+        postTitle: item.postTitle || item.title,
+        postSummary: item.postSummary || item.summary || '',
+        createTime: item.createTime
+      }))
+    }
+  } catch (e) {
+    console.error('获取收藏失败:', e)
+    collections.value = []
+  }
+}
+
+function handleTabChange(tab: string) {
+  if (tab === 'collections') {
+    fetchCollections()
+  }
+}
+
 async function handleFollow() {
+  if (!userStore.isLoggedIn) {
+    ElMessage.warning('请先登录')
+    return
+  }
+  
+  followLoading.value = true
   try {
     if (isFollowing.value) {
       await unfollowUser(userId)
       isFollowing.value = false
+      ElMessage.success('已取消关注')
     } else {
       await followUser(userId)
       isFollowing.value = true
+      ElMessage.success('关注成功')
+    }
+    // 更新粉丝数
+    if (user.value) {
+      user.value.followerCount = (user.value.followerCount || 0) + (isFollowing.value ? 1 : -1)
     }
   } catch (e) {
     console.error('操作失败:', e)
+  } finally {
+    followLoading.value = false
   }
 }
 

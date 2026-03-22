@@ -8,16 +8,16 @@ import type { CategoryVO, ForumVO } from '@/types'
 /**
  * 获取所有分类（带版块）
  */
-export function getCategoryList() {
-  return request.get<CategoryVO[]>('/categories')
+export function getCategoryList(): Promise<CategoryVO[]> {
+  return request.get('/categories')
 }
 
 /**
  * 获取分类详情
  * @param id 分类ID
  */
-export function getCategoryDetail(id: number) {
-  return request.get<CategoryVO>(`/categories/${id}`)
+export function getCategoryDetail(id: number): Promise<CategoryVO> {
+  return request.get(`/categories/${id}`)
 }
 
 /**
@@ -49,16 +49,16 @@ export function deleteCategory(id: number) {
  * 获取版块列表
  * @param categoryId 分类ID（可选）
  */
-export function getForumList(categoryId?: number) {
-  return request.get<ForumVO[]>('/forums', categoryId ? { categoryId } : undefined)
+export function getForumList(categoryId?: number): Promise<ForumVO[]> {
+  return request.get('/forums', categoryId ? { categoryId } : undefined)
 }
 
 /**
  * 获取版块详情
  * @param id 版块ID
  */
-export function getForumDetail(id: number) {
-  return request.get<ForumVO>(`/forums/${id}`)
+export function getForumDetail(id: number): Promise<ForumVO> {
+  return request.get(`/forums/${id}`)
 }
 
 /**

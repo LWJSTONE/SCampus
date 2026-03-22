@@ -154,9 +154,7 @@ const registerForm = reactive({
   code: '',
   password: '',
   confirmPassword: '',
-  agreement: false,
-  captcha: '',
-  captchaKey: ''
+  agreement: false
 })
 
 // 密码确认验证
@@ -254,16 +252,8 @@ const handleRegister = async () => {
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
 
-  // 获取图形验证码
-  try {
-    const captchaData = await getCaptcha()
-    // 兼容两种字段名
-    registerForm.captchaKey = captchaData.captchaKey || captchaData.key || ''
-    registerForm.captcha = 'skip' // 跳过图形验证码
-  } catch (e) {
-    console.error('获取验证码失败:', e)
-  }
-
+  // 注册时只需要邮箱验证码，不需要图形验证码
+  // 直接提交注册请求
   loading.value = true
   try {
     await register({
@@ -271,8 +261,6 @@ const handleRegister = async () => {
       password: registerForm.password,
       confirmPassword: registerForm.confirmPassword,
       email: registerForm.email,
-      captcha: registerForm.captcha,
-      captchaKey: registerForm.captchaKey,
       code: registerForm.code,
     })
 

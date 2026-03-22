@@ -87,7 +87,11 @@ function handleDelete() {
 
 async function handleLike() {
   try {
-    await likeComment(props.comment.id)
+    const result = await likeComment(props.comment.id)
+    // 更新本地状态和计数
+    const isLiked = result.isLike
+    props.comment.isLiked = isLiked
+    props.comment.likeCount = (props.comment.likeCount || 0) + (isLiked ? 1 : -1)
   } catch (e) {
     console.error('点赞失败:', e)
   }

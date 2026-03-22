@@ -199,15 +199,22 @@ async function sendForgotCode() {
 }
 
 async function handleResetPassword() {
-  if (!forgotForm.username) {
+  // 表单验证
+  if (!forgotForm.username || !forgotForm.username.trim()) {
     ElMessage.warning('请输入用户名')
     return
   }
-  if (!forgotForm.email) {
+  if (!forgotForm.email || !forgotForm.email.trim()) {
     ElMessage.warning('请输入邮箱')
     return
   }
-  if (!forgotForm.code) {
+  // 邮箱格式验证
+  const emailReg = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  if (!emailReg.test(forgotForm.email)) {
+    ElMessage.warning('请输入正确的邮箱格式')
+    return
+  }
+  if (!forgotForm.code || !forgotForm.code.trim()) {
     ElMessage.warning('请输入验证码')
     return
   }
@@ -215,12 +222,12 @@ async function handleResetPassword() {
     ElMessage.warning('请输入新密码')
     return
   }
-  if (forgotForm.newPassword !== forgotForm.confirmPassword) {
-    ElMessage.warning('两次输入的密码不一致')
-    return
-  }
   if (forgotForm.newPassword.length < 6) {
     ElMessage.warning('密码长度不能少于6位')
+    return
+  }
+  if (forgotForm.newPassword !== forgotForm.confirmPassword) {
+    ElMessage.warning('两次输入的密码不一致')
     return
   }
   

@@ -94,4 +94,12 @@ public interface AuthUserMapper extends BaseMapper<AuthUser> {
      */
     @Update("UPDATE sys_user SET password = #{password}, password_update_time = NOW() WHERE id = #{userId}")
     int updatePassword(@Param("userId") Long userId, @Param("password") String password);
+
+    /**
+     * 查询用户角色编码列表
+     *
+     * @param userId 用户ID
+     * @return 角色编码列表
+     */
+    List<String> selectRoleCodesByUserId(@Param("userId") Long userId);
 }

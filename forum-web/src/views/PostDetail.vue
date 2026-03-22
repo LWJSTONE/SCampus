@@ -197,7 +197,15 @@ function formatRelativeTime(time: string) {
 const fetchPostDetail = async () => {
   loading.value = true
   try {
-    postDetail.value = await getPostById(postId)
+    const res = await getPostById(postId)
+    // 兼容多种字段名
+    res.liked = res.liked ?? res.isLiked ?? false
+    res.collected = res.collected ?? res.isCollected ?? false
+    res.authorId = res.authorId ?? res.userId
+    res.authorName = res.authorName ?? res.username
+    res.authorAvatar = res.authorAvatar ?? res.userAvatar
+    res.categoryName = res.categoryName ?? res.forumName
+    postDetail.value = res
   } catch (error) {
     console.error('获取帖子详情失败：', error)
   } finally {

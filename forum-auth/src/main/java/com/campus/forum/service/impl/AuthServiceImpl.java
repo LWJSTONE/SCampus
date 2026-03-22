@@ -31,6 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
 import javax.servlet.http.HttpServletRequest;
 import java.time.LocalDateTime;
 import java.util.Base64;
+import java.util.List;
 
 /**
  * 认证服务实现类
@@ -522,8 +523,13 @@ public class AuthServiceImpl implements AuthService {
         loginVO.setUsername(user.getUsername());
         loginVO.setNickname(user.getNickname());
         loginVO.setAvatar(user.getAvatar());
-        // 默认角色
-        loginVO.setRoles(java.util.Collections.singletonList("USER"));
+        // 查询用户角色
+        List<String> roleCodes = authUserMapper.selectRoleCodesByUserId(user.getId());
+        if (roleCodes != null && !roleCodes.isEmpty()) {
+            loginVO.setRoles(roleCodes);
+        } else {
+            loginVO.setRoles(java.util.Collections.singletonList("USER"));
+        }
         return loginVO;
     }
 
@@ -550,8 +556,13 @@ public class AuthServiceImpl implements AuthService {
         userInfoVO.setStatus(user.getStatus());
         userInfoVO.setCreateTime(user.getCreateTime());
         userInfoVO.setLastLoginTime(user.getLastLoginTime());
-        // 默认角色
-        userInfoVO.setRoles(java.util.Collections.emptyList());
+        // 查询用户角色
+        List<String> roleCodes = authUserMapper.selectRoleCodesByUserId(user.getId());
+        if (roleCodes != null && !roleCodes.isEmpty()) {
+            userInfoVO.setRoles(roleCodes);
+        } else {
+            userInfoVO.setRoles(java.util.Collections.singletonList("USER"));
+        }
         userInfoVO.setPermissions(java.util.Collections.singletonList("user:view"));
         return userInfoVO;
     }

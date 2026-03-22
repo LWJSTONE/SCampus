@@ -75,7 +75,10 @@ async function fetchPosts() {
   try {
     const res = await getPostsByForum(forumId, { page: page.value, size: 10 })
     posts.value = [...posts.value, ...res.records]
-    hasMore.value = res.current < res.pages
+    // 兼容后端返回的分页字段
+    const current = res.current || page.value
+    const pages = res.pages || Math.ceil(res.total / res.size)
+    hasMore.value = current < pages
   } catch (e) {
     console.error('获取帖子失败:', e)
   } finally {
