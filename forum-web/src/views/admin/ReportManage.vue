@@ -9,9 +9,9 @@
 
       <el-table :data="reports" v-loading="loading">
         <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="type" label="类型" width="100">
+        <el-table-column prop="reportType" label="类型" width="100">
           <template #default="{ row }">
-            <el-tag>{{ typeMap[row.type] || '未知' }}</el-tag>
+            <el-tag>{{ typeMap[row.reportType] || '未知' }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="targetId" label="目标ID" width="100" />
@@ -36,31 +36,69 @@
       <el-pagination
         v-model:current-page="page"
         :total="total"
+        :page-size="size"
         layout="total, prev, pager, next"
         @current-change="fetchReports"
       />
     </el-card>
+
+    <!-- 处理举报对话框 -->
+    <el-dialog v-model="processDialogVisible" title="处理举报" width="500px">
+      <el-form :model="handleForm" label-width="100px">
+        <el-form-item label="处理结果">
+          <el-radio-group v-model="handleForm.result">
+            <el-radio :value="1">通过（处罚）</el-radio>
+            <el-radio :value="2">驳回</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="处罚措施" v-if="handleForm.result === 1">
+          <el-radio-group v-model="handleForm.action">
+            <el-radio :value="1">删除内容</el-radio>
+            <el-radio :value="2">警告用户</el-radio>
+            <el-radio :value="3">封禁用户</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="封禁天数" v-if="handleForm.result === 1 && handleForm.action === 3">
+          <el-input-number v-model="handleForm.banDays" :min="1" :max="365" />
+        </el-form-item>
+        <el-form-item label="处理备注">
+          <el-input v-model="handleForm.handleRemark" type="textarea" :rows="3" placeholder="请输入处理备注" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="processDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="submitting" @click="submitHandle">确定</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 查看详情对话框 -->
+    <el-dialog v-model="viewDialogVisible" title="举报详情" width="600px">
+      <el-descriptions :column="2" border v-if="currentReport">
+        <el-descriptions-item label="举报ID">{{ currentReport.id }}</el-descriptions-item>
+        <el-descriptions-item label="举报类型">{{ typeMap[currentReport.reportType] }}</el-descriptions-item>
+        <el-descriptions-item label="目标ID">{{ currentReport.targetId }}</el-descriptions-item>
+        <el-descriptions-item label="目标标题">{{ currentReport.targetTitle || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="举报原因" :span="2">{{ currentReport.reason }}</el-descriptions-item>
+        <el-descriptions-item label="举报人">{{ currentReport.reporterName }}</el-descriptions-item>
+        <el-descriptions-item label="举报时间">{{ currentReport.createTime }}</el-descriptions-item>
+        <el-descriptions-item label="状态">{{ statusMap[currentReport.status]?.text }}</el-descriptions-item>
+        <el-descriptions-item label="处理人">{{ currentReport.handlerName || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="处理时间" :span="2">{{ currentReport.handleTime || '-' }}</el-descriptions-item>
+      </el-descriptions>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-
-interface Report {
-  id: number
-  type: number
-  targetId: number
-  reason: string
-  reporterName: string
-  status: number
-  createTime: string
-}
+import { ref, reactive, onMounted } from 'vue'
+import { ElMessage } from 'element-plus'
+import { getReportList, handleReport, type ReportVO, type ReportHandleDTO } from '@/api/report'
 
 const loading = ref(false)
-const reports = ref<Report[]>([])
+const reports = ref<ReportVO[]>([])
 const page = ref(1)
 const total = ref(0)
+const size = 10
 
 const typeMap: Record<number, string> = {
   1: '帖子',
@@ -74,37 +112,64 @@ const statusMap: Record<number, { text: string; type: 'success' | 'primary' | 'w
   2: { text: '已驳回', type: 'info' }
 }
 
+// 处理对话框
+const processDialogVisible = ref(false)
+const submitting = ref(false)
+const processingId = ref<number | null>(null)
+const handleForm = reactive<ReportHandleDTO>({
+  result: 1,
+  action: 1,
+  banDays: 7,
+  handleRemark: ''
+})
+
+// 查看详情对话框
+const viewDialogVisible = ref(false)
+const currentReport = ref<ReportVO | null>(null)
+
 async function fetchReports() {
   loading.value = true
   try {
-    // 模拟数据
-    reports.value = [
-      { id: 1, type: 1, targetId: 100, reason: '内容违规', reporterName: 'user1', status: 0, createTime: '2024-01-01 10:00:00' }
-    ]
-    total.value = 1
+    const res = await getReportList({ current: page.value, size })
+    reports.value = res.records || res.list || []
+    total.value = res.total || 0
+  } catch (e) {
+    console.error('获取举报列表失败:', e)
+    reports.value = []
   } finally {
     loading.value = false
   }
 }
 
-function handleView(_row: Report) {
-  ElMessage.info('查看详情功能开发中')
+function handleView(row: ReportVO) {
+  currentReport.value = row
+  viewDialogVisible.value = true
 }
 
-async function handleProcess(row: Report) {
+function handleProcess(row: ReportVO) {
+  processingId.value = row.id
+  Object.assign(handleForm, {
+    result: 1,
+    action: 1,
+    banDays: 7,
+    handleRemark: ''
+  })
+  processDialogVisible.value = true
+}
+
+async function submitHandle() {
+  if (!processingId.value) return
+  
+  submitting.value = true
   try {
-    await ElMessageBox.confirm('请选择处理方式', '处理举报', {
-      distinguishCancelAndClose: true,
-      confirmButtonText: '通过',
-      cancelButtonText: '驳回'
-    })
-    row.status = 1
+    await handleReport(processingId.value, handleForm)
     ElMessage.success('处理成功')
-  } catch (action) {
-    if (action === 'cancel') {
-      row.status = 2
-      ElMessage.info('已驳回')
-    }
+    processDialogVisible.value = false
+    fetchReports()
+  } catch (e) {
+    console.error('处理举报失败:', e)
+  } finally {
+    submitting.value = false
   }
 }
 

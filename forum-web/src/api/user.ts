@@ -65,3 +65,8 @@ export function getUserComments(id: number, params: { page: number; size: number
 export function getUserCollections(id: number, params: { page: number; size: number }): Promise<PageResult<any>> {
   return request.get(`/users/${id}/collections`, params)
 }
+
+// 更新用户状态（管理员）
+export function updateUserStatus(id: number, status: number): Promise<void> {
+  return request.put(`/users/${id}/status`, { status })
+}

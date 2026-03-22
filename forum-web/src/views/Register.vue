@@ -257,7 +257,8 @@ const handleRegister = async () => {
   // 获取图形验证码
   try {
     const captchaData = await getCaptcha()
-    registerForm.captchaKey = captchaData.key
+    // 兼容两种字段名
+    registerForm.captchaKey = captchaData.captchaKey || captchaData.key || ''
     registerForm.captcha = 'skip' // 跳过图形验证码
   } catch (e) {
     console.error('获取验证码失败:', e)

@@ -66,8 +66,12 @@ export interface LoginVO {
 }
 
 export interface CaptchaVO {
-  image: string
-  key: string
+  captchaImage: string
+  captchaKey: string
+  expireTime?: number
+  // 兼容旧字段名
+  image?: string
+  key?: string
 }
 
 export interface UserInfoVO {
@@ -217,6 +221,8 @@ export interface AttachmentVO {
 export interface PageQuery {
   page: number
   size: number
+  // 兼容后端参数
+  current?: number
 }
 
 // 分页结果类型

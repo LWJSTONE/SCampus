@@ -10,7 +10,15 @@
           <el-avatar :size="60" :src="form.avatar">
             {{ form.nickname?.charAt(0) }}
           </el-avatar>
-          <el-button link type="primary" style="margin-left: 12px">更换头像</el-button>
+          <el-upload
+            class="avatar-upload"
+            :show-file-list="false"
+            :before-upload="beforeAvatarUpload"
+            :http-request="handleAvatarUpload"
+            accept="image/*"
+          >
+            <el-button link type="primary" style="margin-left: 12px">更换头像</el-button>
+          </el-upload>
         </el-form-item>
 
         <el-form-item label="昵称" prop="nickname">
@@ -61,7 +69,7 @@
           <el-input v-model="pwdForm.confirmPassword" type="password" show-password />
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" :loading="changingPwd" @click="handleChangePwd">
+          <el-button type="primary" :loading="saving" @click="handleChangePwd">
             修改密码
           </el-button>
         </el-form-item>
@@ -72,8 +80,9 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage, FormInstance, FormRules } from 'element-plus'
-import { updateUser, updatePassword, getCurrentUserInfo } from '@/api/user'
+import { ElMessage, FormInstance, FormRules, type UploadRequestOptions } from 'element-plus'
+import { updateUser, updatePassword, updateAvatar, getCurrentUserInfo } from '@/api/user'
+import { request } from '@/api/request'
 import { useUserStore } from '@/stores/user'
 import type { UserUpdateDTO } from '@/types'
 
@@ -81,13 +90,14 @@ const userStore = useUserStore()
 const formRef = ref<FormInstance>()
 const pwdFormRef = ref<FormInstance>()
 const saving = ref(false)
-const changingPwd = ref(false)
+const uploadingAvatar = ref(false)
 
-const form = reactive<UserUpdateDTO>({
+const form = reactive<UserUpdateDTO & { avatar?: string }>({
   nickname: '',
   signature: '',
   school: '',
-  gender: 0
+  gender: 0,
+  avatar: ''
 })
 
 const pwdForm = reactive({
@@ -132,14 +142,68 @@ async function fetchUserInfo() {
   }
 }
 
+// 头像上传前验证
+function beforeAvatarUpload(file: File) {
+  const isImage = file.type.startsWith('image/')
+  const isLt2M = file.size / 1024 / 1024 < 2
+
+  if (!isImage) {
+    ElMessage.error('只能上传图片文件!')
+    return false
+  }
+  if (!isLt2M) {
+    ElMessage.error('图片大小不能超过 2MB!')
+    return false
+  }
+  return true
+}
+
+// 上传头像
+async function handleAvatarUpload(options: UploadRequestOptions) {
+  const file = options.file
+  uploadingAvatar.value = true
+  
+  try {
+    // 先上传文件到服务器
+    const formData = new FormData()
+    formData.append('file', file)
+    
+    const uploadRes = await request.post<{ url: string }>('/files/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    
+    const avatarUrl = uploadRes.url
+    
+    // 更新头像URL
+    if (userStore.userInfo?.id) {
+      await updateAvatar(userStore.userInfo.id, avatarUrl)
+      form.avatar = avatarUrl
+      
+      // 更新 store 中的用户信息
+      userStore.updateUserInfo({ avatar: avatarUrl })
+      
+      ElMessage.success('头像更新成功')
+    }
+  } catch (e) {
+    console.error('上传头像失败:', e)
+    ElMessage.error('上传头像失败')
+  } finally {
+    uploadingAvatar.value = false
+  }
+}
+
 async function handleSave() {
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
 
   saving.value = true
   try {
-    await updateUser(userStore.userInfo!.id, form)
-    ElMessage.success('保存成功')
+    if (userStore.userInfo?.id) {
+      await updateUser(userStore.userInfo.id, form)
+      // 更新 store 中的用户信息
+      userStore.updateUserInfo(form)
+      ElMessage.success('保存成功')
+    }
   } catch (e) {
     console.error('保存失败:', e)
   } finally {
@@ -151,18 +215,20 @@ async function handleChangePwd() {
   const valid = await pwdFormRef.value?.validate().catch(() => false)
   if (!valid) return
 
-  changingPwd.value = true
+  saving.value = true
   try {
-    await updatePassword(userStore.userInfo!.id, {
-      oldPassword: pwdForm.oldPassword,
-      newPassword: pwdForm.newPassword
-    })
-    ElMessage.success('密码修改成功')
-    pwdFormRef.value?.resetFields()
+    if (userStore.userInfo?.id) {
+      await updatePassword(userStore.userInfo.id, {
+        oldPassword: pwdForm.oldPassword,
+        newPassword: pwdForm.newPassword
+      })
+      ElMessage.success('密码修改成功')
+      pwdFormRef.value?.resetFields()
+    }
   } catch (e) {
     console.error('修改密码失败:', e)
   } finally {
-    changingPwd.value = false
+    saving.value = false
   }
 }
 

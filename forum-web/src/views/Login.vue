@@ -49,7 +49,7 @@
         <el-form-item>
           <div class="form-options">
             <el-checkbox v-model="loginForm.rememberMe">记住我</el-checkbox>
-            <el-link type="primary">忘记密码？</el-link>
+            <el-link type="primary" @click="showForgotPassword">忘记密码？</el-link>
           </div>
         </el-form-item>
 
@@ -71,14 +71,44 @@
         </div>
       </el-form>
     </div>
+
+    <!-- 忘记密码对话框 -->
+    <el-dialog v-model="forgotPasswordVisible" title="重置密码" width="400px">
+      <el-form :model="forgotForm" label-width="80px">
+        <el-form-item label="用户名">
+          <el-input v-model="forgotForm.username" placeholder="请输入用户名" />
+        </el-form-item>
+        <el-form-item label="邮箱">
+          <el-input v-model="forgotForm.email" placeholder="请输入注册邮箱" />
+        </el-form-item>
+        <el-form-item label="验证码">
+          <div class="captcha-row">
+            <el-input v-model="forgotForm.code" placeholder="邮箱验证码" style="flex: 1" />
+            <el-button :disabled="forgotCountdown > 0" :loading="sendingCode" @click="sendForgotCode">
+              {{ forgotCountdown > 0 ? `${forgotCountdown}秒后重试` : '发送验证码' }}
+            </el-button>
+          </div>
+        </el-form-item>
+        <el-form-item label="新密码">
+          <el-input v-model="forgotForm.newPassword" type="password" show-password placeholder="请输入新密码" />
+        </el-form-item>
+        <el-form-item label="确认密码">
+          <el-input v-model="forgotForm.confirmPassword" type="password" show-password placeholder="请确认新密码" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="forgotPasswordVisible = false">取消</el-button>
+        <el-button type="primary" :loading="resettingPassword" @click="handleResetPassword">确定</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
-import { getCaptcha } from '@/api/auth'
+import { getCaptcha, sendEmailCode, resetPassword } from '@/api/auth'
 import { useUserStore } from '@/stores/user'
 
 const router = useRouter()
@@ -110,11 +140,112 @@ const rules: FormRules = {
   ]
 }
 
+// 忘记密码相关
+const forgotPasswordVisible = ref(false)
+const sendingCode = ref(false)
+const resettingPassword = ref(false)
+const forgotCountdown = ref(0)
+let forgotCountdownTimer: ReturnType<typeof setInterval> | null = null
+
+const forgotForm = reactive({
+  username: '',
+  email: '',
+  code: '',
+  newPassword: '',
+  confirmPassword: ''
+})
+
+function showForgotPassword() {
+  forgotPasswordVisible.value = true
+  Object.assign(forgotForm, {
+    username: '',
+    email: '',
+    code: '',
+    newPassword: '',
+    confirmPassword: ''
+  })
+}
+
+async function sendForgotCode() {
+  if (!forgotForm.email) {
+    ElMessage.warning('请输入邮箱')
+    return
+  }
+  const emailReg = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  if (!emailReg.test(forgotForm.email)) {
+    ElMessage.warning('请输入正确的邮箱格式')
+    return
+  }
+  
+  sendingCode.value = true
+  try {
+    await sendEmailCode(forgotForm.email)
+    ElMessage.success('验证码已发送')
+    forgotCountdown.value = 60
+    forgotCountdownTimer = setInterval(() => {
+      forgotCountdown.value--
+      if (forgotCountdown.value <= 0) {
+        if (forgotCountdownTimer) {
+          clearInterval(forgotCountdownTimer)
+          forgotCountdownTimer = null
+        }
+      }
+    }, 1000)
+  } catch (e) {
+    console.error('发送验证码失败:', e)
+  } finally {
+    sendingCode.value = false
+  }
+}
+
+async function handleResetPassword() {
+  if (!forgotForm.username) {
+    ElMessage.warning('请输入用户名')
+    return
+  }
+  if (!forgotForm.email) {
+    ElMessage.warning('请输入邮箱')
+    return
+  }
+  if (!forgotForm.code) {
+    ElMessage.warning('请输入验证码')
+    return
+  }
+  if (!forgotForm.newPassword) {
+    ElMessage.warning('请输入新密码')
+    return
+  }
+  if (forgotForm.newPassword !== forgotForm.confirmPassword) {
+    ElMessage.warning('两次输入的密码不一致')
+    return
+  }
+  if (forgotForm.newPassword.length < 6) {
+    ElMessage.warning('密码长度不能少于6位')
+    return
+  }
+  
+  resettingPassword.value = true
+  try {
+    await resetPassword({
+      email: forgotForm.email,
+      code: forgotForm.code,
+      password: forgotForm.newPassword
+    })
+    ElMessage.success('密码重置成功，请登录')
+    forgotPasswordVisible.value = false
+  } catch (e) {
+    console.error('重置密码失败:', e)
+  } finally {
+    resettingPassword.value = false
+  }
+}
+
 async function refreshCaptcha() {
   try {
     const res = await getCaptcha()
-    captchaUrl.value = res.image
-    captchaKey.value = res.key
+    // 兼容两种字段名
+    captchaUrl.value = res.captchaImage || res.image || ''
+    captchaKey.value = res.captchaKey || res.key || ''
   } catch (e) {
     console.error('获取验证码失败:', e)
   }
@@ -149,6 +280,13 @@ async function handleLogin() {
 
 onMounted(() => {
   refreshCaptcha()
+})
+
+onUnmounted(() => {
+  if (forgotCountdownTimer) {
+    clearInterval(forgotCountdownTimer)
+    forgotCountdownTimer = null
+  }
 })
 </script>
 

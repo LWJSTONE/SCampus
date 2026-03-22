@@ -30,6 +30,7 @@
 import { ref, computed, onMounted, h, defineComponent } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { NoticeVO } from '@/types'
+import { getNoticeList, markAsRead, markAllAsRead } from '@/api/notify'
 
 // 简单的通知列表组件
 const NotificationList = defineComponent({
@@ -60,6 +61,7 @@ const NotificationList = defineComponent({
 
 const activeTab = ref('all')
 const notifications = ref<NoticeVO[]>([])
+const loading = ref(false)
 
 const commentNotifications = computed(() => 
   notifications.value.filter(n => n.type === 1)
@@ -72,23 +74,41 @@ const systemNotifications = computed(() =>
 )
 
 async function fetchNotifications() {
-  // 模拟数据
-  notifications.value = [
-    { id: 1, title: '系统公告', content: '欢迎使用SCampus校园论坛系统', type: 0, isRead: false, createTime: '2024-01-01 10:00:00' },
-    { id: 2, title: '评论回复', content: '用户A回复了你的帖子', type: 1, isRead: false, createTime: '2024-01-02 11:00:00' }
-  ]
+  loading.value = true
+  try {
+    const res = await getNoticeList({ current: 1, size: 100 })
+    notifications.value = res.records || res.list || []
+  } catch (e) {
+    console.error('获取通知失败:', e)
+    // 如果API调用失败，显示空列表而不是模拟数据
+    notifications.value = []
+  } finally {
+    loading.value = false
+  }
 }
 
 async function markRead(id: number) {
   const notification = notifications.value.find(n => n.id === id)
   if (notification) {
-    notification.isRead = true
+    try {
+      await markAsRead(id)
+      notification.isRead = true
+    } catch (e) {
+      console.error('标记已读失败:', e)
+      ElMessage.error('操作失败')
+    }
   }
 }
 
 async function markAllRead() {
-  notifications.value.forEach(n => n.isRead = true)
-  ElMessage.success('已全部标记为已读')
+  try {
+    await markAllAsRead()
+    notifications.value.forEach(n => n.isRead = true)
+    ElMessage.success('已全部标记为已读')
+  } catch (e) {
+    console.error('全部标记已读失败:', e)
+    ElMessage.error('操作失败')
+  }
 }
 
 onMounted(() => {

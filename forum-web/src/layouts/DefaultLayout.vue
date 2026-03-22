@@ -120,6 +120,9 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/user'
+import { getCategoryList } from '@/api/category'
+import { getUnreadCount } from '@/api/notify'
+import type { CategoryVO } from '@/types'
 
 const router = useRouter()
 const route = useRoute()
@@ -127,16 +130,32 @@ const userStore = useUserStore()
 
 const searchKeyword = ref('')
 const unreadCount = ref(0)
-const categories = ref([
-  { id: 1, name: '校园生活' },
-  { id: 2, name: '学术讨论' },
-  { id: 3, name: '技术交流' },
-  { id: 4, name: '二手交易' },
-  { id: 5, name: '求职招聘' },
-  { id: 6, name: '失物招领' }
-])
+const categories = ref<CategoryVO[]>([])
 
 const activeMenu = computed(() => route.path)
+
+// 获取分类列表
+async function fetchCategories() {
+  try {
+    const res = await getCategoryList()
+    categories.value = res || []
+  } catch (e) {
+    console.error('获取分类失败:', e)
+    // 如果获取失败，使用空数组
+    categories.value = []
+  }
+}
+
+// 获取未读消息数
+async function fetchUnreadCount() {
+  if (!userStore.isLoggedIn) return
+  try {
+    const res = await getUnreadCount()
+    unreadCount.value = res.count || 0
+  } catch (e) {
+    console.error('获取未读消息数失败:', e)
+  }
+}
 
 function handleSearch() {
   if (searchKeyword.value.trim()) {
@@ -173,9 +192,11 @@ function handleCommand(command: string) {
 }
 
 onMounted(() => {
+  // 获取分类列表
+  fetchCategories()
   // 获取未读消息数
   if (userStore.isLoggedIn) {
-    // TODO: 获取未读消息数
+    fetchUnreadCount()
   }
 })
 </script>

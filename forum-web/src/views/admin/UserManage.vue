@@ -53,14 +53,40 @@
         @current-change="fetchUsers"
       />
     </el-card>
+
+    <!-- 用户编辑对话框 -->
+    <el-dialog v-model="dialogVisible" title="编辑用户" width="500px">
+      <el-form :model="userForm" label-width="80px">
+        <el-form-item label="昵称">
+          <el-input v-model="userForm.nickname" placeholder="请输入昵称" maxlength="20" />
+        </el-form-item>
+        <el-form-item label="学校">
+          <el-input v-model="userForm.school" placeholder="请输入学校" maxlength="50" />
+        </el-form-item>
+        <el-form-item label="性别">
+          <el-radio-group v-model="userForm.gender">
+            <el-radio :value="0">保密</el-radio>
+            <el-radio :value="1">男</el-radio>
+            <el-radio :value="2">女</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="签名">
+          <el-input v-model="userForm.signature" type="textarea" :rows="3" placeholder="请输入个性签名" maxlength="200" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="submitting" @click="handleSubmit">确定</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getUserList, updateUserStatus } from '@/api/user'
-import type { UserVO } from '@/types'
+import { getUserList, updateUser, updateUserStatus } from '@/api/user'
+import type { UserVO, UserUpdateDTO } from '@/types'
 
 const loading = ref(false)
 const users = ref<UserVO[]>([])
@@ -72,21 +98,56 @@ const queryParams = reactive({
   status: undefined as number | undefined
 })
 
+// 用户编辑对话框
+const dialogVisible = ref(false)
+const editingUser = ref<UserVO | null>(null)
+const userForm = reactive<UserUpdateDTO>({
+  nickname: '',
+  signature: '',
+  school: '',
+  gender: 0
+})
+const submitting = ref(false)
+
 async function fetchUsers() {
   loading.value = true
   try {
     const res = await getUserList(queryParams)
-    users.value = res.records
-    total.value = res.total
+    users.value = res.records || []
+    total.value = res.total || 0
   } catch (e) {
     console.error('获取用户列表失败:', e)
+    users.value = []
   } finally {
     loading.value = false
   }
 }
 
-function handleEdit(_row: UserVO) {
-  ElMessage.info('编辑功能开发中')
+function handleEdit(row: UserVO) {
+  editingUser.value = row
+  Object.assign(userForm, {
+    nickname: row.nickname || '',
+    signature: row.signature || '',
+    school: row.school || '',
+    gender: 0
+  })
+  dialogVisible.value = true
+}
+
+async function handleSubmit() {
+  if (!editingUser.value) return
+  
+  submitting.value = true
+  try {
+    await updateUser(editingUser.value.id, userForm)
+    ElMessage.success('更新成功')
+    dialogVisible.value = false
+    fetchUsers()
+  } catch (e) {
+    console.error('更新用户失败:', e)
+  } finally {
+    submitting.value = false
+  }
 }
 
 async function handleToggleStatus(row: UserVO) {

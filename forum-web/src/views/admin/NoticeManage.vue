@@ -37,59 +37,147 @@
       <el-pagination
         v-model:current-page="page"
         :total="total"
+        :page-size="size"
         layout="total, prev, pager, next"
         @current-change="fetchNotices"
       />
     </el-card>
+
+    <!-- 公告表单对话框 -->
+    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="600px">
+      <el-form :model="noticeForm" label-width="80px">
+        <el-form-item label="标题" required>
+          <el-input v-model="noticeForm.title" placeholder="请输入公告标题" maxlength="100" />
+        </el-form-item>
+        <el-form-item label="类型">
+          <el-radio-group v-model="noticeForm.type">
+            <el-radio :value="0">公告</el-radio>
+            <el-radio :value="1">通知</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="状态">
+          <el-radio-group v-model="noticeForm.status">
+            <el-radio :value="0">发布</el-radio>
+            <el-radio :value="1">草稿</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="内容" required>
+          <el-input
+            v-model="noticeForm.content"
+            type="textarea"
+            :rows="5"
+            placeholder="请输入公告内容"
+            maxlength="500"
+            show-word-limit
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="submitting" @click="handleSubmit">确定</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-
-interface Notice {
-  id: number
-  title: string
-  content: string
-  type: number
-  status: number
-  createTime: string
-}
+import { getNoticeList, createNotice, updateNotice, deleteNotice } from '@/api/notify'
+import type { NoticeVO, NoticeCreateDTO } from '@/api/notify'
 
 const loading = ref(false)
-const notices = ref<Notice[]>([])
+const notices = ref<NoticeVO[]>([])
 const page = ref(1)
 const total = ref(0)
+const size = 10
+
+// 公告表单对话框
+const dialogVisible = ref(false)
+const dialogTitle = ref('发布公告')
+const noticeForm = reactive<NoticeCreateDTO>({
+  title: '',
+  content: '',
+  type: 0,
+  status: 0
+})
+const editingId = ref<number | null>(null)
+const submitting = ref(false)
 
 async function fetchNotices() {
   loading.value = true
   try {
-    // 模拟数据
-    notices.value = [
-      { id: 1, title: '系统升级公告', content: '系统将于今晚升级', type: 0, status: 0, createTime: '2024-01-01 10:00:00' }
-    ]
-    total.value = 1
+    const res = await getNoticeList({ current: page.value, size })
+    notices.value = res.records || res.list || []
+    total.value = res.total || 0
+  } catch (e) {
+    console.error('获取公告列表失败:', e)
+    notices.value = []
   } finally {
     loading.value = false
   }
 }
 
 function handleAdd() {
-  ElMessage.info('发布公告功能开发中')
+  dialogTitle.value = '发布公告'
+  editingId.value = null
+  Object.assign(noticeForm, {
+    title: '',
+    content: '',
+    type: 0,
+    status: 0
+  })
+  dialogVisible.value = true
 }
 
-function handleEdit(_row: Notice) {
-  ElMessage.info('编辑功能开发中')
+function handleEdit(row: NoticeVO) {
+  dialogTitle.value = '编辑公告'
+  editingId.value = row.id
+  Object.assign(noticeForm, {
+    title: row.title,
+    content: row.content,
+    type: row.type,
+    status: row.status
+  })
+  dialogVisible.value = true
 }
 
-async function handleDelete(_row: Notice) {
+async function handleSubmit() {
+  if (!noticeForm.title.trim()) {
+    ElMessage.warning('请输入公告标题')
+    return
+  }
+  if (!noticeForm.content.trim()) {
+    ElMessage.warning('请输入公告内容')
+    return
+  }
+  
+  submitting.value = true
+  try {
+    if (editingId.value) {
+      await updateNotice(editingId.value, noticeForm)
+      ElMessage.success('更新成功')
+    } else {
+      await createNotice(noticeForm)
+      ElMessage.success('发布成功')
+    }
+    dialogVisible.value = false
+    fetchNotices()
+  } catch (e) {
+    console.error('操作失败:', e)
+  } finally {
+    submitting.value = false
+  }
+}
+
+async function handleDelete(row: NoticeVO) {
   try {
     await ElMessageBox.confirm('确定要删除该公告吗？', '提示')
+    await deleteNotice(row.id)
     ElMessage.success('删除成功')
     fetchNotices()
   } catch (e) {
-    // 用户取消
+    // 用户取消或删除失败
   }
 }
 
