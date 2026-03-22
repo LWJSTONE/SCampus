@@ -129,7 +129,7 @@ function handleEdit(row: UserVO) {
     nickname: row.nickname || '',
     signature: row.signature || '',
     school: row.school || '',
-    gender: 0
+    gender: row.gender ?? 0
   })
   dialogVisible.value = true
 }

@@ -240,12 +240,19 @@ public class UserController {
      */
     @GetMapping("/{id}/posts")
     @Operation(summary = "获取用户帖子", description = "分页获取用户发布的帖子列表")
-    public Result<PageResult<PostDTO>> getUserPosts(
+    public Result<PageResult<?>> getUserPosts(
             @Parameter(description = "用户ID", required = true) @PathVariable Long id,
             @Parameter(description = "查询条件") UserQueryDTO queryDTO) {
         log.info("获取用户帖子，用户ID：{}", id);
         // 通过Feign调用帖子服务获取用户帖子
-        // 这里返回空列表作为示例，实际需要调用PostApi
+        try {
+            var result = postApi.getPostsByUserId(id, queryDTO.getCurrent(), queryDTO.getSize());
+            if (result != null && result.getData() != null) {
+                return Result.success(result.getData());
+            }
+        } catch (Exception e) {
+            log.error("调用帖子服务失败", e);
+        }
         return Result.success(new PageResult<>());
     }
 

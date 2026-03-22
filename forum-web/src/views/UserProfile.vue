@@ -144,7 +144,10 @@ async function handleFollow() {
   
   followLoading.value = true
   try {
-    if (isFollowing.value) {
+    // 保存当前状态用于计算粉丝数变化
+    const wasFollowing = isFollowing.value
+    
+    if (wasFollowing) {
       await unfollowUser(userId)
       isFollowing.value = false
       ElMessage.success('已取消关注')
@@ -153,9 +156,9 @@ async function handleFollow() {
       isFollowing.value = true
       ElMessage.success('关注成功')
     }
-    // 更新粉丝数
+    // 更新粉丝数：如果之前是关注状态现在取消，粉丝数-1；如果之前不是关注状态现在关注，粉丝数+1
     if (user.value) {
-      user.value.followerCount = (user.value.followerCount || 0) + (isFollowing.value ? 1 : -1)
+      user.value.followerCount = (user.value.followerCount || 0) + (wasFollowing ? -1 : 1)
     }
   } catch (e) {
     console.error('操作失败:', e)

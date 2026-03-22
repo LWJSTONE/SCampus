@@ -285,6 +285,41 @@ public class PostController {
     }
 
     /**
+     * 获取版块帖子列表
+     *
+     * @param forumId  版块ID
+     * @param current  当前页
+     * @param size     每页大小
+     * @param request  HTTP请求
+     * @return 帖子列表
+     */
+    @GetMapping("/forum/{forumId}")
+    @Operation(summary = "获取版块帖子列表", description = "分页获取指定版块的帖子列表")
+    public Result<PageResult<PostListVO>> getPostsByForum(
+            @Parameter(description = "版块ID") @PathVariable Long forumId,
+            @Parameter(description = "当前页") @RequestParam(defaultValue = "1") Integer current,
+            @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") Integer size,
+            HttpServletRequest request) {
+
+        log.info("获取版块帖子列表, forumId: {}, current: {}, size: {}", forumId, current, size);
+
+        // 构建查询参数
+        PostQueryDTO queryDTO = new PostQueryDTO();
+        queryDTO.setCurrent(current);
+        queryDTO.setSize(size);
+        queryDTO.setForumId(forumId);
+        queryDTO.setStatus(1); // 只查询已发布的帖子
+
+        // 获取当前用户ID
+        Long currentUserId = getCurrentUserId(request);
+
+        // 查询帖子列表
+        PageResult<PostListVO> result = postService.getPostList(queryDTO, currentUserId);
+
+        return Result.success(result);
+    }
+
+    /**
      * 搜索帖子
      *
      * @param keyword 关键词
@@ -442,5 +477,120 @@ public class PostController {
         }
 
         return null;
+    }
+
+    // ==================== 内部API（供其他服务调用） ====================
+
+    /**
+     * 内部API：根据ID获取帖子信息
+     *
+     * @param id 帖子ID
+     * @return 帖子信息
+     */
+    @GetMapping("/api/internal/post/{id}")
+    @Operation(summary = "内部API-获取帖子信息", description = "供其他服务调用的内部接口")
+    public Result<PostListVO> getPostByIdInternal(
+            @Parameter(description = "帖子ID") @PathVariable Long id) {
+        log.info("内部API调用：获取帖子信息, postId: {}", id);
+
+        // 查询帖子
+        PostDetailVO detail = postService.getPostDetail(id, null);
+
+        // 转换为简化VO
+        PostListVO listVO = new PostListVO();
+        listVO.setId(detail.getId());
+        listVO.setTitle(detail.getTitle());
+        listVO.setUserId(detail.getUserId());
+        listVO.setUsername(detail.getUsername());
+        listVO.setUserAvatar(detail.getUserAvatar());
+        listVO.setForumId(detail.getForumId());
+        listVO.setForumName(detail.getForumName());
+        listVO.setSummary(detail.getSummary());
+        listVO.setViewCount(detail.getViewCount());
+        listVO.setLikeCount(detail.getLikeCount());
+        listVO.setCommentCount(detail.getCommentCount());
+        listVO.setCollectCount(detail.getCollectCount());
+        listVO.setIsTop(detail.getIsTop());
+        listVO.setIsEssence(detail.getIsEssence());
+        listVO.setStatus(detail.getStatus());
+        listVO.setCreateTime(detail.getCreateTime());
+
+        return Result.success(listVO);
+    }
+
+    /**
+     * 内部API：更新帖子统计
+     *
+     * @param id    帖子ID
+     * @param field 统计字段
+     * @param delta 变化量
+     * @return 操作结果
+     */
+    @PostMapping("/api/internal/post/{id}/stats")
+    @Operation(summary = "内部API-更新帖子统计", description = "供其他服务调用的内部接口")
+    public Result<Boolean> updatePostStatsInternal(
+            @Parameter(description = "帖子ID") @PathVariable Long id,
+            @Parameter(description = "统计字段") @RequestParam String field,
+            @Parameter(description = "变化量") @RequestParam int delta) {
+        log.info("内部API调用：更新帖子统计, postId: {}, field: {}, delta: {}", id, field, delta);
+
+        // 根据字段类型更新
+        switch (field) {
+            case "viewCount":
+                postService.incrementViewCount(id);
+                break;
+            case "likeCount":
+                // likePost 是 toggle 操作，这里直接调用统计更新
+                // 使用现有的 incrementViewCount 模式
+                for (int i = 0; i < Math.abs(delta); i++) {
+                    if (delta > 0) {
+                        postService.likePost(id, -1L); // 使用特殊ID表示系统操作
+                    }
+                }
+                break;
+            case "commentCount":
+                postService.updateCommentCount(id, delta);
+                break;
+            case "collectCount":
+                // collectPost 也是 toggle 操作
+                for (int i = 0; i < Math.abs(delta); i++) {
+                    if (delta > 0) {
+                        postService.collectPost(id, -1L);
+                    }
+                }
+                break;
+            default:
+                return Result.fail(400, "未知的统计字段: " + field);
+        }
+
+        return Result.success(true);
+    }
+
+    /**
+     * 内部API：获取用户帖子列表
+     *
+     * @param userId 用户ID
+     * @param page   当前页
+     * @param size   每页大小
+     * @return 帖子列表
+     */
+    @GetMapping("/api/internal/post/user/{userId}")
+    @Operation(summary = "内部API-获取用户帖子列表", description = "供其他服务调用的内部接口")
+    public Result<PageResult<PostListVO>> getPostsByUserIdInternal(
+            @Parameter(description = "用户ID") @PathVariable Long userId,
+            @Parameter(description = "当前页") @RequestParam(defaultValue = "1") int page,
+            @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") int size) {
+        log.info("内部API调用：获取用户帖子列表, userId: {}, page: {}, size: {}", userId, page, size);
+
+        // 构建查询参数
+        PostQueryDTO queryDTO = new PostQueryDTO();
+        queryDTO.setCurrent(page);
+        queryDTO.setSize(size);
+        queryDTO.setStatus(1);
+
+        // 查询用户帖子
+        PageResult<PostListVO> result = postService.getUserPosts(userId, queryDTO, null);
+
+        return Result.success(result);
     }
 }
