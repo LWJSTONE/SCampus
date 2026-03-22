@@ -64,22 +64,17 @@ export function getPostsByForum(forumId: number, params: PostQueryDTO): Promise<
   return request.get(`/posts/forum/${forumId}`, params)
 }
 
-// 点赞帖子
-export function likePost(id: number): Promise<{ liked: boolean; likeCount: number }> {
+// 点赞帖子（toggle模式）
+export function likePost(id: number): Promise<{ isLike: boolean; message: string }> {
   return request.post(`/posts/${id}/like`)
 }
 
-// 取消点赞帖子
-export function unlikePost(id: number): Promise<{ liked: boolean; likeCount: number }> {
-  return request.delete(`/posts/${id}/like`)
-}
-
-// 收藏帖子
-export function collectPost(id: number): Promise<{ collected: boolean; collectCount: number }> {
+// 收藏帖子（toggle模式）
+export function collectPost(id: number): Promise<{ isCollect: boolean; message: string }> {
   return request.post(`/posts/${id}/collect`)
 }
 
-// 取消收藏帖子
-export function uncollectPost(id: number): Promise<{ collected: boolean; collectCount: number }> {
-  return request.delete(`/posts/${id}/collect`)
+// 获取用户帖子
+export function getUserPosts(userId: number, params: { page: number; size: number }): Promise<PageResult<any>> {
+  return request.get(`/users/${userId}/posts`, params)
 }

@@ -92,7 +92,7 @@ export function deleteForum(id: number) {
  * @param userId 用户ID
  */
 export function setModerator(forumId: number, userId: number) {
-  return request.post(`/forums/${forumId}/moderator`, { userId })
+  return request.post(`/forums/${forumId}/moderators`, { userId })
 }
 
 /**
@@ -101,5 +101,5 @@ export function setModerator(forumId: number, userId: number) {
  * @param userId 用户ID
  */
 export function removeModerator(forumId: number, userId: number) {
-  return request.delete(`/forums/${forumId}/moderator/${userId}`)
+  return request.delete(`/forums/${forumId}/moderators/${userId}`)
 }

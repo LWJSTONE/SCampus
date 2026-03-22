@@ -47,19 +47,11 @@ export function deleteComment(id: number) {
 }
 
 /**
- * 点赞评论
+ * 点赞评论（toggle模式）
  * @param id 评论ID
  */
-export function likeComment(id: number) {
+export function likeComment(id: number): Promise<{ isLike: boolean; message: string }> {
   return request.post(`/comments/${id}/like`)
-}
-
-/**
- * 取消点赞评论
- * @param id 评论ID
- */
-export function unlikeComment(id: number) {
-  return request.post(`/comments/${id}/unlike`)
 }
 
 /**

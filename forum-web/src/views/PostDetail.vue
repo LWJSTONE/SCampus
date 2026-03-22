@@ -141,7 +141,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getPostById, likePost, unlikePost, collectPost, uncollectPost } from '@/api/post'
+import { getPostById, likePost, collectPost } from '@/api/post'
 import { getPostComments, createComment, deleteComment } from '@/api/comment'
 import type { PostDetailVO, CommentVO, PageQuery } from '@/types'
 import dayjs from 'dayjs'
@@ -219,7 +219,7 @@ const fetchComments = async () => {
 }
 
 /**
- * 处理点赞
+ * 处理点赞（toggle模式）
  */
 const handleLike = async () => {
   if (!userStore.isLoggedIn) {
@@ -229,24 +229,23 @@ const handleLike = async () => {
   }
 
   try {
-    if (postDetail.value?.liked) {
-      await unlikePost(postId)
-      postDetail.value.liked = false
-      postDetail.value.likeCount--
-    } else {
-      await likePost(postId)
-      if (postDetail.value) {
-        postDetail.value.liked = true
+    const result = await likePost(postId)
+    if (postDetail.value) {
+      postDetail.value.liked = result.isLike
+      if (result.isLike) {
         postDetail.value.likeCount++
+      } else {
+        postDetail.value.likeCount--
       }
     }
+    ElMessage.success(result.message)
   } catch (error) {
     console.error('操作失败：', error)
   }
 }
 
 /**
- * 处理收藏
+ * 处理收藏（toggle模式）
  */
 const handleCollect = async () => {
   if (!userStore.isLoggedIn) {
@@ -256,17 +255,16 @@ const handleCollect = async () => {
   }
 
   try {
-    if (postDetail.value?.collected) {
-      await uncollectPost(postId)
-      postDetail.value.collected = false
-      postDetail.value.collectCount--
-    } else {
-      await collectPost(postId)
-      if (postDetail.value) {
-        postDetail.value.collected = true
+    const result = await collectPost(postId)
+    if (postDetail.value) {
+      postDetail.value.collected = result.isCollect
+      if (result.isCollect) {
         postDetail.value.collectCount++
+      } else {
+        postDetail.value.collectCount--
       }
     }
+    ElMessage.success(result.message)
   } catch (error) {
     console.error('操作失败：', error)
   }

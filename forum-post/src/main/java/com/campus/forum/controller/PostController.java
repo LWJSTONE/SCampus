@@ -31,7 +31,7 @@ import java.util.Map;
  */
 @Slf4j
 @RestController
-@RequestMapping("/api/v1")
+@RequestMapping("/api/v1/posts")
 @RequiredArgsConstructor
 @Tag(name = "帖子管理", description = "帖子相关接口")
 public class PostController {

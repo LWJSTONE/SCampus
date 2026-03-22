@@ -51,11 +51,6 @@ export function getCurrentUserInfo(): Promise<UserDetailVO> {
   return request.get('/users/me')
 }
 
-// 更新用户状态
-export function updateUserStatus(id: number, status: number): Promise<void> {
-  return request.put(`/users/${id}/status`, { status })
-}
-
 // 获取用户帖子
 export function getUserPosts(id: number, params: { page: number; size: number }): Promise<PageResult<any>> {
   return request.get(`/users/${id}/posts`, params)
