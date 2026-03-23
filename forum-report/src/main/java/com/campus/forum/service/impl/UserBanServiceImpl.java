@@ -16,7 +16,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 用户禁言服务实现类
@@ -31,10 +33,58 @@ public class UserBanServiceImpl extends ServiceImpl<UserBanMapper, UserBan> impl
 
     private final UserBanMapper userBanMapper;
 
+    // 禁言类型映射
+    private static final Map<Integer, String> BAN_TYPE_NAMES = new HashMap<>();
+    static {
+        BAN_TYPE_NAMES.put(1, "全站禁言");
+        BAN_TYPE_NAMES.put(2, "板块禁言");
+    }
+
+    // 禁言状态映射
+    private static final Map<Integer, String> BAN_STATUS_NAMES = new HashMap<>();
+    static {
+        BAN_STATUS_NAMES.put(0, "已解除");
+        BAN_STATUS_NAMES.put(1, "禁言中");
+        BAN_STATUS_NAMES.put(2, "已过期");
+    }
+
+    // 最小禁言天数
+    private static final int MIN_BAN_DAYS = 1;
+    // 最大禁言天数（365天）
+    private static final int MAX_BAN_DAYS = 365;
+
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Long banUser(UserBanDTO banDTO, Long operatorId) {
         Long userId = banDTO.getUserId();
+
+        // 参数验证
+        if (userId == null) {
+            throw new BusinessException("用户ID不能为空");
+        }
+
+        // 验证禁言天数
+        Integer banDays = banDTO.getBanDays();
+        if (banDays == null || banDays < MIN_BAN_DAYS) {
+            throw new BusinessException("禁言天数不能小于" + MIN_BAN_DAYS + "天");
+        }
+        if (banDays > MAX_BAN_DAYS) {
+            throw new BusinessException("禁言天数不能超过" + MAX_BAN_DAYS + "天");
+        }
+
+        // 验证禁言类型
+        Integer banType = banDTO.getBanType();
+        if (banType == null) {
+            banType = 1; // 默认全站禁言
+        }
+        if (!BAN_TYPE_NAMES.containsKey(banType)) {
+            throw new BusinessException("无效的禁言类型");
+        }
+
+        // 板块禁言时必须指定板块ID
+        if (banType == 2 && banDTO.getForumId() == null) {
+            throw new BusinessException("板块禁言必须指定板块ID");
+        }
         
         // 检查是否已被禁言
         UserBanVO activeBan = userBanMapper.selectActiveBan(userId);
@@ -44,19 +94,19 @@ public class UserBanServiceImpl extends ServiceImpl<UserBanMapper, UserBan> impl
 
         UserBan userBan = new UserBan();
         userBan.setUserId(userId);
-        userBan.setBanType(banDTO.getBanType() != null ? banDTO.getBanType() : 1); // 默认全站禁言
+        userBan.setBanType(banType);
         userBan.setForumId(banDTO.getForumId());
         userBan.setReason(banDTO.getReason());
         userBan.setReportId(banDTO.getReportId());
         userBan.setOperatorId(operatorId);
         userBan.setStartTime(LocalDateTime.now());
-        userBan.setEndTime(LocalDateTime.now().plusDays(banDTO.getBanDays()));
+        userBan.setEndTime(LocalDateTime.now().plusDays(banDays));
         userBan.setStatus(1); // 禁言中
         userBan.setDeleteFlag(0);
         
         save(userBan);
         
-        log.info("用户 {} 被禁言 {} 天，禁言ID: {}", userId, banDTO.getBanDays(), userBan.getId());
+        log.info("用户 {} 被禁言 {} 天，禁言ID: {}", userId, banDays, userBan.getId());
         return userBan.getId();
     }
 
@@ -123,19 +173,17 @@ public class UserBanServiceImpl extends ServiceImpl<UserBanMapper, UserBan> impl
     }
 
     /**
-     * 填充名称
+     * 填充名称（使用Map避免数组越界）
      */
     private void fillNames(UserBanVO vo) {
         // 禁言类型名称
         if (vo.getBanType() != null) {
-            String[] typeNames = {"", "全站禁言", "板块禁言"};
-            vo.setBanTypeName(typeNames[vo.getBanType()]);
+            vo.setBanTypeName(BAN_TYPE_NAMES.getOrDefault(vo.getBanType(), "未知类型"));
         }
         
         // 禁言状态名称
         if (vo.getStatus() != null) {
-            String[] statusNames = {"已解除", "禁言中", "已过期"};
-            vo.setStatusName(statusNames[vo.getStatus()]);
+            vo.setStatusName(BAN_STATUS_NAMES.getOrDefault(vo.getStatus(), "未知状态"));
         }
     }
 }

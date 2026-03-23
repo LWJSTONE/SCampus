@@ -44,10 +44,12 @@ public class RedisConfig {
         ObjectMapper objectMapper = new ObjectMapper();
         // 指定要序列化的域，field,get和set,以及修饰符范围，ANY是都有包括private和public
         objectMapper.setVisibility(PropertyAccessor.ALL, JsonAutoDetect.Visibility.ANY);
-        // 指定序列化输入的类型，类必须是非final修饰的
-        objectMapper.activateDefaultTyping(LaissezFaireSubTypeValidator.instance, ObjectMapper.DefaultTyping.NON_FINAL);
         // 支持Java 8日期时间类型
         objectMapper.registerModule(new JavaTimeModule());
+        
+        // 安全配置：禁用默认类型信息，防止反序列化漏洞
+        // 之前使用 activateDefaultTyping 存在安全风险，已被移除
+        // 如需存储复杂对象，建议手动指定类型或使用 @JsonTypeInfo 注解
         
         jackson2JsonRedisSerializer.setObjectMapper(objectMapper);
         

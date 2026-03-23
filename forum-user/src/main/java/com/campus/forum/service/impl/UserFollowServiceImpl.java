@@ -162,8 +162,11 @@ public class UserFollowServiceImpl extends ServiceImpl<UserFollowMapper, UserFol
         try {
             // 检查关注关系是否存在
             UserFollow existFollow = userFollowMapper.selectByFollowerAndFollowing(followerId, followingId);
+            
+            // 幂等处理：如果不存在关注关系或已经取消关注，直接返回成功
             if (existFollow == null || existFollow.getStatus() != 1) {
-                throw new BusinessException(ResultCode.BUSINESS_ERROR, "未关注该用户");
+                log.info("用户未关注或已取消关注，幂等返回成功：followerId={}, followingId={}", followerId, followingId);
+                return true;
             }
             
             // 更新关注状态为取消

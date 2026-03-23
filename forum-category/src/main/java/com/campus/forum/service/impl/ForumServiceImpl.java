@@ -133,10 +133,18 @@ public class ForumServiceImpl extends ServiceImpl<ForumMapper, Forum> implements
             throw new BusinessException("版块不存在");
         }
 
-        // 删除版块的所有版主
+        // 检查版块下是否存在帖子（需要调用帖子服务或检查post_count）
+        // 这里检查post_count字段，如果大于0则不允许删除
+        if (forum.getPostCount() != null && forum.getPostCount() > 0) {
+            throw new BusinessException("该版块下还有帖子，无法删除。请先迁移或删除帖子。");
+        }
+
+        // 逻辑删除版块的所有版主关联
         moderatorMapper.deleteByForumId(id);
 
-        return removeById(id);
+        // 逻辑删除版块（与分类删除保持一致）
+        forum.setDeleteFlag(1);
+        return updateById(forum);
     }
 
     @Override

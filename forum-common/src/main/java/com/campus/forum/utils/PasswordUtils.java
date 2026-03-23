@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.util.UUID;
 
 /**
@@ -21,6 +22,11 @@ public class PasswordUtils {
      * BCrypt加密成本因子
      */
     private static final int BCRYPT_COST = 12;
+
+    /**
+     * 安全随机数生成器（用于生成随机密码）
+     */
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private PasswordUtils() {
         // 私有构造方法，防止实例化
@@ -158,7 +164,7 @@ public class PasswordUtils {
     }
 
     /**
-     * 生成随机密码
+     * 生成随机密码（使用安全随机数生成器）
      *
      * @param length 密码长度
      * @return 随机密码
@@ -169,9 +175,9 @@ public class PasswordUtils {
         }
         String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
         StringBuilder password = new StringBuilder();
-        java.util.Random random = new java.util.Random();
+        // 使用SecureRandom替代Random，确保生成的密码不可预测
         for (int i = 0; i < length; i++) {
-            password.append(chars.charAt(random.nextInt(chars.length())));
+            password.append(chars.charAt(SECURE_RANDOM.nextInt(chars.length())));
         }
         return password.toString();
     }

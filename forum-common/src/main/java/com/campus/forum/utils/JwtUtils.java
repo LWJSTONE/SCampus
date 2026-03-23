@@ -15,6 +15,11 @@ import java.util.Map;
  * JWT工具类
  * 用于生成和验证JWT令牌
  *
+ * 安全警告：
+ * 1. 生产环境必须配置 jwt.secret 密钥，不能使用默认密钥
+ * 2. 调用需要密钥的方法时必须传入配置的密钥
+ * 3. 仅解码不验证签名的方法仅用于获取Token信息展示，不能用于身份验证
+ *
  * @author campus
  * @since 2024-01-01
  */
@@ -23,9 +28,57 @@ public class JwtUtils {
 
     /**
      * 默认密钥（仅用于开发环境，生产环境必须配置jwt.secret）
-     * 警告：此默认密钥仅供开发测试使用，生产环境必须配置强密钥
+     * 
+     * ⚠️ 安全警告：此默认密钥仅供开发测试使用，生产环境必须配置强密钥！
+     * 生产环境请通过配置文件设置 jwt.secret 属性
+     * 
+     * 启动时会检查是否使用默认密钥，生产环境使用默认密钥将输出警告日志
      */
     private static final String DEFAULT_SECRET = "campus-forum-jwt-secret-key-2024-DEV-ONLY-CHANGE-IN-PRODUCTION-ENVIRONMENT";
+
+    /**
+     * 是否使用默认密钥的标记
+     */
+    private static volatile boolean usingDefaultSecret = true;
+
+    /**
+     * 配置的密钥
+     */
+    private static volatile String configuredSecret = null;
+
+    /**
+     * 设置配置的密钥（应用启动时调用）
+     *
+     * @param secret 配置的密钥
+     */
+    public static void setConfiguredSecret(String secret) {
+        if (secret != null && !secret.isEmpty() && !secret.equals(DEFAULT_SECRET)) {
+            configuredSecret = secret;
+            usingDefaultSecret = false;
+            log.info("JWT密钥已从配置文件加载");
+        } else {
+            usingDefaultSecret = true;
+            log.warn("⚠️ 安全警告：JWT使用默认密钥，生产环境必须配置 jwt.secret！");
+        }
+    }
+
+    /**
+ * 获取当前使用的密钥
+     *
+     * @return 密钥
+     */
+    public static String getCurrentSecret() {
+        return configuredSecret != null ? configuredSecret : DEFAULT_SECRET;
+    }
+
+    /**
+     * 检查是否使用默认密钥
+     *
+     * @return 是否使用默认密钥
+     */
+    public static boolean isUsingDefaultSecret() {
+        return usingDefaultSecret;
+    }
 
     /**
      * 默认过期时间（24小时）
@@ -103,17 +156,32 @@ public class JwtUtils {
     }
 
     /**
-     * 从令牌中获取角色
+     * 从令牌中获取角色（验证签名后获取）
      *
      * @param token JWT令牌
      * @return 角色
      */
     public static String getRole(String token) {
-        DecodedJWT jwt = decodeToken(token);
-        if (jwt != null) {
+        return getRole(token, getCurrentSecret());
+    }
+
+    /**
+     * 从令牌中获取角色（自定义密钥验证）
+     *
+     * @param token JWT令牌
+     * @param secret 密钥
+     * @return 角色
+     */
+    public static String getRole(String token, String secret) {
+        try {
+            Algorithm algorithm = Algorithm.HMAC256(secret);
+            JWTVerifier verifier = JWT.require(algorithm).withIssuer(ISSUER).build();
+            DecodedJWT jwt = verifier.verify(token);
             return jwt.getClaim("role").asString();
+        } catch (JWTVerificationException e) {
+            log.error("JWT令牌验证失败: {}", e.getMessage());
+            return null;
         }
-        return null;
     }
 
     /**
@@ -199,17 +267,34 @@ public class JwtUtils {
     }
 
     /**
-     * 从令牌中获取用户ID
+     * 从令牌中获取用户ID（仅解码，不验证签名）
+     * 
+     * ⚠️ 安全警告：此方法仅解码Token不验证签名，存在安全风险！
+     * 用于身份验证时请使用 getUserId(String token, String secret) 方法
+     * 此方法仅适用于：日志记录、前端展示等非安全敏感场景
      *
      * @param token JWT令牌
      * @return 用户ID
+     * @deprecated 请使用 {@link #getUserId(String, String)} 方法进行安全的Token验证
      */
+    @Deprecated
     public static Long getUserId(String token) {
         DecodedJWT jwt = decodeToken(token);
         if (jwt != null) {
             return jwt.getClaim("userId").asLong();
         }
         return null;
+    }
+
+    /**
+     * 从令牌中获取用户ID（验证签名后获取）
+     * 推荐使用此方法进行身份验证
+     *
+     * @param token JWT令牌
+     * @return 用户ID
+     */
+    public static Long getUserIdSecure(String token) {
+        return getUserId(token, getCurrentSecret());
     }
 
     /**
@@ -232,17 +317,34 @@ public class JwtUtils {
     }
 
     /**
-     * 从令牌中获取用户名
+     * 从令牌中获取用户名（仅解码，不验证签名）
+     * 
+     * ⚠️ 安全警告：此方法仅解码Token不验证签名，存在安全风险！
+     * 用于身份验证时请使用 getUsername(String token, String secret) 方法
+     * 此方法仅适用于：日志记录、前端展示等非安全敏感场景
      *
      * @param token JWT令牌
      * @return 用户名
+     * @deprecated 请使用 {@link #getUsername(String, String)} 方法进行安全的Token验证
      */
+    @Deprecated
     public static String getUsername(String token) {
         DecodedJWT jwt = decodeToken(token);
         if (jwt != null) {
             return jwt.getSubject();
         }
         return null;
+    }
+
+    /**
+     * 从令牌中获取用户名（验证签名后获取）
+     * 推荐使用此方法进行身份验证
+     *
+     * @param token JWT令牌
+     * @return 用户名
+     */
+    public static String getUsernameSecure(String token) {
+        return getUsername(token, getCurrentSecret());
     }
 
     /**

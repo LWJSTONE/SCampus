@@ -85,9 +85,10 @@ public interface ReportMapper extends BaseMapper<Report> {
     int countPending();
 
     /**
-     * 查询用户举报记录
+     * 查询用户举报记录（只检查待处理状态的举报，允许对已处理的目标再次举报）
      */
     @Select("SELECT COUNT(*) FROM t_report " +
-            "WHERE reporter_id = #{reporterId} AND target_id = #{targetId} AND delete_flag = 0")
+            "WHERE reporter_id = #{reporterId} AND target_id = #{targetId} " +
+            "AND status IN (0, 1) AND delete_flag = 0")
     int countByReporterAndTarget(@Param("reporterId") Long reporterId, @Param("targetId") Long targetId);
 }

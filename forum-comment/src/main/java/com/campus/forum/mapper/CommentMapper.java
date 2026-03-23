@@ -11,6 +11,7 @@ import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 评论Mapper接口
@@ -190,6 +191,23 @@ public interface CommentMapper extends BaseMapper<Comment> {
      */
     @Select("SELECT COUNT(*) FROM t_comment WHERE post_id = #{postId} AND delete_flag = 0 AND status = 0")
     int countByPostId(@Param("postId") Long postId);
+
+    /**
+     * 批量统计帖子评论总数（优化N+1查询）
+     * 
+     * @param postIds 帖子ID列表
+     * @return 帖子ID与评论数量的映射
+     */
+    @Select("<script>" +
+            "SELECT post_id, COUNT(*) as count FROM t_comment " +
+            "WHERE post_id IN " +
+            "<foreach collection='postIds' item='postId' open='(' separator=',' close=')'>" +
+            "    #{postId}" +
+            "</foreach>" +
+            "AND delete_flag = 0 AND status = 0 " +
+            "GROUP BY post_id" +
+            "</script>")
+    List<Map<String, Object>> countByPostIds(@Param("postIds") List<Long> postIds);
 
     /**
      * 更新评论热门状态

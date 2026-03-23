@@ -393,7 +393,7 @@ public class CommentServiceImpl implements CommentService {
     }
 
     /**
-     * 批量获取帖子的评论数
+     * 批量获取帖子的评论数（优化N+1查询）
      */
     @Override
     public Map<Long, Integer> countByPostIds(List<Long> postIds) {
@@ -401,10 +401,24 @@ public class CommentServiceImpl implements CommentService {
             return Collections.emptyMap();
         }
         
+        // 使用批量查询替代循环查询，优化N+1问题
+        List<Map<String, Object>> results = commentMapper.countByPostIds(postIds);
+        
+        // 将查询结果转换为Map
         Map<Long, Integer> result = new HashMap<>();
-        for (Long postId : postIds) {
-            result.put(postId, countByPostId(postId));
+        for (Map<String, Object> row : results) {
+            Long postId = ((Number) row.get("post_id")).longValue();
+            Integer count = ((Number) row.get("count")).intValue();
+            result.put(postId, count);
         }
+        
+        // 对于没有评论的帖子，补充0值
+        for (Long postId : postIds) {
+            if (!result.containsKey(postId)) {
+                result.put(postId, 0);
+            }
+        }
+        
         return result;
     }
 
@@ -491,6 +505,19 @@ public class CommentServiceImpl implements CommentService {
         if (createDTO.getPostId() == null) {
             throw new BusinessException(ResultCode.PARAM_ERROR, "帖子ID不能为空");
         }
+        
+        // 验证帖子是否存在（需要集成PostApi后启用）
+        // TODO: 集成帖子服务后，添加帖子存在性验证
+        // try {
+        //     PostDTO post = postApi.getPostById(createDTO.getPostId());
+        //     if (post == null) {
+        //         throw new BusinessException(ResultCode.POST_NOT_FOUND, "帖子不存在或已删除");
+        //     }
+        // } catch (Exception e) {
+        //     log.error("验证帖子存在性失败, postId: {}", createDTO.getPostId(), e);
+        //     throw new BusinessException(ResultCode.POST_NOT_FOUND, "帖子不存在或已删除");
+        // }
+        
         if (StrUtil.isBlank(createDTO.getContent())) {
             throw new BusinessException(ResultCode.PARAM_ERROR, "评论内容不能为空");
         }

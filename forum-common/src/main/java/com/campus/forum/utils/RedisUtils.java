@@ -157,14 +157,29 @@ public class RedisUtils {
 
     /**
      * 根据模式删除keys
+     * 使用SCAN命令替代KEYS，避免阻塞Redis
      *
      * @param pattern 模式，如 "token:user:123:*"
      * @return 删除的数量
      */
     public long deleteByPattern(String pattern) {
         try {
-            Set<String> keys = redisTemplate.keys(pattern);
-            if (keys != null && !keys.isEmpty()) {
+            Set<String> keys = new HashSet<>();
+            // 使用SCAN命令替代KEYS，避免阻塞Redis
+            org.springframework.data.redis.core.Cursor<String> cursor = redisTemplate.scan(
+                org.springframework.data.redis.core.ScanOptions.scanOptions().match(pattern).count(1000).build()
+            );
+            while (cursor.hasNext()) {
+                keys.add(cursor.next());
+            }
+            // 确保关闭cursor
+            try {
+                cursor.close();
+            } catch (Exception e) {
+                log.warn("关闭Redis游标失败", e);
+            }
+            
+            if (!keys.isEmpty()) {
                 Long count = redisTemplate.delete(keys);
                 return count != null ? count : 0;
             }
