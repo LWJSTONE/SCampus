@@ -224,7 +224,14 @@ const fetchPostDetail = async () => {
 const fetchComments = async () => {
   try {
     const res = await getPostComments(postId, queryParams)
-    commentList.value = res.records || res.list || []
+    // 兼容后端返回的字段名
+    const records = (res.records || res.list || []).map((comment: any) => ({
+      ...comment,
+      username: comment.username || comment.userName,
+      replyToUsername: comment.replyToUsername || comment.replyToUserName,
+      children: comment.children || comment.replies || []
+    }))
+    commentList.value = records
     commentTotal.value = res.total
   } catch (error) {
     console.error('获取评论失败：', error)

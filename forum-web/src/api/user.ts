@@ -3,7 +3,12 @@ import type { UserVO, UserDetailVO, UserQueryDTO, UserUpdateDTO } from '@/types'
 
 // 获取用户列表
 export function getUserList(params: UserQueryDTO): Promise<PageResult<UserVO>> {
-  return request.get('/users', params)
+  // 兼容后端分页参数：将 page 转换为 current
+  const queryParams = {
+    ...params,
+    current: params.page || params.current,
+  }
+  return request.get('/users', queryParams)
 }
 
 // 获取用户详情
@@ -28,12 +33,22 @@ export function updatePassword(id: number, data: { oldPassword: string; newPassw
 
 // 获取粉丝列表
 export function getFollowers(id: number, params: { page: number; size: number }): Promise<PageResult<UserVO>> {
-  return request.get(`/users/${id}/followers`, params)
+  // 兼容后端分页参数
+  const queryParams = {
+    current: params.page,
+    size: params.size
+  }
+  return request.get(`/users/${id}/followers`, queryParams)
 }
 
 // 获取关注列表
 export function getFollowing(id: number, params: { page: number; size: number }): Promise<PageResult<UserVO>> {
-  return request.get(`/users/${id}/following`, params)
+  // 兼容后端分页参数
+  const queryParams = {
+    current: params.page,
+    size: params.size
+  }
+  return request.get(`/users/${id}/following`, queryParams)
 }
 
 // 关注用户
@@ -53,17 +68,32 @@ export function getCurrentUserInfo(): Promise<UserDetailVO> {
 
 // 获取用户帖子
 export function getUserPosts(id: number, params: { page: number; size: number }): Promise<PageResult<any>> {
-  return request.get(`/users/${id}/posts`, params)
+  // 兼容后端分页参数
+  const queryParams = {
+    current: params.page,
+    size: params.size
+  }
+  return request.get(`/users/${id}/posts`, queryParams)
 }
 
 // 获取用户评论
 export function getUserComments(id: number, params: { page: number; size: number }): Promise<PageResult<any>> {
-  return request.get(`/users/${id}/comments`, params)
+  // 兼容后端分页参数
+  const queryParams = {
+    current: params.page,
+    size: params.size
+  }
+  return request.get(`/users/${id}/comments`, queryParams)
 }
 
 // 获取用户收藏
 export function getUserCollections(id: number, params: { page: number; size: number }): Promise<PageResult<any>> {
-  return request.get(`/users/${id}/collections`, params)
+  // 兼容后端分页参数
+  const queryParams = {
+    current: params.page,
+    size: params.size
+  }
+  return request.get(`/users/${id}/collections`, queryParams)
 }
 
 // 更新用户状态（管理员）

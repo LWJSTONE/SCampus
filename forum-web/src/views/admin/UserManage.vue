@@ -13,8 +13,8 @@
         </el-form-item>
         <el-form-item label="状态">
           <el-select v-model="queryParams.status" placeholder="全部" clearable>
-            <el-option label="正常" :value="0" />
-            <el-option label="禁用" :value="1" />
+            <el-option label="正常" :value="1" />
+            <el-option label="禁用" :value="0" />
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -29,8 +29,8 @@
         <el-table-column prop="email" label="邮箱" />
         <el-table-column prop="status" label="状态">
           <template #default="{ row }">
-            <el-tag :type="row.status === 0 ? 'success' : 'danger'">
-              {{ row.status === 0 ? '正常' : '禁用' }}
+            <el-tag :type="row.status === 1 ? 'success' : 'danger'">
+              {{ row.status === 1 ? '正常' : '禁用' }}
             </el-tag>
           </template>
         </el-table-column>
@@ -38,8 +38,8 @@
         <el-table-column label="操作" width="150">
           <template #default="{ row }">
             <el-button link type="primary" @click="handleEdit(row)">编辑</el-button>
-            <el-button link :type="row.status === 0 ? 'danger' : 'success'" @click="handleToggleStatus(row)">
-              {{ row.status === 0 ? '禁用' : '启用' }}
+            <el-button link :type="row.status === 1 ? 'danger' : 'success'" @click="handleToggleStatus(row)">
+              {{ row.status === 1 ? '禁用' : '启用' }}
             </el-button>
           </template>
         </el-table-column>
@@ -103,7 +103,7 @@ const dialogVisible = ref(false)
 const editingUser = ref<UserVO | null>(null)
 const userForm = reactive<UserUpdateDTO>({
   nickname: '',
-  signature: '',
+  bio: '',
   school: '',
   gender: 0
 })
@@ -127,7 +127,7 @@ function handleEdit(row: UserVO) {
   editingUser.value = row
   Object.assign(userForm, {
     nickname: row.nickname || '',
-    signature: row.signature || '',
+    bio: row.signature || row.bio || '',  // 兼容两种字段名
     school: row.school || '',
     gender: row.gender ?? 0
   })
@@ -151,8 +151,9 @@ async function handleSubmit() {
 }
 
 async function handleToggleStatus(row: UserVO) {
-  const newStatus = row.status === 0 ? 1 : 0
-  const action = newStatus === 1 ? '禁用' : '启用'
+  // 后端状态定义：0-禁用，1-正常
+  const newStatus = row.status === 1 ? 0 : 1
+  const action = newStatus === 1 ? '启用' : '禁用'
   
   try {
     await ElMessageBox.confirm(`确定要${action}该用户吗？`, '提示')

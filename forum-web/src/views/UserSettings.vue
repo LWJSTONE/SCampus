@@ -25,9 +25,9 @@
           <el-input v-model="form.nickname" placeholder="请输入昵称" maxlength="20" />
         </el-form-item>
 
-        <el-form-item label="个性签名" prop="signature">
+        <el-form-item label="个性签名" prop="bio">
           <el-input
-            v-model="form.signature"
+            v-model="form.bio"
             type="textarea"
             :rows="3"
             placeholder="请输入个性签名"
@@ -36,8 +36,12 @@
           />
         </el-form-item>
 
-        <el-form-item label="学校" prop="school">
-          <el-input v-model="form.school" placeholder="请输入学校" />
+        <el-form-item label="专业" prop="major">
+          <el-input v-model="form.major" placeholder="请输入专业" />
+        </el-form-item>
+
+        <el-form-item label="年级" prop="grade">
+          <el-input v-model="form.grade" placeholder="请输入年级" />
         </el-form-item>
 
         <el-form-item label="性别" prop="gender">
@@ -94,8 +98,9 @@ const uploadingAvatar = ref(false)
 
 const form = reactive<UserUpdateDTO & { avatar?: string }>({
   nickname: '',
-  signature: '',
-  school: '',
+  bio: '',
+  major: '',
+  grade: '',
   gender: 0,
   avatar: ''
 })

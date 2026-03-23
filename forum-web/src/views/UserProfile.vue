@@ -7,7 +7,7 @@
         </el-avatar>
         <div class="profile-info">
           <h1>{{ user.nickname || user.username }}</h1>
-          <p class="signature">{{ user.signature || '这个人很懒，什么都没写~' }}</p>
+          <p class="signature">{{ user.bio || user.signature || '这个人很懒，什么都没写~' }}</p>
           <div class="stats">
             <span>帖子 {{ user.postCount || 0 }}</span>
             <span>评论 {{ user.commentCount || 0 }}</span>

@@ -10,6 +10,9 @@
         <router-link :to="`/user/${comment.userId}`" class="username">
           {{ comment.username }}
         </router-link>
+        <span v-if="comment.replyToUsername" class="reply-to">
+          回复 <router-link :to="`/user/${comment.replyToUserId}`">@{{ comment.replyToUsername }}</router-link>
+        </span>
         <span class="time">{{ formatTime(comment.createTime) }}</span>
       </div>
       <div class="comment-text">{{ comment.content }}</div>
@@ -18,7 +21,7 @@
           <el-icon><ChatDotRound /></el-icon>
           回复
         </el-button>
-        <el-button link size="small" @click="handleLike">
+        <el-button link size="small" :type="comment.isLiked ? 'primary' : 'default'" @click="handleLike">
           <el-icon><Star /></el-icon>
           {{ comment.likeCount || 0 }}
         </el-button>
@@ -33,9 +36,9 @@
         </el-button>
       </div>
       <!-- 子评论 -->
-      <div v-if="comment.children?.length" class="comment-children">
+      <div v-if="commentChildren.length" class="comment-children">
         <CommentItem
-          v-for="child in comment.children"
+          v-for="child in commentChildren"
           :key="child.id"
           :comment="child"
           @reply="(e: CommentVO) => emit('reply', e)"
@@ -69,6 +72,11 @@ const emit = defineEmits<{
 
 const userStore = useUserStore()
 
+// 兼容后端字段名：userName -> username, replies -> children
+const commentChildren = computed(() => {
+  return props.comment.children || props.comment.replies || []
+})
+
 const canDelete = computed(() => {
   return userStore.isAdmin || props.comment.userId === userStore.userInfo?.id
 })
@@ -86,6 +94,9 @@ function handleDelete() {
 }
 
 async function handleLike() {
+  if (!userStore.isLoggedIn) {
+    return
+  }
   try {
     const result = await likeComment(props.comment.id)
     // 更新本地状态和计数

@@ -4,9 +4,12 @@ export interface UserVO {
   username: string
   nickname: string
   avatar: string
-  signature: string
-  school: string
-  grade: number
+  bio?: string  // 个人简介
+  signature?: string  // 兼容旧字段名
+  school?: string
+  major?: string
+  grade?: string
+  gender?: number
   status: number
   createTime: string
 }
@@ -14,7 +17,6 @@ export interface UserVO {
 export interface UserDetailVO extends UserVO {
   email: string
   phone: string
-  gender: number
   experience: number
   integral: number
   postCount: number
@@ -40,9 +42,14 @@ export interface UserQueryDTO {
 export interface UserUpdateDTO {
   nickname?: string
   avatar?: string
-  signature?: string
+  bio?: string  // 个人简介（后端字段名）
+  signature?: string  // 兼容前端旧字段名
   school?: string
+  major?: string
+  grade?: string
   gender?: number
+  email?: string
+  phone?: string
 }
 
 // 认证相关类型
@@ -197,15 +204,19 @@ export interface CommentVO {
   parentId: number
   rootId?: number
   userId: number
-  username: string
+  username: string  // 前端统一使用username
+  userName?: string // 兼容后端返回的字段名
   userAvatar: string
   content: string
   likeCount: number
   replyCount: number
   createTime: string
   children?: CommentVO[]
+  replies?: CommentVO[] // 兼容后端返回的字段名
   authorName?: string
   replyToUsername?: string
+  replyToUserId?: number
+  replyToUserName?: string // 兼容后端返回的字段名
   isLiked?: boolean
   isAuthor?: boolean
 }
