@@ -45,31 +45,62 @@ public class LikeServiceImpl implements LikeService {
             throw new IllegalArgumentException("无效的用户ID");
         }
         
-        // 查询是否已点赞（包括已取消的记录）
-        LambdaQueryWrapper<Like> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(Like::getTargetType, targetType)
-               .eq(Like::getTargetId, targetId)
-               .eq(Like::getUserId, userId);
-        
-        Like existLike = likeMapper.selectOne(wrapper);
-        
-        if (existLike != null) {
-            // 已存在记录，检查状态
-            if (existLike.getDeleteFlag() == null || existLike.getDeleteFlag() == 0) {
-                // 当前是点赞状态，执行取消点赞（逻辑删除）
-                existLike.setDeleteFlag(1);
-                likeMapper.updateById(existLike);
-                
-                // 更新缓存
-                updateLikeCountCache(targetType, targetId, -1);
-                redisTemplate.opsForValue().set(getUserLikeKey(targetType, targetId, userId), "0", CACHE_EXPIRE, TimeUnit.SECONDS);
-                
-                log.info("取消点赞: targetType={}, targetId={}, userId={}", targetType, targetId, userId);
-                return false;
+        // 使用分布式锁防止并发问题
+        String lockKey = "like:lock:" + targetType + ":" + targetId + ":" + userId;
+        try {
+            // 尝试获取锁，3秒过期
+            Boolean locked = redisTemplate.opsForValue().setIfAbsent(lockKey, "1", 3, java.util.concurrent.TimeUnit.SECONDS);
+            if (!Boolean.TRUE.equals(locked)) {
+                throw new RuntimeException("操作过于频繁，请稍后再试");
+            }
+            
+            // 查询是否已点赞（包括已取消的记录）
+            LambdaQueryWrapper<Like> wrapper = new LambdaQueryWrapper<>();
+            wrapper.eq(Like::getTargetType, targetType)
+                   .eq(Like::getTargetId, targetId)
+                   .eq(Like::getUserId, userId);
+            
+            Like existLike = likeMapper.selectOne(wrapper);
+            
+            if (existLike != null) {
+                // 已存在记录，检查状态
+                if (existLike.getDeleteFlag() == null || existLike.getDeleteFlag() == 0) {
+                    // 当前是点赞状态，执行取消点赞（逻辑删除）
+                    existLike.setDeleteFlag(1);
+                    likeMapper.updateById(existLike);
+                    
+                    // 更新缓存
+                    updateLikeCountCache(targetType, targetId, -1);
+                    redisTemplate.opsForValue().set(getUserLikeKey(targetType, targetId, userId), "0", CACHE_EXPIRE, TimeUnit.SECONDS);
+                    
+                    log.info("取消点赞: targetType={}, targetId={}, userId={}", targetType, targetId, userId);
+                    return false;
+                } else {
+                    // 当前是取消状态，恢复点赞
+                    existLike.setDeleteFlag(0);
+                    likeMapper.updateById(existLike);
+                    
+                    // 更新缓存
+                    updateLikeCountCache(targetType, targetId, 1);
+                    redisTemplate.opsForValue().set(getUserLikeKey(targetType, targetId, userId), "1", CACHE_EXPIRE, TimeUnit.SECONDS);
+                    
+                    log.info("点赞成功: targetType={}, targetId={}, userId={}", targetType, targetId, userId);
+                    return true;
+                }
             } else {
-                // 当前是取消状态，恢复点赞
-                existLike.setDeleteFlag(0);
-                likeMapper.updateById(existLike);
+                // 不存在记录，创建新的点赞记录
+                Like like = new Like();
+                like.setTargetType(targetType);
+                like.setTargetId(targetId);
+                like.setUserId(userId);
+                like.setDeleteFlag(0); // 使用逻辑删除标记，0表示正常
+                
+                try {
+                    likeMapper.insert(like);
+                } catch (DuplicateKeyException e) {
+                    // 并发场景：其他线程已插入，视为点赞成功
+                    log.info("并发点赞检测到重复记录: targetType={}, targetId={}, userId={}", targetType, targetId, userId);
+                }
                 
                 // 更新缓存
                 updateLikeCountCache(targetType, targetId, 1);
@@ -78,27 +109,13 @@ public class LikeServiceImpl implements LikeService {
                 log.info("点赞成功: targetType={}, targetId={}, userId={}", targetType, targetId, userId);
                 return true;
             }
-        } else {
-            // 不存在记录，创建新的点赞记录
-            Like like = new Like();
-            like.setTargetType(targetType);
-            like.setTargetId(targetId);
-            like.setUserId(userId);
-            like.setDeleteFlag(0); // 使用逻辑删除标记，0表示正常
-            
+        } finally {
+            // 释放锁
             try {
-                likeMapper.insert(like);
-            } catch (DuplicateKeyException e) {
-                // 并发场景：其他线程已插入，视为点赞成功
-                log.info("并发点赞检测到重复记录: targetType={}, targetId={}, userId={}", targetType, targetId, userId);
+                redisTemplate.delete(lockKey);
+            } catch (Exception e) {
+                log.warn("释放点赞锁失败: {}", lockKey, e);
             }
-            
-            // 更新缓存
-            updateLikeCountCache(targetType, targetId, 1);
-            redisTemplate.opsForValue().set(getUserLikeKey(targetType, targetId, userId), "1", CACHE_EXPIRE, TimeUnit.SECONDS);
-            
-            log.info("点赞成功: targetType={}, targetId={}, userId={}", targetType, targetId, userId);
-            return true;
         }
     }
 

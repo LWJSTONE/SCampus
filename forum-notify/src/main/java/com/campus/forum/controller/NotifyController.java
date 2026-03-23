@@ -118,6 +118,12 @@ public class NotifyController {
             return Result.fail(401, "请先登录");
         }
         
+        // 权限校验：只有管理员可以发布通知
+        if (!isAdmin(request)) {
+            log.warn("非管理员尝试发布通知: userId={}", userId);
+            return Result.fail(403, "无权限执行此操作，需要管理员权限");
+        }
+        
         // 发布通知
         Long noticeId = noticeService.publishNotice(createDTO, userId, userName);
         
@@ -147,6 +153,12 @@ public class NotifyController {
             return Result.fail(401, "请先登录");
         }
         
+        // 权限校验：只有管理员可以更新通知
+        if (!isAdmin(request)) {
+            log.warn("非管理员尝试更新通知: userId={}, noticeId={}", userId, id);
+            return Result.fail(403, "无权限执行此操作，需要管理员权限");
+        }
+        
         // 更新通知
         boolean result = noticeService.updateNotice(id, updateDTO, userId);
         
@@ -172,6 +184,12 @@ public class NotifyController {
         Long userId = getCurrentUserId(request);
         if (userId == null) {
             return Result.fail(401, "请先登录");
+        }
+        
+        // 权限校验：只有管理员可以删除通知
+        if (!isAdmin(request)) {
+            log.warn("非管理员尝试删除通知: userId={}, noticeId={}", userId, id);
+            return Result.fail(403, "无权限执行此操作，需要管理员权限");
         }
         
         // 删除通知
@@ -296,5 +314,16 @@ public class NotifyController {
         }
         
         return "系统管理员";
+    }
+
+    /**
+     * 检查当前用户是否为管理员
+     */
+    private boolean isAdmin(HttpServletRequest request) {
+        String role = request.getHeader("X-User-Role");
+        if (role != null) {
+            return "ADMIN".equalsIgnoreCase(role) || "ROLE_ADMIN".equalsIgnoreCase(role);
+        }
+        return false;
     }
 }

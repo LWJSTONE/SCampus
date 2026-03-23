@@ -8,8 +8,15 @@ export const useAppStore = defineStore('app', () => {
   // 设备类型
   const device = ref<'desktop' | 'mobile'>('desktop')
 
-  // 主题
-  const theme = ref<'light' | 'dark'>('light')
+  // 主题 - 从localStorage读取持久化的值
+  const theme = ref<'light' | 'dark'>(
+    (localStorage.getItem('theme') as 'light' | 'dark') || 'light'
+  )
+
+  // 初始化时应用主题
+  if (typeof window !== 'undefined') {
+    document.documentElement.setAttribute('data-theme', theme.value)
+  }
 
   // 切换侧边栏
   function toggleSidebar() {
@@ -24,9 +31,10 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
-  // 切换主题
+  // 切换主题 - 同时持久化到localStorage
   function toggleTheme() {
     theme.value = theme.value === 'light' ? 'dark' : 'light'
+    localStorage.setItem('theme', theme.value)
     document.documentElement.setAttribute('data-theme', theme.value)
   }
 

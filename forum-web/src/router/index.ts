@@ -150,13 +150,25 @@ const router = createRouter({
 })
 
 // 路由守卫
-router.beforeEach((to, _from, next) => {
+router.beforeEach(async (to, _from, next) => {
   NProgress.start()
 
   // 设置页面标题
   document.title = to.meta.title ? `${to.meta.title} - SCampus` : 'SCampus 校园论坛'
 
   const userStore = useUserStore()
+
+  // 如果有token但没有userInfo，先尝试获取用户信息
+  if (userStore.token && !userStore.userInfo) {
+    try {
+      await userStore.fetchUserInfo()
+    } catch (e) {
+      console.error('获取用户信息失败:', e)
+      // 获取用户信息失败，清除登录状态
+      userStore.clearAuth()
+    }
+  }
+
   const isLoggedIn = userStore.isLoggedIn
 
   // 需要登录但未登录

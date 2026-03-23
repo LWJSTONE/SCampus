@@ -130,7 +130,9 @@ public class CategoryServiceImpl extends ServiceImpl<CategoryMapper, Category> i
             throw new BusinessException("该分类下还有版块，无法删除");
         }
 
-        return removeById(id);
+        // 使用逻辑删除而非物理删除，保持与其他模块一致
+        category.setDeleteFlag(1);
+        return updateById(category);
     }
 
     @Override

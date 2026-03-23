@@ -286,9 +286,12 @@ public class FileServiceImpl extends ServiceImpl<FileMapper, File> implements Fi
             throw new BusinessException("文件不存在");
         }
 
-        // 检查权限（上传者才能删除）
-        if (userId != null && !userId.equals(file.getUploaderId())) {
-            throw new BusinessException("无权删除此文件");
+        // 检查权限（必须登录且为上传者才能删除）
+        if (userId == null) {
+            throw new BusinessException("请先登录后再删除文件");
+        }
+        if (!userId.equals(file.getUploaderId())) {
+            throw new BusinessException("无权删除此文件，只有上传者可以删除");
         }
 
         try {
