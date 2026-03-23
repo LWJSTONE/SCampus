@@ -376,7 +376,7 @@ public class UserController {
         log.info("获取用户收藏，用户ID：{}", id);
         
         // 只能查看自己的收藏
-        if (!id.equals(currentUserId)) {
+        if (currentUserId == null || !id.equals(currentUserId)) {
             return Result.fail(403, "无权限查看其他用户收藏");
         }
         
@@ -490,6 +490,50 @@ public class UserController {
         log.info("内部API调用：减少用户评论数，用户ID: {}", id);
         userService.decrementCommentCount(id);
         return Result.success(true);
+    }
+
+    /**
+     * 内部API：封禁用户账号
+     *
+     * @param id 用户ID
+     * @param serviceKey 内部服务密钥
+     * @return 操作结果
+     */
+    @PutMapping("/api/internal/user/{id}/ban")
+    @Operation(summary = "内部API-封禁用户", description = "供其他服务调用的内部接口，封禁用户账号")
+    public Result<Boolean> banUser(
+            @Parameter(description = "用户ID") @PathVariable Long id,
+            @Parameter(description = "内部服务密钥") @RequestHeader(value = "X-Internal-Service-Key", required = false) String serviceKey) {
+        // 验证内部服务密钥（使用常量时间比较，防止时序攻击）
+        if (!isValidServiceKey(serviceKey)) {
+            log.warn("内部API调用鉴权失败，serviceKey: {}", serviceKey);
+            return Result.fail(403, "无权限访问内部API");
+        }
+        log.info("内部API调用：封禁用户，用户ID: {}", id);
+        boolean result = userService.updateStatus(id, 0); // 0表示禁用/封禁
+        return Result.success(result);
+    }
+
+    /**
+     * 内部API：解禁用户账号
+     *
+     * @param id 用户ID
+     * @param serviceKey 内部服务密钥
+     * @return 操作结果
+     */
+    @PutMapping("/api/internal/user/{id}/unban")
+    @Operation(summary = "内部API-解禁用户", description = "供其他服务调用的内部接口，解禁用户账号")
+    public Result<Boolean> unbanUser(
+            @Parameter(description = "用户ID") @PathVariable Long id,
+            @Parameter(description = "内部服务密钥") @RequestHeader(value = "X-Internal-Service-Key", required = false) String serviceKey) {
+        // 验证内部服务密钥（使用常量时间比较，防止时序攻击）
+        if (!isValidServiceKey(serviceKey)) {
+            log.warn("内部API调用鉴权失败，serviceKey: {}", serviceKey);
+            return Result.fail(403, "无权限访问内部API");
+        }
+        log.info("内部API调用：解禁用户，用户ID: {}", id);
+        boolean result = userService.updateStatus(id, 1); // 1表示正常
+        return Result.success(result);
     }
     
     /**

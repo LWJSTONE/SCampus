@@ -228,8 +228,24 @@ public class ReportServiceImpl extends ServiceImpl<ReportMapper, Report> impleme
                         }
                         break;
                     case 4: // 封号
-                        // TODO: 调用用户服务封禁账号
-                        log.info("举报 {} 处理结果：封号用户 {}", id, report.getReportedUserId());
+                        // 调用用户服务封禁账号
+                        if (report.getReportedUserId() == null) {
+                            log.error("封号失败：被举报用户ID为空，举报ID: {}", id);
+                            throw new BusinessException("封号失败：被举报用户ID为空");
+                        }
+                        try {
+                            Result<?> banResult = userApi.banUser(report.getReportedUserId());
+                            if (banResult == null || banResult.getCode() != 200) {
+                                log.error("封号失败: userId={}, result={}", report.getReportedUserId(), banResult);
+                                throw new BusinessException("封号失败，请联系管理员");
+                            }
+                            log.info("举报 {} 处理结果：封号用户 {}", id, report.getReportedUserId());
+                        } catch (BusinessException e) {
+                            throw e;
+                        } catch (Exception e) {
+                            log.error("调用用户服务封号失败, userId={}", report.getReportedUserId(), e);
+                            throw new BusinessException("封号服务暂时不可用，请稍后重试");
+                        }
                         break;
                     default:
                         log.warn("举报 {} 处理结果未知：{}", id, handleResult);

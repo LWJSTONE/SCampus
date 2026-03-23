@@ -54,4 +54,16 @@ public class UserApiFallback implements UserApi {
         log.error("调用用户服务失败，减少评论数，用户ID: {}", id);
         return Result.fail("用户服务不可用，请稍后重试");
     }
+
+    @Override
+    public Result<Boolean> banUser(Long id) {
+        log.error("调用用户服务失败，封禁用户，用户ID: {}", id);
+        return Result.fail("用户服务不可用，请稍后重试");
+    }
+
+    @Override
+    public Result<Boolean> unbanUser(Long id) {
+        log.error("调用用户服务失败，解禁用户，用户ID: {}", id);
+        return Result.fail("用户服务不可用，请稍后重试");
+    }
 }

@@ -42,9 +42,9 @@ public interface CommentMapper extends BaseMapper<Comment> {
             "       CASE WHEN cl.id IS NOT NULL THEN 1 ELSE 0 END as is_liked " +
             "FROM forum_comment c " +
             "LEFT JOIN sys_user u ON c.user_id = u.id " +
-            "LEFT JOIN sys_user ru ON c.reply_user_id = ru.id " +
+            "LEFT JOIN sys_user ru ON c.reply_to_user_id = ru.id " +
             "<if test='currentUserId != null'>" +
-            "LEFT JOIN forum_like cl ON c.id = cl.target_id AND cl.target_type = 2 AND cl.user_id = #{currentUserId} AND cl.delete_flag = 0 " +
+            "LEFT JOIN t_comment_like cl ON c.id = cl.comment_id AND cl.user_id = #{currentUserId} AND cl.delete_flag = 0 " +
             "</if>" +
             "WHERE c.post_id = #{postId} " +
             "AND c.parent_id = 0 " +
@@ -73,9 +73,9 @@ public interface CommentMapper extends BaseMapper<Comment> {
             "       CASE WHEN cl.id IS NOT NULL THEN 1 ELSE 0 END as is_liked " +
             "FROM forum_comment c " +
             "LEFT JOIN sys_user u ON c.user_id = u.id " +
-            "LEFT JOIN sys_user ru ON c.reply_user_id = ru.id " +
+            "LEFT JOIN sys_user ru ON c.reply_to_user_id = ru.id " +
             "<if test='currentUserId != null'>" +
-            "LEFT JOIN forum_like cl ON c.id = cl.target_id AND cl.target_type = 2 AND cl.user_id = #{currentUserId} AND cl.delete_flag = 0 " +
+            "LEFT JOIN t_comment_like cl ON c.id = cl.comment_id AND cl.user_id = #{currentUserId} AND cl.delete_flag = 0 " +
             "</if>" +
             "WHERE c.parent_id = #{parentId} " +
             "AND c.delete_flag = 0 " +
@@ -104,9 +104,9 @@ public interface CommentMapper extends BaseMapper<Comment> {
             "       CASE WHEN cl.id IS NOT NULL THEN 1 ELSE 0 END as is_liked " +
             "FROM forum_comment c " +
             "LEFT JOIN sys_user u ON c.user_id = u.id " +
-            "LEFT JOIN sys_user ru ON c.reply_user_id = ru.id " +
+            "LEFT JOIN sys_user ru ON c.reply_to_user_id = ru.id " +
             "<if test='currentUserId != null'>" +
-            "LEFT JOIN forum_like cl ON c.id = cl.target_id AND cl.target_type = 2 AND cl.user_id = #{currentUserId} AND cl.delete_flag = 0 " +
+            "LEFT JOIN t_comment_like cl ON c.id = cl.comment_id AND cl.user_id = #{currentUserId} AND cl.delete_flag = 0 " +
             "</if>" +
             "WHERE c.parent_id = #{parentId} " +
             "AND c.delete_flag = 0 " +
@@ -136,9 +136,9 @@ public interface CommentMapper extends BaseMapper<Comment> {
             "FROM forum_comment c " +
             "LEFT JOIN forum_post p ON c.post_id = p.id " +
             "LEFT JOIN sys_user u ON c.user_id = u.id " +
-            "LEFT JOIN sys_user ru ON c.reply_user_id = ru.id " +
+            "LEFT JOIN sys_user ru ON c.reply_to_user_id = ru.id " +
             "<if test='currentUserId != null'>" +
-            "LEFT JOIN forum_like cl ON c.id = cl.target_id AND cl.target_type = 2 AND cl.user_id = #{currentUserId} AND cl.delete_flag = 0 " +
+            "LEFT JOIN t_comment_like cl ON c.id = cl.comment_id AND cl.user_id = #{currentUserId} AND cl.delete_flag = 0 " +
             "</if>" +
             "WHERE c.user_id = #{userId} " +
             "AND c.delete_flag = 0 " +

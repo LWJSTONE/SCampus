@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.campus.forum.mapper.FileMapper">
+
+    <!-- 根据MD5查询文件 -->
+    <select id="selectByMd5" resultType="com.campus.forum.entity.File">
+        SELECT * FROM sys_file 
+        WHERE file_md5 = #{fileMd5} 
+        AND delete_flag = 0 
+        LIMIT 1
+    </select>
+
+    <!-- 根据业务类型和业务ID查询文件列表 -->
+    <select id="selectByBiz" resultType="com.campus.forum.entity.File">
+        SELECT * FROM sys_file 
+        WHERE biz_type = #{bizType} 
+        AND biz_id = #{bizId} 
+        AND delete_flag = 0
+        ORDER BY create_time DESC
+    </select>
+
+    <!-- 批量更新状态 -->
+    <update id="updateStatusBatch">
+        UPDATE sys_file 
+        SET status = #{status}, update_time = NOW()
+        WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </update>
+
+    <!-- 根据上传者ID查询文件列表 -->
+    <select id="selectByUploaderId" resultType="com.campus.forum.entity.File">
+        SELECT * FROM sys_file 
+        WHERE uploader_id = #{uploaderId} 
+        AND delete_flag = 0
+        ORDER BY create_time DESC
+    </select>
+    
+    <!-- 根据MD5统计引用数量（用于秒传逻辑中判断是否可删除物理文件） -->
+    <select id="countByMd5" resultType="int">
+        SELECT COUNT(*) FROM sys_file 
+        WHERE file_md5 = #{fileMd5} 
+        AND delete_flag = 0
+    </select>
+
+</mapper>

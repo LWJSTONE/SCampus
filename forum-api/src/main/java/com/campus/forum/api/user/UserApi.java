@@ -78,4 +78,22 @@ public interface UserApi {
      */
     @PutMapping("/api/internal/user/{id}/comment-count/decrement")
     Result<Boolean> decrementCommentCount(@PathVariable("id") Long id);
+
+    /**
+     * Ban user account
+     *
+     * @param id User ID
+     * @return Result
+     */
+    @PutMapping("/api/internal/user/{id}/ban")
+    Result<Boolean> banUser(@PathVariable("id") Long id);
+
+    /**
+     * Unban user account
+     *
+     * @param id User ID
+     * @return Result
+     */
+    @PutMapping("/api/internal/user/{id}/unban")
+    Result<Boolean> unbanUser(@PathVariable("id") Long id);
 }

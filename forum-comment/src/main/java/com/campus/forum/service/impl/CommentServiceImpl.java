@@ -135,10 +135,10 @@ public class CommentServiceImpl implements CommentService {
         comment.setIpLocation(ipLocation);
         
         // 4. 处理父评论和回复用户（只允许一级嵌套）
-        Long parentId = createDTO.getParentId();
-        if (parentId != null && parentId > 0) {
+        Long originalParentId = createDTO.getParentId();  // 保存原始parentId用于后续判断
+        if (originalParentId != null && originalParentId > 0) {
             // 验证父评论是否存在
-            Comment parentComment = commentMapper.selectById(parentId);
+            Comment parentComment = commentMapper.selectById(originalParentId);
             if (parentComment == null || parentComment.getDeleteFlag() == 1) {
                 throw new BusinessException(ResultCode.COMMENT_NOT_FOUND, "父评论不存在或已被删除");
             }
@@ -149,14 +149,15 @@ public class CommentServiceImpl implements CommentService {
             }
             
             // 只允许一级嵌套：如果父评论已经是子评论，则使用其父评论ID
+            Long finalParentId = originalParentId;
             if (parentComment.getParentId() != null && parentComment.getParentId() > 0) {
-                parentId = parentComment.getParentId();
+                finalParentId = parentComment.getParentId();
                 // 更新回复用户为一级评论的作者或指定的回复用户
                 if (createDTO.getReplyToUserId() == null) {
                     createDTO.setReplyToUserId(parentComment.getUserId());
                 }
             }
-            comment.setParentId(parentId);
+            comment.setParentId(finalParentId);
             comment.setReplyToUserId(createDTO.getReplyToUserId() != null ? 
                     createDTO.getReplyToUserId() : parentComment.getUserId());
         } else {
@@ -166,9 +167,9 @@ public class CommentServiceImpl implements CommentService {
         // 5. 保存评论
         commentMapper.insert(comment);
         
-        // 6. 更新父评论的回复数
-        if (parentId != null && parentId > 0) {
-            commentMapper.incrementReplyCount(parentId);
+        // 6. 更新父评论的回复数（使用评论最终设置的parentId）
+        if (comment.getParentId() != null && comment.getParentId() > 0) {
+            commentMapper.incrementReplyCount(comment.getParentId());
         }
         
         // 7. 更新帖子评论数（调用帖子服务或更新缓存）

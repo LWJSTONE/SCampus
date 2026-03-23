@@ -143,11 +143,11 @@ public class SecurityConfig implements WebMvcConfigurer {
                 return false;
             }
 
-            // 获取用户ID并存入请求属性
-            Long userId = JwtUtils.getUserId(token);
+            // 获取用户ID并存入请求属性（使用带签名验证的安全方法）
+            Long userId = JwtUtils.getUserId(token, jwtSecret);
             if (userId != null) {
                 request.setAttribute("userId", userId);
-                request.setAttribute("username", JwtUtils.getUsername(token));
+                request.setAttribute("username", JwtUtils.getUsername(token, jwtSecret));
             }
 
             return true;

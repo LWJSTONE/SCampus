@@ -16,9 +16,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collections;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -56,9 +59,10 @@ public class CollectServiceImpl implements CollectService {
         
         // 使用分布式锁防止并发问题
         String lockKey = "collect:lock:" + postId + ":" + userId;
+        String lockValue = UUID.randomUUID().toString();
         try {
-            // 尝试获取锁，3秒过期
-            Boolean locked = redisTemplate.opsForValue().setIfAbsent(lockKey, "1", 3, java.util.concurrent.TimeUnit.SECONDS);
+            // 尝试获取锁，5秒过期（增加过期时间以应对高并发）
+            Boolean locked = redisTemplate.opsForValue().setIfAbsent(lockKey, lockValue, 5, java.util.concurrent.TimeUnit.SECONDS);
             if (!Boolean.TRUE.equals(locked)) {
                 throw new RuntimeException("操作过于频繁，请稍后再试");
             }
@@ -107,8 +111,16 @@ public class CollectServiceImpl implements CollectService {
                 try {
                     collectMapper.insert(collect);
                 } catch (DuplicateKeyException e) {
-                    // 并发场景：其他线程已插入，视为收藏成功
+                    // 并发场景：其他线程已插入，重新查询并更新状态
                     log.info("并发收藏检测到重复记录: postId={}, userId={}", postId, userId);
+                    // 重新查询记录状态
+                    Collect existingRecord = collectMapper.selectOne(wrapper);
+                    if (existingRecord != null && (existingRecord.getDeleteFlag() == null || existingRecord.getDeleteFlag() == 1)) {
+                        // 记录存在但已取消，恢复收藏
+                        existingRecord.setDeleteFlag(0);
+                        existingRecord.setFolderId(folderId);
+                        collectMapper.updateById(existingRecord);
+                    }
                 }
                 
                 // 更新缓存
@@ -119,9 +131,11 @@ public class CollectServiceImpl implements CollectService {
                 return true;
             }
         } finally {
-            // 释放锁
+            // 安全释放锁：使用Lua脚本确保只有锁持有者才能释放锁
             try {
-                redisTemplate.delete(lockKey);
+                String luaScript = "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";
+                redisTemplate.execute(new DefaultRedisScript<>(luaScript, Long.class), 
+                        Collections.singletonList(lockKey), lockValue);
             } catch (Exception e) {
                 log.warn("释放收藏锁失败: {}", lockKey, e);
             }
