@@ -311,6 +311,13 @@ public class CommentController {
             return Result.fail(400, "状态值无效，只能为1（通过）或2（驳回）");
         }
         
+        // 权限校验：只有管理员可以审核评论
+        String userRole = request.getHeader("X-User-Role");
+        if (userRole == null || (!"ADMIN".equals(userRole) && !"SUPER_ADMIN".equals(userRole))) {
+            log.warn("非管理员尝试审核评论，userRole: {}", userRole);
+            return Result.fail(403, "权限不足，只有管理员可以审核评论");
+        }
+        
         // 审核评论
         boolean result = commentService.auditComment(id, status, remark);
         

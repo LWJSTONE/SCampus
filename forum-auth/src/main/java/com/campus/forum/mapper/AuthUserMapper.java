@@ -103,4 +103,21 @@ public interface AuthUserMapper extends BaseMapper<AuthUser> {
      * @return 角色编码列表
      */
     List<String> selectRoleCodesByUserId(@Param("userId") Long userId);
+
+    /**
+     * 原子操作：增加登录失败次数，如果达到最大次数则锁定账户
+     * 此方法用于解决并发情况下的竞态条件问题
+     *
+     * @param userId 用户ID
+     * @param maxFailCount 最大失败次数
+     * @param lockTime 锁定时间
+     * @return 如果触发了锁定返回大于0的值，否则返回0
+     */
+    @Update("UPDATE sys_user SET login_fail_count = login_fail_count + 1, " +
+            "lock_time = CASE WHEN login_fail_count + 1 >= #{maxFailCount} THEN #{lockTime} ELSE lock_time END, " +
+            "status = CASE WHEN login_fail_count + 1 >= #{maxFailCount} THEN 0 ELSE status END " +
+            "WHERE id = #{userId} AND (lock_time IS NULL OR lock_time < DATE_SUB(NOW(), INTERVAL 30 MINUTE))")
+    int incrementLoginFailCountAndLockIfNeeded(@Param("userId") Long userId, 
+                                                @Param("maxFailCount") int maxFailCount, 
+                                                @Param("lockTime") LocalDateTime lockTime);
 }

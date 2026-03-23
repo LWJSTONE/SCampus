@@ -221,22 +221,9 @@ public class NoticeServiceImpl implements NoticeService {
             return Integer.parseInt(cached);
         }
         
-        // 查询已发布的通知总数
-        Long totalNoticeCount = noticeMapper.selectCount(
-                new LambdaQueryWrapper<Notice>()
-                        .eq(Notice::getStatus, 1)
-                        .eq(Notice::getDeleteFlag, 0)
-        );
-        
-        // 查询用户已读通知数
-        Long readCount = userNoticeMapper.selectCount(
-                new LambdaQueryWrapper<UserNotice>()
-                        .eq(UserNotice::getUserId, userId)
-                        .eq(UserNotice::getIsRead, 1)
-                        .eq(UserNotice::getDeleteFlag, 0)
-        );
-        
-        int unreadCount = (int) (totalNoticeCount - readCount);
+        // 查询已发布但用户未读的通知数量
+        // 正确的未读数计算：查询已发布通知中用户未读的数量
+        int unreadCount = noticeMapper.countUnreadByUserId(userId);
         unreadCount = Math.max(0, unreadCount);
         
         // 写入缓存
@@ -294,45 +281,20 @@ public class NoticeServiceImpl implements NoticeService {
     public boolean markAllAsRead(Long userId) {
         log.info("全部标记已读, userId: {}", userId);
         
-        // 获取所有已发布的通知
-        List<Notice> notices = noticeMapper.selectList(
-                new LambdaQueryWrapper<Notice>()
-                        .eq(Notice::getStatus, 1)
-                        .eq(Notice::getDeleteFlag, 0)
-                        .select(Notice::getId)
-        );
+        // 使用批量更新SQL语句，避免循环处理每条通知
+        // 1. 先批量插入未读通知的记录（对于还没有user_notice记录的通知）
+        int insertedCount = userNoticeMapper.batchInsertUnreadNotices(userId);
+        log.debug("批量插入未读通知记录数: {}", insertedCount);
         
-        // 批量标记已读
-        for (Notice notice : notices) {
-            // 查询是否已有记录
-            UserNotice userNotice = userNoticeMapper.selectOne(
-                    new LambdaQueryWrapper<UserNotice>()
-                            .eq(UserNotice::getUserId, userId)
-                            .eq(UserNotice::getNoticeId, notice.getId())
-            );
-            
-            if (userNotice != null) {
-                if (userNotice.getIsRead() != 1) {
-                    userNotice.setIsRead(1);
-                    userNotice.setReadTime(LocalDateTime.now());
-                    userNoticeMapper.updateById(userNotice);
-                }
-            } else {
-                userNotice = new UserNotice();
-                userNotice.setUserId(userId);
-                userNotice.setNoticeId(notice.getId());
-                userNotice.setIsRead(1);
-                userNotice.setReadTime(LocalDateTime.now());
-                userNotice.setIsDeleted(0);
-                userNoticeMapper.insert(userNotice);
-            }
-        }
+        // 2. 批量更新所有未读通知为已读状态
+        int updatedCount = userNoticeMapper.batchMarkAsRead(userId, LocalDateTime.now());
+        log.debug("批量更新已读状态记录数: {}", updatedCount);
         
         // 清除未读数缓存，设置为0
         String cacheKey = REDIS_KEY_UNREAD_COUNT + userId;
         redisTemplate.opsForValue().set(cacheKey, "0", Duration.ofHours(1));
         
-        log.info("全部通知已标记为已读, userId: {}", userId);
+        log.info("全部通知已标记为已读, userId: {}, 更新记录数: {}", userId, updatedCount);
         return true;
     }
 

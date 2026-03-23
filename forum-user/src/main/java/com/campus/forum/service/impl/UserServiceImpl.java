@@ -17,6 +17,7 @@ import com.campus.forum.mapper.UserFollowMapper;
 import com.campus.forum.mapper.UserMapper;
 import com.campus.forum.service.UserService;
 import com.campus.forum.service.UserFollowService;
+import com.campus.forum.utils.RedisUtils;
 import com.campus.forum.vo.UserDetailVO;
 import com.campus.forum.vo.UserListVO;
 import lombok.RequiredArgsConstructor;
@@ -47,6 +48,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     private final UserMapper userMapper;
     private final UserFollowMapper userFollowMapper;
     private final UserFollowService userFollowService;
+    private final RedisUtils redisUtils;
 
     @Override
     public PageResult<UserListVO> getUserList(UserQueryDTO queryDTO) {
@@ -158,6 +160,11 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             throw new BusinessException(ResultCode.BUSINESS_ERROR, "密码长度必须在6-20位之间");
         }
         
+        // 验证密码强度：必须包含字母和数字
+        if (!newPassword.matches("^(?=.*[a-zA-Z])(?=.*\\d).+$")) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR, "密码必须包含字母和数字");
+        }
+        
         // 验证两次密码是否一致
         if (!newPassword.equals(passwordDTO.getConfirmPassword())) {
             throw new BusinessException(ResultCode.PASSWORD_NOT_MATCH);
@@ -166,7 +173,41 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         // 加密新密码
         String encodedPassword = BCrypt.hashpw(newPassword, BCrypt.gensalt());
         
-        return userMapper.updatePassword(id, encodedPassword) > 0;
+        int result = userMapper.updatePassword(id, encodedPassword);
+        if (result > 0) {
+            // 密码修改成功后，清除该用户所有的Token，强制重新登录
+            invalidateUserTokens(id);
+            log.info("密码修改成功，已清除用户 {} 的所有登录状态", id);
+            return true;
+        }
+        return false;
+    }
+    
+    /**
+     * 使指定用户的所有Token失效
+     * 密码修改后调用此方法强制用户重新登录
+     *
+     * @param userId 用户ID
+     */
+    private void invalidateUserTokens(Long userId) {
+        try {
+            // 删除用户的主Token
+            String tokenKey = "token:user:" + userId;
+            redisUtils.del(tokenKey);
+            
+            // 删除用户所有相关的Token（使用模式匹配）
+            String tokenPattern = "token:user:" + userId + ":*";
+            redisUtils.deleteByPattern(tokenPattern);
+            
+            // 将用户ID添加到密码修改时间戳，用于JWT验证时检查Token是否在密码修改前签发
+            String passwordUpdateKey = "password:update:time:" + userId;
+            redisUtils.set(passwordUpdateKey, System.currentTimeMillis(), 86400 * 30); // 保存30天
+            
+            log.info("已清除用户 {} 的所有登录Token", userId);
+        } catch (Exception e) {
+            log.error("清除用户Token失败，用户ID: {}", userId, e);
+            // Token清除失败不影响密码修改的成功
+        }
     }
 
     @Override

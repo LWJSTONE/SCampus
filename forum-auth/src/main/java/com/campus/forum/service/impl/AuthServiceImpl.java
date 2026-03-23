@@ -266,7 +266,13 @@ public class AuthServiceImpl implements AuthService {
             return Result.fail(400, "刷新令牌不能为空");
         }
 
-        // 1. 验证刷新令牌
+        // 1. 检查刷新令牌是否在黑名单中
+        String refreshBlacklistKey = Constants.CACHE_PREFIX + "refresh:blacklist:" + refreshToken;
+        if (redisUtils.hasKey(refreshBlacklistKey)) {
+            return Result.fail(401, "刷新令牌已失效，请重新登录");
+        }
+
+        // 2. 验证刷新令牌
         if (!JwtUtils.verifyToken(refreshToken, jwtSecret)) {
             return Result.fail(401, "刷新令牌无效或已过期");
         }
@@ -513,36 +519,51 @@ public class AuthServiceImpl implements AuthService {
 
     /**
      * 处理登录失败
+     * 使用Redis分布式锁保证原子性，防止竞态条件
      * 
      * @param userId 用户ID
      */
     private void handleLoginFail(Long userId) {
-        // 检查用户是否已被锁定
-        AuthUser user = authUserMapper.selectById(userId);
-        if (user == null) {
-            return;
-        }
+        // 使用Redis锁保证原子性操作
+        String lockKey = Constants.CACHE_PREFIX + "login:fail:lock:" + userId;
         
-        // 如果用户已被锁定，延长锁定时间
-        if (user.getLockTime() != null) {
-            LocalDateTime unlockTime = user.getLockTime().plusMinutes(LOCK_TIME_MINUTES);
-            if (LocalDateTime.now().isBefore(unlockTime)) {
-                // 用户仍处于锁定状态，延长锁定时间并重置失败计数
-                authUserMapper.lockUser(userId, LocalDateTime.now());
-                log.warn("账户锁定时间已延长：userId={}, 原解锁时间={}", userId, unlockTime);
+        try {
+            // 尝试获取分布式锁（10秒过期）
+            boolean locked = redisUtils.setIfAbsent(lockKey, "1", 10);
+            if (!locked) {
+                log.warn("获取登录失败锁失败，可能有并发请求：userId={}", userId);
                 return;
             }
-        }
-        
-        // 增加失败次数
-        authUserMapper.incrementLoginFailCount(userId);
-
-        // 重新查询用户获取最新的失败次数
-        user = authUserMapper.selectById(userId);
-        if (user != null && user.getLoginFailCount() != null 
-                && user.getLoginFailCount() >= MAX_LOGIN_FAIL_COUNT) {
-            authUserMapper.lockUser(userId, LocalDateTime.now());
-            log.warn("账户已被锁定：userId={}, failCount={}", userId, user.getLoginFailCount());
+            
+            // 检查用户是否已被锁定
+            AuthUser user = authUserMapper.selectById(userId);
+            if (user == null) {
+                return;
+            }
+            
+            // 如果用户已被锁定，延长锁定时间
+            if (user.getLockTime() != null) {
+                LocalDateTime unlockTime = user.getLockTime().plusMinutes(LOCK_TIME_MINUTES);
+                if (LocalDateTime.now().isBefore(unlockTime)) {
+                    // 用户仍处于锁定状态，延长锁定时间
+                    authUserMapper.lockUser(userId, LocalDateTime.now());
+                    log.warn("账户锁定时间已延长：userId={}, 原解锁时间={}", userId, unlockTime);
+                    return;
+                }
+            }
+            
+            // 使用原子操作增加失败次数并检查是否需要锁定
+            int updatedRows = authUserMapper.incrementLoginFailCountAndLockIfNeeded(
+                    userId, MAX_LOGIN_FAIL_COUNT, LocalDateTime.now());
+            
+            if (updatedRows > 0) {
+                log.warn("账户已被锁定：userId={}, 达到最大失败次数={}", userId, MAX_LOGIN_FAIL_COUNT);
+            } else {
+                log.info("登录失败次数已增加：userId={}", userId);
+            }
+        } finally {
+            // 释放锁
+            redisUtils.del(lockKey);
         }
     }
 

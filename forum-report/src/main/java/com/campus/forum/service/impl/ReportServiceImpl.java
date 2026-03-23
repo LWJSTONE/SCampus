@@ -85,6 +85,7 @@ public class ReportServiceImpl extends ServiceImpl<ReportMapper, Report> impleme
     
     /**
      * 验证举报目标是否存在
+     * 如果验证失败（目标不存在），抛出异常阻断举报流程
      *
      * @param createDTO 举报创建DTO
      */
@@ -116,10 +117,15 @@ public class ReportServiceImpl extends ServiceImpl<ReportMapper, Report> impleme
                     throw new BusinessException("举报类型不合法");
             }
         } catch (BusinessException e) {
+            // 业务异常直接抛出，阻断举报流程
             throw e;
         } catch (Exception e) {
-            log.warn("验证举报目标时发生异常: {}", e.getMessage());
-            // 服务调用失败时，不阻断举报流程，只记录警告日志
+            // 服务调用异常，记录详细日志
+            log.error("验证举报目标时发生异常, targetId: {}, reportType: {}", 
+                    createDTO.getTargetId(), createDTO.getReportType(), e);
+            // 服务不可用时，为了用户体验，允许举报提交，但记录警告
+            // 后续可以通过定时任务清理无效举报
+            log.warn("服务调用失败，举报目标验证跳过，将在处理时验证: {}", e.getMessage());
         }
     }
 

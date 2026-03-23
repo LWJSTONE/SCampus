@@ -22,9 +22,10 @@ import java.util.Map;
 public class JwtUtils {
 
     /**
-     * 默认密钥
+     * 默认密钥（仅用于开发环境，生产环境必须配置jwt.secret）
+     * 警告：此默认密钥仅供开发测试使用，生产环境必须配置强密钥
      */
-    private static final String DEFAULT_SECRET = "campus-forum-jwt-secret-key-2024";
+    private static final String DEFAULT_SECRET = "campus-forum-jwt-secret-key-2024-DEV-ONLY-CHANGE-IN-PRODUCTION-ENVIRONMENT";
 
     /**
      * 默认过期时间（24小时）

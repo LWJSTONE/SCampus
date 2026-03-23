@@ -135,6 +135,47 @@ public class RedisUtils {
     }
 
     /**
+     * 设置缓存（仅当key不存在时才设置）- 用于分布式锁
+     *
+     * @param key   键
+     * @param value 值
+     * @param time  过期时间(秒)
+     * @return true设置成功 false设置失败(key已存在)
+     */
+    public boolean setIfAbsent(String key, Object value, long time) {
+        try {
+            if (time > 0) {
+                return Boolean.TRUE.equals(redisTemplate.opsForValue().setIfAbsent(key, value, time, TimeUnit.SECONDS));
+            } else {
+                return Boolean.TRUE.equals(redisTemplate.opsForValue().setIfAbsent(key, value));
+            }
+        } catch (Exception e) {
+            log.error("设置缓存失败(setIfAbsent): key={}", key, e);
+            return false;
+        }
+    }
+
+    /**
+     * 根据模式删除keys
+     *
+     * @param pattern 模式，如 "token:user:123:*"
+     * @return 删除的数量
+     */
+    public long deleteByPattern(String pattern) {
+        try {
+            Set<String> keys = redisTemplate.keys(pattern);
+            if (keys != null && !keys.isEmpty()) {
+                Long count = redisTemplate.delete(keys);
+                return count != null ? count : 0;
+            }
+            return 0;
+        } catch (Exception e) {
+            log.error("根据模式删除keys失败: pattern={}", pattern, e);
+            return 0;
+        }
+    }
+
+    /**
      * 递增
      *
      * @param key   键

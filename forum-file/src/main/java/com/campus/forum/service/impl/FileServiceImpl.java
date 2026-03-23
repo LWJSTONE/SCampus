@@ -366,6 +366,7 @@ public class FileServiceImpl extends ServiceImpl<FileMapper, File> implements Fi
 
     /**
      * 验证文件
+     * 增强安全性：同时验证Content-Type和文件头魔数，防止文件伪装攻击
      */
     private void validateFile(MultipartFile file) {
         if (file == null || file.isEmpty()) {
@@ -383,6 +384,201 @@ public class FileServiceImpl extends ServiceImpl<FileMapper, File> implements Fi
                 throw new BusinessException("不支持的文件类型");
             }
         }
+        
+        // 验证文件头魔数，防止文件伪装攻击
+        try {
+            validateFileMagicNumber(file, contentType);
+        } catch (IOException e) {
+            log.warn("读取文件头失败: {}", e.getMessage());
+            throw new BusinessException("文件验证失败，请重新上传");
+        }
+    }
+    
+    /**
+     * 验证文件头魔数
+     * 通过检查文件的实际内容类型来防止恶意文件伪装
+     *
+     * @param file 上传的文件
+     * @param declaredContentType 声明的Content-Type
+     * @throws IOException IO异常
+     */
+    private void validateFileMagicNumber(MultipartFile file, String declaredContentType) throws IOException {
+        // 读取文件前几个字节用于魔数检测
+        byte[] fileHeader = new byte[16];
+        try (java.io.InputStream is = file.getInputStream()) {
+            int readBytes = is.read(fileHeader);
+            if (readBytes < 2) {
+                throw new BusinessException("文件内容无效");
+            }
+        }
+        
+        // 常见文件类型的魔数签名
+        String detectedType = detectFileTypeByMagicNumber(fileHeader);
+        
+        // 如果检测到文件类型与声明的类型不匹配，拒绝上传
+        if (detectedType != null && !isTypeCompatible(detectedType, declaredContentType)) {
+            log.warn("文件类型不匹配，声明的类型: {}, 实际检测类型: {}", declaredContentType, detectedType);
+            throw new BusinessException("文件类型与实际内容不匹配，禁止上传");
+        }
+        
+        // 对于可执行文件类型，直接拒绝
+        if (isDangerousType(detectedType)) {
+            log.warn("检测到危险文件类型: {}", detectedType);
+            throw new BusinessException("禁止上传可执行文件");
+        }
+    }
+    
+    /**
+     * 通过魔数检测文件实际类型
+     */
+    private String detectFileTypeByMagicNumber(byte[] header) {
+        // 图片类型
+        if (header.length >= 2) {
+            // JPEG: FF D8
+            if ((header[0] & 0xFF) == 0xFF && (header[1] & 0xFF) == 0xD8) {
+                return "image/jpeg";
+            }
+            // PNG: 89 50 4E 47
+            if (header.length >= 4 && (header[0] & 0xFF) == 0x89 && 
+                header[1] == 0x50 && header[2] == 0x4E && header[3] == 0x47) {
+                return "image/png";
+            }
+            // GIF: 47 49 46 38
+            if (header.length >= 4 && header[0] == 0x47 && header[1] == 0x49 && 
+                header[2] == 0x46 && header[3] == 0x38) {
+                return "image/gif";
+            }
+            // BMP: 42 4D
+            if (header[0] == 0x42 && header[1] == 0x4D) {
+                return "image/bmp";
+            }
+            // WEBP: 52 49 46 46 ... 57 45 42 50
+            if (header.length >= 12 && header[0] == 0x52 && header[1] == 0x49 && 
+                header[2] == 0x46 && header[3] == 0x46 &&
+                header[8] == 0x57 && header[9] == 0x45 && 
+                header[10] == 0x42 && header[11] == 0x50) {
+                return "image/webp";
+            }
+        }
+        
+        // 文档类型
+        if (header.length >= 4) {
+            // PDF: 25 50 44 46
+            if (header[0] == 0x25 && header[1] == 0x50 && 
+                header[2] == 0x44 && header[3] == 0x46) {
+                return "application/pdf";
+            }
+            // ZIP (包括DOCX, XLSX等): 50 4B 03 04
+            if (header[0] == 0x50 && header[1] == 0x4B && 
+                header[2] == 0x03 && header[3] == 0x04) {
+                return "application/zip";
+            }
+            // RAR: 52 61 72 21
+            if (header[0] == 0x52 && header[1] == 0x61 && 
+                header[2] == 0x72 && header[3] == 0x21) {
+                return "application/x-rar-compressed";
+            }
+            // 7Z: 37 7A BC AF 27 1C
+            if (header.length >= 6 && header[0] == 0x37 && header[1] == 0x7A && 
+                header[2] == (byte)0xBC && header[3] == (byte)0xAF &&
+                header[4] == 0x27 && header[5] == 0x1C) {
+                return "application/x-7z-compressed";
+            }
+        }
+        
+        // 可执行文件类型（危险）
+        if (header.length >= 2) {
+            // EXE/DLL: 4D 5A (MZ)
+            if (header[0] == 0x4D && header[1] == 0x5A) {
+                return "application/x-dosexec";
+            }
+            // ELF: 7F 45 4C 46
+            if (header.length >= 4 && header[0] == 0x7F && header[1] == 0x45 && 
+                header[2] == 0x4C && header[3] == 0x46) {
+                return "application/x-elf";
+            }
+        }
+        
+        // 脚本文件（可能危险）
+        if (header.length >= 5) {
+            // PHP: 3C 3F 70 68 70 (<?php)
+            if (header[0] == 0x3C && header[1] == 0x3F && 
+                header[2] == 0x70 && header[3] == 0x68 && header[4] == 0x70) {
+                return "application/x-php";
+            }
+            // JSP: 3C 25 40 (or <%@)
+            if (header[0] == 0x3C && header[1] == 0x25) {
+                return "application/x-jsp";
+            }
+        }
+        
+        return null; // 未知类型
+    }
+    
+    /**
+     * 检查检测到的类型是否与声明的类型兼容
+     */
+    private boolean isTypeCompatible(String detectedType, String declaredContentType) {
+        if (declaredContentType == null) {
+            return true;
+        }
+        
+        declaredContentType = declaredContentType.toLowerCase();
+        detectedType = detectedType.toLowerCase();
+        
+        // 完全匹配
+        if (declaredContentType.equals(detectedType)) {
+            return true;
+        }
+        
+        // 图片类型兼容性检查
+        if (declaredContentType.startsWith("image/")) {
+            return detectedType.startsWith("image/");
+        }
+        
+        // Office文档类型（DOCX, XLSX等实际上是ZIP格式）
+        if (declaredContentType.contains("officedocument") || 
+            declaredContentType.contains("wordprocessingml") ||
+            declaredContentType.contains("spreadsheetml") ||
+            declaredContentType.contains("presentationml")) {
+            return detectedType.equals("application/zip") || detectedType.startsWith("image/");
+        }
+        
+        // PDF
+        if (declaredContentType.equals("application/pdf")) {
+            return detectedType.equals("application/pdf");
+        }
+        
+        // 压缩文件
+        if (declaredContentType.contains("zip") || declaredContentType.contains("rar") || 
+            declaredContentType.contains("7z") || declaredContentType.contains("compressed")) {
+            return detectedType.contains("zip") || detectedType.contains("rar") || 
+                   detectedType.contains("7z") || detectedType.contains("compressed");
+        }
+        
+        // 文本类型
+        if (declaredContentType.startsWith("text/")) {
+            return true; // 文本类型难以通过魔数验证，允许通过
+        }
+        
+        return false;
+    }
+    
+    /**
+     * 判断是否为危险文件类型
+     */
+    private boolean isDangerousType(String detectedType) {
+        if (detectedType == null) {
+            return false;
+        }
+        
+        // 可执行文件和脚本文件被认为是危险的
+        return detectedType.equals("application/x-dosexec") ||    // EXE
+               detectedType.equals("application/x-elf") ||         // Linux ELF
+               detectedType.equals("application/x-php") ||         // PHP
+               detectedType.equals("application/x-jsp") ||         // JSP
+               detectedType.equals("application/x-sh") ||          // Shell脚本
+               detectedType.equals("application/x-bat");           // Bat脚本
     }
 
     /**

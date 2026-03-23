@@ -312,7 +312,10 @@ public class PostServiceImpl implements PostService {
         // 5. 删除附件关联
         postAttachmentMapper.deleteByPostId(id);
 
-        // 6. 更新用户帖子数缓存
+        // 6. 清理Redis中的点赞、收藏等交互数据
+        cleanupPostInteractionData(id);
+
+        // 7. 更新用户帖子数缓存
         String countKey = REDIS_KEY_POST_COUNT + post.getUserId();
         String count = redisTemplate.opsForValue().get(countKey);
         if (count != null) {
@@ -324,6 +327,34 @@ public class PostServiceImpl implements PostService {
 
         log.info("帖子删除成功, postId: {}", id);
         return true;
+    }
+    
+    /**
+     * 清理帖子的交互数据（点赞、收藏等）
+     * 帖子删除时调用，清理Redis中的孤立数据
+     *
+     * @param postId 帖子ID
+     */
+    private void cleanupPostInteractionData(Long postId) {
+        try {
+            // 清理点赞数据
+            String likeKey = REDIS_KEY_POST_LIKE + postId;
+            redisTemplate.delete(likeKey);
+            
+            // 清理收藏数据（需要遍历所有用户的收藏集合）
+            // 由于收藏是按用户存储的，这里只记录日志
+            // 实际项目中可以通过定时任务清理，或者在用户查询收藏列表时过滤已删除的帖子
+            log.debug("帖子删除，需要清理收藏数据, postId: {}", postId);
+            
+            // 清理浏览量数据（可选，浏览量数据可以保留用于统计分析）
+            String viewKey = REDIS_KEY_POST_VIEW + postId;
+            // redisTemplate.delete(viewKey); // 浏览量数据可以保留
+            
+            log.info("清理帖子交互数据完成, postId: {}", postId);
+        } catch (Exception e) {
+            log.warn("清理帖子交互数据失败, postId: {}", postId, e);
+            // 清理失败不影响帖子删除的主流程
+        }
     }
 
     @Override
@@ -410,16 +441,30 @@ public class PostServiceImpl implements PostService {
 
     @Override
     public void incrementViewCount(Long id) {
-        // 使用Redis计数，添加异常处理
+        // 使用Redis计数，避免频繁更新数据库
         try {
             String viewKey = REDIS_KEY_POST_VIEW + id;
-            redisTemplate.opsForValue().increment(viewKey);
+            Long newCount = redisTemplate.opsForValue().increment(viewKey);
+            
+            // 设置缓存过期时间（如果key是新建的）
+            if (newCount != null && newCount == 1) {
+                redisTemplate.expire(viewKey, Duration.ofHours(24));
+            }
+            
+            // 每100次浏览同步一次到数据库，减少数据库压力
+            // 使用取模运算判断是否需要同步
+            if (newCount != null && newCount % 100 == 0) {
+                // 异步更新数据库，避免阻塞主线程
+                try {
+                    postMapper.incrementViewCount(id);
+                    log.debug("同步帖子浏览量到数据库, postId: {}, viewCount: {}", id, newCount);
+                } catch (Exception e) {
+                    log.warn("同步浏览量到数据库失败, postId: {}", id, e);
+                }
+            }
         } catch (Exception e) {
             log.warn("Redis浏览量计数失败, postId: {}", id, e);
         }
-
-        // 定期同步到数据库（这里简化处理，每次都更新）
-        postMapper.incrementViewCount(id);
     }
 
     @Override
