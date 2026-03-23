@@ -1,7 +1,14 @@
 package com.campus.forum.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.campus.forum.api.comment.CommentApi;
+import com.campus.forum.api.comment.CommentDTO;
+import com.campus.forum.api.post.PostApi;
+import com.campus.forum.api.post.PostDTO;
+import com.campus.forum.constant.ResultCode;
 import com.campus.forum.entity.Like;
+import com.campus.forum.entity.Result;
+import com.campus.forum.exception.BusinessException;
 import com.campus.forum.mapper.LikeMapper;
 import com.campus.forum.service.LikeService;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +33,8 @@ public class LikeServiceImpl implements LikeService {
 
     private final LikeMapper likeMapper;
     private final StringRedisTemplate redisTemplate;
+    private final PostApi postApi;
+    private final CommentApi commentApi;
 
     private static final String LIKE_COUNT_KEY = "like:count:";
     private static final String LIKE_USER_KEY = "like:user:";
@@ -44,6 +53,9 @@ public class LikeServiceImpl implements LikeService {
         if (userId == null || userId <= 0) {
             throw new IllegalArgumentException("无效的用户ID");
         }
+        
+        // 目标存在性验证：targetType=1为帖子，targetType=2为评论
+        validateTargetExists(targetType, targetId);
         
         // 使用分布式锁防止并发问题
         String lockKey = "like:lock:" + targetType + ":" + targetId + ":" + userId;
@@ -190,5 +202,34 @@ public class LikeServiceImpl implements LikeService {
      */
     private String getUserLikeKey(Integer targetType, Long targetId, Long userId) {
         return LIKE_USER_KEY + targetType + ":" + targetId + ":" + userId;
+    }
+
+    /**
+     * 验证点赞目标是否存在
+     * @param targetType 目标类型：1-帖子，2-评论
+     * @param targetId 目标ID
+     */
+    private void validateTargetExists(Integer targetType, Long targetId) {
+        try {
+            if (targetType == 1) {
+                // 验证帖子是否存在
+                Result<PostDTO> postResult = postApi.getPostById(targetId);
+                if (postResult == null || !postResult.isSuccess() || postResult.getData() == null) {
+                    throw new BusinessException(ResultCode.POST_NOT_FOUND, "帖子不存在或已删除");
+                }
+            } else if (targetType == 2) {
+                // 验证评论是否存在
+                Result<CommentDTO> commentResult = commentApi.getCommentById(targetId);
+                if (commentResult == null || !commentResult.isSuccess() || commentResult.getData() == null) {
+                    throw new BusinessException(ResultCode.COMMENT_NOT_FOUND, "评论不存在或已删除");
+                }
+            }
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("验证点赞目标存在性失败, targetType={}, targetId={}", targetType, targetId, e);
+            // 如果远程服务调用失败，记录日志但不阻止操作（服务降级处理）
+            // 生产环境可以根据实际需求决定是否抛出异常
+        }
     }
 }

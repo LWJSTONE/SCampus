@@ -2,11 +2,14 @@ package com.campus.forum.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.campus.forum.api.user.UserApi;
+import com.campus.forum.api.user.UserDTO;
 import com.campus.forum.dto.*;
 import com.campus.forum.entity.Result;
 import com.campus.forum.service.ApproveService;
 import com.campus.forum.service.ReportService;
 import com.campus.forum.service.UserBanService;
+import com.campus.forum.utils.JwtUtils;
 import com.campus.forum.vo.ApproveVO;
 import com.campus.forum.vo.ReportVO;
 import com.campus.forum.vo.UserBanVO;
@@ -15,6 +18,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -22,6 +26,7 @@ import javax.servlet.http.HttpServletRequest;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 举报审核控制器
@@ -41,6 +46,14 @@ public class ReportController {
     private final ReportService reportService;
     private final ApproveService approveService;
     private final UserBanService userBanService;
+    private final UserApi userApi;
+    private final StringRedisTemplate stringRedisTemplate;
+    
+    /**
+     * 举报频率限制：每用户每小时最大举报次数
+     */
+    private static final int REPORT_RATE_LIMIT_PER_HOUR = 10;
+    private static final String REPORT_RATE_LIMIT_KEY_PREFIX = "report:rate_limit:";
 
     // ==================== 举报相关接口 ====================
 
@@ -60,7 +73,24 @@ public class ReportController {
             return Result.fail(401, "请先登录");
         }
         
+        // 频率限制检查
+        String rateLimitKey = REPORT_RATE_LIMIT_KEY_PREFIX + userId;
+        String countStr = stringRedisTemplate.opsForValue().get(rateLimitKey);
+        int count = countStr != null ? Integer.parseInt(countStr) : 0;
+        
+        if (count >= REPORT_RATE_LIMIT_PER_HOUR) {
+            log.warn("用户{}举报次数超过限制", userId);
+            return Result.fail(429, "举报过于频繁，请稍后再试");
+        }
+        
         Long reportId = reportService.submitReport(createDTO, userId);
+        
+        // 更新计数器
+        if (count == 0) {
+            stringRedisTemplate.opsForValue().set(rateLimitKey, "1", 1, TimeUnit.HOURS);
+        } else {
+            stringRedisTemplate.opsForValue().increment(rateLimitKey);
+        }
         
         return Result.success("举报提交成功，我们会尽快处理", reportId);
     }
@@ -146,6 +176,9 @@ public class ReportController {
     @Operation(summary = "获取待处理统计", description = "获取待处理的举报和审核数量")
     public Result<Map<String, Object>> getPendingCount(HttpServletRequest request) {
         
+        // 验证管理员权限
+        validateAdminPermission(request);
+        
         int reportCount = reportService.getPendingCount();
         int approveCount = approveService.getPendingCount();
         
@@ -222,6 +255,9 @@ public class ReportController {
     public Result<ApproveVO> getApproveDetail(
             @Parameter(description = "审核ID") @PathVariable Long id,
             HttpServletRequest request) {
+        
+        // 验证管理员权限
+        validateAdminPermission(request);
         
         log.info("获取审核详情, id: {}", id);
         
@@ -360,11 +396,57 @@ public class ReportController {
 
     /**
      * 验证管理员权限
+     * 从JWT Token中解析用户角色，确保安全性
      */
     private void validateAdminPermission(HttpServletRequest request) {
-        String role = request.getHeader("X-User-Role");
+        Long userId = getCurrentUserId(request);
+        if (userId == null) {
+            throw new RuntimeException("请先登录");
+        }
+        
+        String role = null;
+        
+        // 优先从JWT Token中解析角色
+        String token = extractToken(request);
+        if (token != null) {
+            role = JwtUtils.getRole(token);
+            log.debug("从JWT Token解析到用户角色: {}", role);
+        }
+        
+        // 如果JWT中没有角色信息，通过UserApi获取用户角色进行双重验证
+        if (role == null || role.isEmpty()) {
+            try {
+                Result<UserDTO> result = userApi.getUserById(userId);
+                if (result != null && result.isSuccess() && result.getData() != null) {
+                    role = result.getData().getRole();
+                    log.debug("从UserApi获取到用户角色: {}", role);
+                }
+            } catch (Exception e) {
+                log.error("调用UserApi获取用户角色失败: {}", e.getMessage());
+            }
+        }
+        
         if (role == null || (!"ADMIN".equalsIgnoreCase(role) && !"ROLE_ADMIN".equalsIgnoreCase(role))) {
+            log.warn("用户{}权限验证失败，当前角色: {}", userId, role);
             throw new RuntimeException("无权限执行此操作，需要管理员权限");
         }
+        
+        log.debug("管理员权限验证通过，用户ID: {}", userId);
+    }
+    
+    /**
+     * 从请求中提取JWT Token
+     */
+    private String extractToken(HttpServletRequest request) {
+        String authorization = request.getHeader("Authorization");
+        if (authorization != null && authorization.startsWith("Bearer ")) {
+            return authorization.substring(7);
+        }
+        // 兼容直接传递token的情况
+        String token = request.getHeader("X-Token");
+        if (token != null && !token.isEmpty()) {
+            return token;
+        }
+        return null;
     }
 }

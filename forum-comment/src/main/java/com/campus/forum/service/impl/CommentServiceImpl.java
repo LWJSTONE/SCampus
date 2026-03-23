@@ -7,6 +7,8 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.campus.forum.api.notify.NotifyApi;
 import com.campus.forum.api.post.PostApi;
 import com.campus.forum.api.user.UserApi;
+import com.campus.forum.api.user.UserDTO;
+import com.campus.forum.entity.Result;
 import com.campus.forum.config.CommentConfig;
 import com.campus.forum.constant.ResultCode;
 import com.campus.forum.dto.CommentCreateDTO;
@@ -55,7 +57,7 @@ public class CommentServiceImpl implements CommentService {
     // 远程服务调用（需要时注入）
     // private final NotifyApi notifyApi;
     // private final PostApi postApi;
-    // private final UserApi userApi;
+    private final UserApi userApi;
 
     // Redis Key前缀
     private static final String REDIS_KEY_COMMENT_COUNT = "comment:count:";
@@ -140,8 +142,9 @@ public class CommentServiceImpl implements CommentService {
             if (parentComment == null || parentComment.getDeleteFlag() == 1) {
                 throw new BusinessException(ResultCode.COMMENT_NOT_FOUND, "父评论不存在或已被删除");
             }
-            // 检查父评论是否被删除或屏蔽（status: 0-正常, 1-已删除, 2-被系统屏蔽）
-            if (parentComment.getStatus() != null && parentComment.getStatus() != 0) {
+            // 检查父评论状态是否正常（status: 0-已删除, 1-正常, 2-被系统屏蔽）
+            // 只允许回复status=1的正常评论
+            if (parentComment.getStatus() == null || parentComment.getStatus() != 1) {
                 throw new BusinessException(ResultCode.COMMENT_NOT_FOUND, "无法回复已删除或被屏蔽的评论");
             }
             
@@ -192,8 +195,24 @@ public class CommentServiceImpl implements CommentService {
             throw new BusinessException(ResultCode.COMMENT_NOT_FOUND);
         }
         
-        // 2. 权限校验（只能删除自己的评论）
-        if (!comment.getUserId().equals(userId)) {
+        // 2. 权限校验（评论作者或管理员可以删除）
+        boolean isAuthor = comment.getUserId().equals(userId);
+        boolean isAdmin = false;
+        
+        // 如果不是作者，检查是否是管理员
+        if (!isAuthor) {
+            try {
+                Result<UserDTO> userResult = userApi.getUserById(userId);
+                if (userResult != null && userResult.isSuccess() && userResult.getData() != null) {
+                    String role = userResult.getData().getRole();
+                    isAdmin = "ADMIN".equals(role);
+                }
+            } catch (Exception e) {
+                log.warn("获取用户角色信息失败, userId: {}", userId, e);
+            }
+        }
+        
+        if (!isAuthor && !isAdmin) {
             throw new BusinessException(ResultCode.COMMENT_NO_PERMISSION);
         }
         

@@ -3,6 +3,7 @@ package com.campus.forum.exception;
 import com.campus.forum.entity.Result;
 import com.campus.forum.constant.ResultCode;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.env.Environment;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.BindException;
@@ -17,9 +18,11 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 
+import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 import javax.validation.ConstraintViolation;
 import javax.validation.ConstraintViolationException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -27,6 +30,7 @@ import java.util.stream.Collectors;
 /**
  * 全局异常处理器
  * 统一处理各类异常，返回标准化的响应结果
+ * 区分开发和生产环境，避免敏感信息泄露
  *
  * @author campus
  * @since 2024-01-01
@@ -34,6 +38,36 @@ import java.util.stream.Collectors;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @Resource
+    private Environment environment;
+
+    /**
+     * 判断是否为开发环境
+     *
+     * @return true-开发环境 false-生产环境
+     */
+    private boolean isDevEnvironment() {
+        String[] activeProfiles = environment.getActiveProfiles();
+        return Arrays.stream(activeProfiles)
+                .anyMatch(profile -> "dev".equalsIgnoreCase(profile) || "development".equalsIgnoreCase(profile) || "local".equalsIgnoreCase(profile));
+    }
+
+    /**
+     * 脱敏异常信息
+     * 在生产环境下返回脱敏后的通用错误信息
+     *
+     * @param e 异常
+     * @return 脱敏后的错误信息
+     */
+    private String sanitizeErrorMessage(Exception e) {
+        if (isDevEnvironment()) {
+            // 开发环境返回详细错误信息
+            return e.getMessage();
+        }
+        // 生产环境返回通用错误信息，避免敏感信息泄露
+        return "系统繁忙，请稍后重试";
+    }
 
     /**
      * 处理业务异常
@@ -193,7 +227,9 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public Result<Void> handleRuntimeException(RuntimeException e, HttpServletRequest request) {
         log.error("运行时异常: {} - {}", request.getRequestURI(), e.getMessage(), e);
-        return Result.fail(ResultCode.SYSTEM_ERROR.getCode(), "系统繁忙，请稍后重试");
+        // 生产环境下对异常信息脱敏处理
+        String message = isDevEnvironment() ? e.getMessage() : "系统繁忙，请稍后重试";
+        return Result.fail(ResultCode.SYSTEM_ERROR.getCode(), message);
     }
 
     /**
@@ -207,7 +243,9 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public Result<Void> handleException(Exception e, HttpServletRequest request) {
         log.error("未知异常: {} - {}", request.getRequestURI(), e.getMessage(), e);
-        return Result.fail(ResultCode.SYSTEM_ERROR.getCode(), "系统异常，请联系管理员");
+        // 生产环境下对异常信息脱敏处理
+        String message = isDevEnvironment() ? e.getMessage() : "系统异常，请联系管理员";
+        return Result.fail(ResultCode.SYSTEM_ERROR.getCode(), message);
     }
 
     /**

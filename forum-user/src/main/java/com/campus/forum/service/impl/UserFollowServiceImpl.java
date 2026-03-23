@@ -85,6 +85,15 @@ public class UserFollowServiceImpl extends ServiceImpl<UserFollowMapper, UserFol
             throw new BusinessException(ResultCode.BUSINESS_ERROR, "不能关注自己");
         }
         
+        // 检查关注者状态，被封禁用户不能执行关注操作
+        User followerUser = userMapper.selectById(followerId);
+        if (followerUser == null) {
+            throw new BusinessException(ResultCode.USER_NOT_FOUND, "关注者不存在");
+        }
+        if (followerUser.getStatus() == null || followerUser.getStatus() != 1) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR, "账户已被禁用，无法执行关注操作");
+        }
+        
         // 检查被关注的用户是否存在
         User followingUser = userMapper.selectById(followingId);
         if (followingUser == null) {
@@ -289,13 +298,22 @@ public class UserFollowServiceImpl extends ServiceImpl<UserFollowMapper, UserFol
 
     /**
      * 转换为VO
+     * 手动设置需要的字段，避免使用BeanUtil.copyProperties盲目复制敏感信息
      *
      * @param user 用户实体
      * @return 用户关注VO
      */
     private UserFollowVO convertToVO(User user) {
         UserFollowVO vo = new UserFollowVO();
-        BeanUtil.copyProperties(user, vo);
+        // 手动设置允许暴露的非敏感字段
+        vo.setId(user.getId());
+        vo.setUsername(user.getUsername());
+        vo.setNickname(user.getNickname());
+        vo.setAvatar(user.getAvatar());
+        vo.setBio(user.getBio());
+        vo.setMajor(user.getMajor());
+        vo.setFollowerCount(user.getFollowerCount());
+        vo.setFollowingCount(user.getFollowingCount());
         return vo;
     }
 }

@@ -1,5 +1,6 @@
 package com.campus.forum.config;
 
+import org.springframework.cloud.gateway.filter.ratelimit.KeyResolver;
 import org.springframework.cloud.gateway.route.RouteLocator;
 import org.springframework.cloud.gateway.route.builder.RouteLocatorBuilder;
 import org.springframework.context.annotation.Bean;
@@ -24,6 +25,13 @@ import org.springframework.context.annotation.Configuration;
  *     <li>文件服务 forum-file：端口9010，路径 /api/v1/files/**</li>
  * </ul>
  * 
+ * <p>限流配置：</p>
+ * <ul>
+ *     <li>认证服务：每秒10次请求，用于防止暴力破解</li>
+ *     <li>其他服务：每秒20次请求</li>
+ *     <li>举报服务：每秒5次请求，防止恶意举报</li>
+ * </ul>
+ * 
  * <p>注意：此配置类作为备份，主要路由规则在application.yml中配置。</p>
  * 
  * @author Campus Team
@@ -40,12 +48,13 @@ public class RouteConfig {
      * <p>此配置作为application.yml中路由配置的补充，优先级较低。</p>
      * 
      * @param builder 路由定位器构建器
+     * @param ipKeyResolver IP限流Key解析器
      * @return RouteLocator 路由定位器
      */
     @Bean
-    public RouteLocator customRouteLocator(RouteLocatorBuilder builder) {
+    public RouteLocator customRouteLocator(RouteLocatorBuilder builder, KeyResolver ipKeyResolver) {
         return builder.routes()
-                // 认证服务路由
+                // 认证服务路由 - 严格限流防止暴力破解
                 .route("forum-auth", r -> r
                         .path("/api/v1/auth/**")
                         .filters(f -> f
@@ -59,6 +68,10 @@ public class RouteConfig {
                                             .build();
                                     return chain.filter(exchange);
                                 })
+                                // Redis限流：每秒10次请求，突发容量20
+                                .requestRateLimiter(config -> config
+                                        .setRateLimiter(new org.springframework.cloud.gateway.filter.ratelimit.RedisRateLimiter(10, 20))
+                                        .setKeyResolver(ipKeyResolver))
                         )
                         .uri("lb://forum-auth")
                 )
@@ -66,63 +79,117 @@ public class RouteConfig {
                 // 用户服务路由
                 .route("forum-user", r -> r
                         .path("/api/v1/users/**")
-                        .filters(f -> f.addRequestHeader("X-Gateway-Name", "forum-gateway"))
+                        .filters(f -> f
+                                .addRequestHeader("X-Gateway-Name", "forum-gateway")
+                                // Redis限流：每秒20次请求，突发容量40
+                                .requestRateLimiter(config -> config
+                                        .setRateLimiter(new org.springframework.cloud.gateway.filter.ratelimit.RedisRateLimiter(20, 40))
+                                        .setKeyResolver(ipKeyResolver))
+                        )
                         .uri("lb://forum-user")
                 )
                 
                 // 分类服务路由
                 .route("forum-category", r -> r
                         .path("/api/v1/categories/**")
-                        .filters(f -> f.addRequestHeader("X-Gateway-Name", "forum-gateway"))
+                        .filters(f -> f
+                                .addRequestHeader("X-Gateway-Name", "forum-gateway")
+                                // Redis限流：每秒20次请求，突发容量40
+                                .requestRateLimiter(config -> config
+                                        .setRateLimiter(new org.springframework.cloud.gateway.filter.ratelimit.RedisRateLimiter(20, 40))
+                                        .setKeyResolver(ipKeyResolver))
+                        )
                         .uri("lb://forum-category")
                 )
                 
                 // 帖子服务路由
                 .route("forum-post", r -> r
                         .path("/api/v1/posts/**")
-                        .filters(f -> f.addRequestHeader("X-Gateway-Name", "forum-gateway"))
+                        .filters(f -> f
+                                .addRequestHeader("X-Gateway-Name", "forum-gateway")
+                                // Redis限流：每秒20次请求，突发容量40
+                                .requestRateLimiter(config -> config
+                                        .setRateLimiter(new org.springframework.cloud.gateway.filter.ratelimit.RedisRateLimiter(20, 40))
+                                        .setKeyResolver(ipKeyResolver))
+                        )
                         .uri("lb://forum-post")
                 )
                 
                 // 评论服务路由
                 .route("forum-comment", r -> r
                         .path("/api/v1/comments/**")
-                        .filters(f -> f.addRequestHeader("X-Gateway-Name", "forum-gateway"))
+                        .filters(f -> f
+                                .addRequestHeader("X-Gateway-Name", "forum-gateway")
+                                // Redis限流：每秒20次请求，突发容量40
+                                .requestRateLimiter(config -> config
+                                        .setRateLimiter(new org.springframework.cloud.gateway.filter.ratelimit.RedisRateLimiter(20, 40))
+                                        .setKeyResolver(ipKeyResolver))
+                        )
                         .uri("lb://forum-comment")
                 )
                 
                 // 交互服务路由
                 .route("forum-interaction", r -> r
                         .path("/api/v1/interactions/**")
-                        .filters(f -> f.addRequestHeader("X-Gateway-Name", "forum-gateway"))
+                        .filters(f -> f
+                                .addRequestHeader("X-Gateway-Name", "forum-gateway")
+                                // Redis限流：每秒20次请求，突发容量40
+                                .requestRateLimiter(config -> config
+                                        .setRateLimiter(new org.springframework.cloud.gateway.filter.ratelimit.RedisRateLimiter(20, 40))
+                                        .setKeyResolver(ipKeyResolver))
+                        )
                         .uri("lb://forum-interaction")
                 )
                 
-                // 举报服务路由
+                // 举报服务路由 - 更严格限流防止恶意举报
                 .route("forum-report", r -> r
                         .path("/api/v1/reports/**")
-                        .filters(f -> f.addRequestHeader("X-Gateway-Name", "forum-gateway"))
+                        .filters(f -> f
+                                .addRequestHeader("X-Gateway-Name", "forum-gateway")
+                                // Redis限流：每秒5次请求，突发容量10
+                                .requestRateLimiter(config -> config
+                                        .setRateLimiter(new org.springframework.cloud.gateway.filter.ratelimit.RedisRateLimiter(5, 10))
+                                        .setKeyResolver(ipKeyResolver))
+                        )
                         .uri("lb://forum-report")
                 )
                 
                 // 统计服务路由
                 .route("forum-stats", r -> r
                         .path("/api/v1/stats/**")
-                        .filters(f -> f.addRequestHeader("X-Gateway-Name", "forum-gateway"))
+                        .filters(f -> f
+                                .addRequestHeader("X-Gateway-Name", "forum-gateway")
+                                // Redis限流：每秒20次请求，突发容量40
+                                .requestRateLimiter(config -> config
+                                        .setRateLimiter(new org.springframework.cloud.gateway.filter.ratelimit.RedisRateLimiter(20, 40))
+                                        .setKeyResolver(ipKeyResolver))
+                        )
                         .uri("lb://forum-stats")
                 )
                 
                 // 通知服务路由
                 .route("forum-notify", r -> r
                         .path("/api/v1/notices/**")
-                        .filters(f -> f.addRequestHeader("X-Gateway-Name", "forum-gateway"))
+                        .filters(f -> f
+                                .addRequestHeader("X-Gateway-Name", "forum-gateway")
+                                // Redis限流：每秒20次请求，突发容量40
+                                .requestRateLimiter(config -> config
+                                        .setRateLimiter(new org.springframework.cloud.gateway.filter.ratelimit.RedisRateLimiter(20, 40))
+                                        .setKeyResolver(ipKeyResolver))
+                        )
                         .uri("lb://forum-notify")
                 )
                 
                 // 文件服务路由
                 .route("forum-file", r -> r
                         .path("/api/v1/files/**")
-                        .filters(f -> f.addRequestHeader("X-Gateway-Name", "forum-gateway"))
+                        .filters(f -> f
+                                .addRequestHeader("X-Gateway-Name", "forum-gateway")
+                                // Redis限流：每秒10次请求，突发容量20（文件上传需要更严格限制）
+                                .requestRateLimiter(config -> config
+                                        .setRateLimiter(new org.springframework.cloud.gateway.filter.ratelimit.RedisRateLimiter(10, 20))
+                                        .setKeyResolver(ipKeyResolver))
+                        )
                         .uri("lb://forum-file")
                 )
                 

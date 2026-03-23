@@ -32,6 +32,11 @@ public class RedisUtils {
      * @return 是否成功
      */
     public boolean expire(String key, long time) {
+        // 参数校验：key不能为空或空字符串
+        if (key == null || key.trim().isEmpty()) {
+            log.warn("设置缓存过期时间失败: key不能为空");
+            return false;
+        }
         try {
             if (time > 0) {
                 redisTemplate.expire(key, time, TimeUnit.SECONDS);
@@ -47,19 +52,36 @@ public class RedisUtils {
      * 根据key获取过期时间
      *
      * @param key 键 不能为null
-     * @return 时间(秒) 返回0代表为永久有效
+     * @return 时间(秒) 返回0代表为永久有效或key不存在/无效
      */
     public long getExpire(String key) {
-        return redisTemplate.getExpire(key, TimeUnit.SECONDS);
+        // 参数校验：key不能为空或空字符串
+        if (key == null || key.trim().isEmpty()) {
+            log.warn("获取缓存过期时间失败: key不能为空");
+            return 0;
+        }
+        try {
+            Long expire = redisTemplate.getExpire(key, TimeUnit.SECONDS);
+            // 返回值空值保护
+            return expire != null ? expire : 0;
+        } catch (Exception e) {
+            log.error("获取缓存过期时间失败: key={}", key, e);
+            return 0;
+        }
     }
 
     /**
      * 判断key是否存在
      *
      * @param key 键
-     * @return true 存在 false不存在
+     * @return true 存在 false不存在或key无效
      */
     public boolean hasKey(String key) {
+        // 参数校验：key不能为空或空字符串
+        if (key == null || key.trim().isEmpty()) {
+            log.warn("判断key是否存在失败: key不能为空");
+            return false;
+        }
         try {
             return Boolean.TRUE.equals(redisTemplate.hasKey(key));
         } catch (Exception e) {
@@ -74,12 +96,24 @@ public class RedisUtils {
      * @param key 可以传一个值 或多个
      */
     public void del(String... key) {
-        if (key != null && key.length > 0) {
-            if (key.length == 1) {
-                redisTemplate.delete(key[0]);
+        if (key == null || key.length == 0) {
+            return;
+        }
+        // 过滤掉空字符串
+        List<String> validKeys = Arrays.stream(key)
+                .filter(k -> k != null && !k.trim().isEmpty())
+                .collect(java.util.stream.Collectors.toList());
+        if (validKeys.isEmpty()) {
+            return;
+        }
+        try {
+            if (validKeys.size() == 1) {
+                redisTemplate.delete(validKeys.get(0));
             } else {
-                redisTemplate.delete(Arrays.asList(key));
+                redisTemplate.delete(validKeys);
             }
+        } catch (Exception e) {
+            log.error("删除缓存失败", e);
         }
     }
 
@@ -92,7 +126,17 @@ public class RedisUtils {
      * @return 值
      */
     public Object get(String key) {
-        return key == null ? null : redisTemplate.opsForValue().get(key);
+        // 参数校验：key不能为空或空字符串
+        if (key == null || key.trim().isEmpty()) {
+            log.warn("获取缓存失败: key不能为空");
+            return null;
+        }
+        try {
+            return redisTemplate.opsForValue().get(key);
+        } catch (Exception e) {
+            log.error("获取缓存失败: key={}", key, e);
+            return null;
+        }
     }
 
     /**
@@ -103,6 +147,11 @@ public class RedisUtils {
      * @return true成功 false失败
      */
     public boolean set(String key, Object value) {
+        // 参数校验：key不能为空或空字符串
+        if (key == null || key.trim().isEmpty()) {
+            log.warn("设置缓存失败: key不能为空");
+            return false;
+        }
         try {
             redisTemplate.opsForValue().set(key, value);
             return true;
@@ -121,6 +170,11 @@ public class RedisUtils {
      * @return true成功 false 失败
      */
     public boolean set(String key, Object value, long time) {
+        // 参数校验：key不能为空或空字符串
+        if (key == null || key.trim().isEmpty()) {
+            log.warn("设置缓存失败: key不能为空");
+            return false;
+        }
         try {
             if (time > 0) {
                 redisTemplate.opsForValue().set(key, value, time, TimeUnit.SECONDS);
@@ -143,6 +197,11 @@ public class RedisUtils {
      * @return true设置成功 false设置失败(key已存在)
      */
     public boolean setIfAbsent(String key, Object value, long time) {
+        // 参数校验：key不能为空或空字符串
+        if (key == null || key.trim().isEmpty()) {
+            log.warn("设置缓存失败(setIfAbsent): key不能为空");
+            return false;
+        }
         try {
             if (time > 0) {
                 return Boolean.TRUE.equals(redisTemplate.opsForValue().setIfAbsent(key, value, time, TimeUnit.SECONDS));
@@ -163,6 +222,11 @@ public class RedisUtils {
      * @return 删除的数量
      */
     public long deleteByPattern(String pattern) {
+        // 参数校验：pattern不能为空或空字符串
+        if (pattern == null || pattern.trim().isEmpty()) {
+            log.warn("根据模式删除keys失败: pattern不能为空");
+            return 0;
+        }
         try {
             Set<String> keys = new HashSet<>();
             // 使用SCAN命令替代KEYS，避免阻塞Redis
@@ -181,6 +245,7 @@ public class RedisUtils {
             
             if (!keys.isEmpty()) {
                 Long count = redisTemplate.delete(keys);
+                // 返回值空值保护
                 return count != null ? count : 0;
             }
             return 0;
@@ -198,10 +263,22 @@ public class RedisUtils {
      * @return 递增后的值
      */
     public long incr(String key, long delta) {
+        // 参数校验：key不能为空或空字符串
+        if (key == null || key.trim().isEmpty()) {
+            log.warn("递增操作失败: key不能为空");
+            return 0;
+        }
         if (delta < 0) {
             throw new RuntimeException("递增因子必须大于0");
         }
-        return redisTemplate.opsForValue().increment(key, delta);
+        try {
+            Long result = redisTemplate.opsForValue().increment(key, delta);
+            // 返回值空值保护
+            return result != null ? result : 0;
+        } catch (Exception e) {
+            log.error("递增操作失败: key={}", key, e);
+            return 0;
+        }
     }
 
     /**
@@ -212,10 +289,22 @@ public class RedisUtils {
      * @return 递减后的值
      */
     public long decr(String key, long delta) {
+        // 参数校验：key不能为空或空字符串
+        if (key == null || key.trim().isEmpty()) {
+            log.warn("递减操作失败: key不能为空");
+            return 0;
+        }
         if (delta < 0) {
             throw new RuntimeException("递减因子必须大于0");
         }
-        return redisTemplate.opsForValue().increment(key, -delta);
+        try {
+            Long result = redisTemplate.opsForValue().increment(key, -delta);
+            // 返回值空值保护
+            return result != null ? result : 0;
+        } catch (Exception e) {
+            log.error("递减操作失败: key={}", key, e);
+            return 0;
+        }
     }
 
     // ================================Map=================================

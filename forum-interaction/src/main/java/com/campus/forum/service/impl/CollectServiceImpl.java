@@ -3,7 +3,12 @@ package com.campus.forum.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.campus.forum.api.post.PostApi;
+import com.campus.forum.api.post.PostDTO;
+import com.campus.forum.constant.ResultCode;
 import com.campus.forum.entity.Collect;
+import com.campus.forum.entity.Result;
+import com.campus.forum.exception.BusinessException;
 import com.campus.forum.mapper.CollectMapper;
 import com.campus.forum.service.CollectService;
 import com.campus.forum.vo.CollectVO;
@@ -29,6 +34,7 @@ public class CollectServiceImpl implements CollectService {
 
     private final CollectMapper collectMapper;
     private final StringRedisTemplate redisTemplate;
+    private final PostApi postApi;
 
     private static final String COLLECT_COUNT_KEY = "collect:count:";
     private static final String COLLECT_USER_KEY = "collect:user:";
@@ -44,6 +50,9 @@ public class CollectServiceImpl implements CollectService {
         if (userId == null || userId <= 0) {
             throw new IllegalArgumentException("无效的用户ID");
         }
+        
+        // 验证帖子是否存在
+        validatePostExists(postId);
         
         // 使用分布式锁防止并发问题
         String lockKey = "collect:lock:" + postId + ":" + userId;
@@ -196,5 +205,24 @@ public class CollectServiceImpl implements CollectService {
      */
     private String getUserCollectKey(Long postId, Long userId) {
         return COLLECT_USER_KEY + postId + ":" + userId;
+    }
+
+    /**
+     * 验证帖子是否存在
+     * @param postId 帖子ID
+     */
+    private void validatePostExists(Long postId) {
+        try {
+            Result<PostDTO> postResult = postApi.getPostById(postId);
+            if (postResult == null || !postResult.isSuccess() || postResult.getData() == null) {
+                throw new BusinessException(ResultCode.POST_NOT_FOUND, "帖子不存在或已删除");
+            }
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("验证帖子存在性失败, postId={}", postId, e);
+            // 如果远程服务调用失败，记录日志但不阻止操作（服务降级处理）
+            // 生产环境可以根据实际需求决定是否抛出异常
+        }
     }
 }

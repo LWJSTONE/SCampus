@@ -618,6 +618,10 @@ public class PostServiceImpl implements PostService {
         if (StrUtil.isBlank(createDTO.getContent())) {
             throw new BusinessException(ResultCode.PARAM_ERROR, "帖子内容不能为空");
         }
+        // 校验帖子类型范围（0-普通帖子 1-精华帖 2-置顶帖 3-公告）
+        if (createDTO.getType() != null && (createDTO.getType() < 0 || createDTO.getType() > 3)) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "帖子类型无效，有效范围：0-3");
+        }
     }
 
     /**

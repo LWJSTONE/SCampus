@@ -355,72 +355,63 @@ public class AuthServiceImpl implements AuthService {
     public Result<Void> resetPassword(ResetPasswordDTO resetPasswordDTO) {
         log.info("重置密码请求：email={}, username={}", resetPasswordDTO.getEmail(), resetPasswordDTO.getUsername());
 
-        // 判断重置密码的方式：邮箱验证码方式 或 图形验证码方式
-        boolean isEmailMode = StrUtil.isNotBlank(resetPasswordDTO.getEmail()) && StrUtil.isNotBlank(resetPasswordDTO.getCode());
-
-        AuthUser user = null;
-        String newPassword = null;
-
-        if (isEmailMode) {
-            // 邮箱验证码方式
-            // 1. 校验邮箱格式
-            if (!resetPasswordDTO.getEmail().matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")) {
-                return Result.fail(400, "邮箱格式不正确");
-            }
-
-            // 2. 校验验证码
-            String emailCodeKey = Constants.CACHE_PREFIX + "email:code:" + resetPasswordDTO.getEmail();
-            Object cachedCode = redisUtils.get(emailCodeKey);
-            if (cachedCode == null) {
-                return Result.fail(400, "验证码已过期，请重新获取");
-            }
-            if (!cachedCode.toString().equalsIgnoreCase(resetPasswordDTO.getCode().trim())) {
-                return Result.fail(400, "验证码错误");
-            }
-
-            // 3. 校验密码
-            newPassword = resetPasswordDTO.getPassword();
-            if (StrUtil.isBlank(newPassword) || newPassword.length() < 6) {
-                return Result.fail(400, "密码长度不能少于6位");
-            }
-
-            // 4. 根据邮箱查询用户
-            user = authUserMapper.selectByEmail(resetPasswordDTO.getEmail());
-            if (user == null) {
-                return Result.fail(400, "该邮箱未绑定任何账号");
-            }
-
-            // 5. 删除已使用的验证码
-            redisUtils.del(emailCodeKey);
-
-        } else {
-            // 图形验证码方式
-            // 1. 验证码校验
-            if (!validateCaptcha(resetPasswordDTO.getCaptchaKey(), resetPasswordDTO.getCaptcha())) {
-                return Result.fail(400, "验证码错误或已过期");
-            }
-
-            // 2. 密码确认校验
-            newPassword = resetPasswordDTO.getNewPassword();
-            String confirmPassword = resetPasswordDTO.getConfirmPassword();
-            if (StrUtil.isBlank(newPassword)) {
-                return Result.fail(400, "新密码不能为空");
-            }
-            if (!newPassword.equals(confirmPassword)) {
-                return Result.fail(400, "两次输入的密码不一致");
-            }
-
-            // 3. 根据用户名查询用户
-            if (StrUtil.isBlank(resetPasswordDTO.getUsername())) {
-                return Result.fail(400, "用户名不能为空");
-            }
-            user = authUserMapper.selectByUsername(resetPasswordDTO.getUsername());
-            if (user == null) {
-                return Result.fail(400, "用户不存在");
-            }
+        // 安全修复：只支持邮箱验证码方式，必须提供邮箱+用户名+邮箱验证码三者匹配
+        // 1. 校验必填字段
+        if (StrUtil.isBlank(resetPasswordDTO.getEmail())) {
+            return Result.fail(400, "邮箱不能为空");
+        }
+        if (StrUtil.isBlank(resetPasswordDTO.getUsername())) {
+            return Result.fail(400, "用户名不能为空");
+        }
+        if (StrUtil.isBlank(resetPasswordDTO.getCode())) {
+            return Result.fail(400, "验证码不能为空");
         }
 
-        // 更新密码
+        // 2. 校验邮箱格式
+        if (!resetPasswordDTO.getEmail().matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")) {
+            return Result.fail(400, "邮箱格式不正确");
+        }
+
+        // 3. 校验验证码
+        String emailCodeKey = Constants.CACHE_PREFIX + "email:code:" + resetPasswordDTO.getEmail();
+        Object cachedCode = redisUtils.get(emailCodeKey);
+        if (cachedCode == null) {
+            return Result.fail(400, "验证码已过期，请重新获取");
+        }
+        if (!cachedCode.toString().equalsIgnoreCase(resetPasswordDTO.getCode().trim())) {
+            return Result.fail(400, "验证码错误");
+        }
+
+        // 4. 校验密码强度
+        String newPassword = resetPasswordDTO.getPassword();
+        if (StrUtil.isBlank(newPassword) || newPassword.length() < 6) {
+            return Result.fail(400, "密码长度不能少于6位");
+        }
+        if (newPassword.length() > 20) {
+            return Result.fail(400, "密码长度不能超过20位");
+        }
+        // 增强密码强度校验：必须包含字母和数字
+        if (!newPassword.matches("^(?=.*[a-zA-Z])(?=.*\\d).+$")) {
+            return Result.fail(400, "密码必须包含字母和数字");
+        }
+
+        // 5. 安全校验：根据用户名查询用户，并验证邮箱是否匹配
+        AuthUser user = authUserMapper.selectByUsername(resetPasswordDTO.getUsername());
+        if (user == null) {
+            return Result.fail(400, "用户不存在");
+        }
+        // 验证邮箱与用户名是否匹配
+        if (!resetPasswordDTO.getEmail().equalsIgnoreCase(user.getEmail())) {
+            // 防止信息泄露，返回模糊错误信息
+            log.warn("重置密码邮箱不匹配：username={}, expectedEmail={}, providedEmail={}", 
+                    resetPasswordDTO.getUsername(), user.getEmail(), resetPasswordDTO.getEmail());
+            return Result.fail(400, "用户名与邮箱不匹配");
+        }
+
+        // 6. 删除已使用的验证码
+        redisUtils.del(emailCodeKey);
+
+        // 7. 更新密码
         String encodedPassword = PasswordUtils.encode(newPassword);
         int result = authUserMapper.updatePassword(user.getId(), encodedPassword);
         if (result <= 0) {
@@ -428,7 +419,7 @@ public class AuthServiceImpl implements AuthService {
             return Result.fail("密码重置失败，请稍后再试");
         }
 
-        // 使旧Token失效
+        // 8. 使旧Token失效
         String tokenKey = Constants.TOKEN_PREFIX + user.getId();
         redisUtils.del(tokenKey);
 
@@ -661,6 +652,11 @@ public class AuthServiceImpl implements AuthService {
         return userInfoVO;
     }
 
+    /**
+     * 邮箱验证码每日最大发送次数
+     */
+    private static final int MAX_DAILY_EMAIL_COUNT = 10;
+
     @Override
     public Result<Void> sendEmailCode(String email) {
         log.info("发送邮箱验证码：email={}", email);
@@ -679,17 +675,35 @@ public class AuthServiceImpl implements AuthService {
             return Result.fail(429, "发送过于频繁，请稍后再试");
         }
 
-        // 3. 生成6位随机验证码
+        // 3. 检查每日发送次数限制（安全修复：防止验证码滥用）
+        String dailyCountKey = Constants.CACHE_PREFIX + "email:daily:" + email;
+        Object dailyCountObj = redisUtils.get(dailyCountKey);
+        int dailyCount = dailyCountObj != null ? Integer.parseInt(dailyCountObj.toString()) : 0;
+        if (dailyCount >= MAX_DAILY_EMAIL_COUNT) {
+            log.warn("邮箱验证码发送次数已达每日上限：email={}, count={}", email, dailyCount);
+            return Result.fail(429, "今日发送次数已达上限，请明天再试");
+        }
+
+        // 4. 生成6位随机验证码
         String code = cn.hutool.core.util.RandomUtil.randomNumbers(6);
 
-        // 4. 将验证码存入Redis（有效期5分钟）
+        // 5. 将验证码存入Redis（有效期5分钟）
         String emailCodeKey = Constants.CACHE_PREFIX + "email:code:" + email;
         redisUtils.set(emailCodeKey, code, 300); // 5分钟有效期
 
-        // 5. 设置发送频率限制（60秒）
+        // 6. 设置发送频率限制（60秒）
         redisUtils.set(rateLimitKey, "1", 60);
 
-        // 6. 发送邮件（这里简化处理，实际项目中应该调用邮件服务）
+        // 7. 增加每日发送次数（过期时间到当天结束）
+        long secondsUntilMidnight = java.time.Duration.between(
+                LocalDateTime.now(), 
+                LocalDateTime.now().plusDays(1).withHour(0).withMinute(0).withSecond(0).withNano(0)
+        ).getSeconds();
+        if (secondsUntilMidnight > 0) {
+            redisUtils.set(dailyCountKey, String.valueOf(dailyCount + 1), secondsUntilMidnight);
+        }
+
+        // 8. 发送邮件（这里简化处理，实际项目中应该调用邮件服务）
         // TODO: 集成邮件服务发送验证码
         log.info("邮箱验证码已生成：email={}", email);
 

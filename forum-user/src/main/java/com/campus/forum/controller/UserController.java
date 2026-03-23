@@ -24,6 +24,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
+import java.net.URI;
 import java.util.Map;
 
 /**
@@ -138,6 +139,12 @@ public class UserController {
         String avatar = request.get("avatar");
         if (avatar == null || avatar.isEmpty()) {
             return Result.fail(400, "头像URL不能为空");
+        }
+        
+        // 校验头像URL安全性
+        String validationError = validateAvatarUrl(avatar);
+        if (validationError != null) {
+            return Result.fail(400, validationError);
         }
         
         boolean result = userService.updateAvatar(id, avatar);
@@ -445,5 +452,56 @@ public class UserController {
         log.info("内部API调用：减少用户评论数，用户ID: {}", id);
         userService.decrementCommentCount(id);
         return Result.success(true);
+    }
+    
+    /**
+     * 校验头像URL安全性
+     * 禁止javascript协议、data协议等危险URL，只允许http和https协议
+     *
+     * @param avatarUrl 头像URL
+     * @return 校验错误信息，如果校验通过则返回null
+     */
+    private String validateAvatarUrl(String avatarUrl) {
+        if (avatarUrl == null || avatarUrl.trim().isEmpty()) {
+            return "头像URL不能为空";
+        }
+        
+        String trimmedUrl = avatarUrl.trim().toLowerCase();
+        
+        // 禁止危险协议
+        if (trimmedUrl.startsWith("javascript:")) {
+            return "不允许使用javascript协议的URL";
+        }
+        if (trimmedUrl.startsWith("data:")) {
+            return "不允许使用data协议的URL";
+        }
+        if (trimmedUrl.startsWith("vbscript:")) {
+            return "不允许使用vbscript协议的URL";
+        }
+        if (trimmedUrl.startsWith("file:")) {
+            return "不允许使用file协议的URL";
+        }
+        
+        // 解析URL并验证协议
+        try {
+            URI uri = new URI(avatarUrl);
+            String scheme = uri.getScheme();
+            
+            // 只允许http和https协议
+            if (scheme != null && !scheme.equalsIgnoreCase("http") && !scheme.equalsIgnoreCase("https")) {
+                return "只允许使用http或https协议的URL";
+            }
+            
+            // 检查URL中是否包含javascript关键字（防止绕过）
+            String urlLower = avatarUrl.toLowerCase();
+            if (urlLower.contains("javascript:") || urlLower.contains("vbscript:")) {
+                return "URL中包含不允许的脚本协议";
+            }
+            
+        } catch (Exception e) {
+            return "URL格式无效";
+        }
+        
+        return null;
     }
 }

@@ -74,14 +74,14 @@
 
     <!-- 忘记密码对话框 -->
     <el-dialog v-model="forgotPasswordVisible" title="重置密码" width="400px">
-      <el-form :model="forgotForm" label-width="80px">
-        <el-form-item label="用户名">
+      <el-form ref="forgotFormRef" :model="forgotForm" :rules="forgotRules" label-width="80px">
+        <el-form-item label="用户名" prop="username">
           <el-input v-model="forgotForm.username" placeholder="请输入用户名" />
         </el-form-item>
-        <el-form-item label="邮箱">
+        <el-form-item label="邮箱" prop="email">
           <el-input v-model="forgotForm.email" placeholder="请输入注册邮箱" />
         </el-form-item>
-        <el-form-item label="验证码">
+        <el-form-item label="验证码" prop="code">
           <div class="captcha-row">
             <el-input v-model="forgotForm.code" placeholder="邮箱验证码" style="flex: 1" />
             <el-button :disabled="forgotCountdown > 0" :loading="sendingCode" @click="sendForgotCode">
@@ -89,10 +89,10 @@
             </el-button>
           </div>
         </el-form-item>
-        <el-form-item label="新密码">
+        <el-form-item label="新密码" prop="newPassword">
           <el-input v-model="forgotForm.newPassword" type="password" show-password placeholder="请输入新密码" />
         </el-form-item>
-        <el-form-item label="确认密码">
+        <el-form-item label="确认密码" prop="confirmPassword">
           <el-input v-model="forgotForm.confirmPassword" type="password" show-password placeholder="请确认新密码" />
         </el-form-item>
       </el-form>
@@ -116,6 +116,7 @@ const route = useRoute()
 const userStore = useUserStore()
 
 const formRef = ref<FormInstance>()
+const forgotFormRef = ref<FormInstance>()
 const loading = ref(false)
 const captchaUrl = ref('')
 const captchaKey = ref('')
@@ -155,6 +156,38 @@ const forgotForm = reactive({
   newPassword: '',
   confirmPassword: ''
 })
+
+// 忘记密码表单验证规则
+const validateConfirmPassword = (_rule: any, value: string, callback: any) => {
+  if (value !== forgotForm.newPassword) {
+    callback(new Error('两次输入的密码不一致'))
+  } else {
+    callback()
+  }
+}
+
+const forgotRules: FormRules = {
+  username: [
+    { required: true, message: '请输入用户名', trigger: 'blur' },
+    { min: 3, max: 20, message: '用户名长度为 3 到 20 个字符', trigger: 'blur' },
+  ],
+  email: [
+    { required: true, message: '请输入邮箱', trigger: 'blur' },
+    { type: 'email', message: '请输入正确的邮箱格式', trigger: 'blur' },
+  ],
+  code: [
+    { required: true, message: '请输入验证码', trigger: 'blur' },
+  ],
+  newPassword: [
+    { required: true, message: '请输入新密码', trigger: 'blur' },
+    { min: 6, max: 20, message: '密码长度为 6 到 20 个字符', trigger: 'blur' },
+    { pattern: /^(?=.*[a-zA-Z])(?=.*\d).+$/, message: '密码必须包含字母和数字', trigger: 'blur' },
+  ],
+  confirmPassword: [
+    { required: true, message: '请确认新密码', trigger: 'blur' },
+    { validator: validateConfirmPassword, trigger: 'blur' },
+  ],
+}
 
 function showForgotPassword() {
   forgotPasswordVisible.value = true
@@ -208,37 +241,12 @@ async function sendForgotCode() {
 
 async function handleResetPassword() {
   // 表单验证
-  if (!forgotForm.username || !forgotForm.username.trim()) {
-    ElMessage.warning('请输入用户名')
+  const valid = await forgotFormRef.value?.validate().catch(() => false)
+  if (!valid) {
+    ElMessage.warning('请检查表单')
     return
   }
-  if (!forgotForm.email || !forgotForm.email.trim()) {
-    ElMessage.warning('请输入邮箱')
-    return
-  }
-  // 邮箱格式验证
-  const emailReg = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-  if (!emailReg.test(forgotForm.email)) {
-    ElMessage.warning('请输入正确的邮箱格式')
-    return
-  }
-  if (!forgotForm.code || !forgotForm.code.trim()) {
-    ElMessage.warning('请输入验证码')
-    return
-  }
-  if (!forgotForm.newPassword) {
-    ElMessage.warning('请输入新密码')
-    return
-  }
-  if (forgotForm.newPassword.length < 6) {
-    ElMessage.warning('密码长度不能少于6位')
-    return
-  }
-  if (forgotForm.newPassword !== forgotForm.confirmPassword) {
-    ElMessage.warning('两次输入的密码不一致')
-    return
-  }
-  
+
   resettingPassword.value = true
   try {
     await resetPassword({

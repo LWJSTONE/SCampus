@@ -81,14 +81,84 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         // 转换为VO
         UserDetailVO vo = convertToDetailVO(user);
         
-        // 判断是否已关注
-        if (currentUserId != null && !currentUserId.equals(id)) {
-            vo.setFollowed(userFollowService.isFollowing(currentUserId, id));
-        } else {
+        // 判断是否为本人查询
+        boolean isSelf = currentUserId != null && currentUserId.equals(id);
+        
+        if (isSelf) {
+            // 本人查询，返回完整信息
             vo.setFollowed(false);
+        } else {
+            // 非本人查询，对敏感信息进行脱敏处理
+            vo.setEmail(maskEmail(vo.getEmail()));
+            vo.setPhone(maskPhone(vo.getPhone()));
+            vo.setStudentNo(maskStudentNo(vo.getStudentNo()));
+            
+            // 判断是否已关注
+            if (currentUserId != null) {
+                vo.setFollowed(userFollowService.isFollowing(currentUserId, id));
+            } else {
+                vo.setFollowed(false);
+            }
         }
         
         return vo;
+    }
+    
+    /**
+     * 邮箱脱敏处理
+     * 保留前缀的前几个字符，中间用*替代，保留@后的域名
+     *
+     * @param email 原始邮箱
+     * @return 脱敏后的邮箱
+     */
+    private String maskEmail(String email) {
+        if (email == null || email.isEmpty()) {
+            return email;
+        }
+        int atIndex = email.indexOf('@');
+        if (atIndex <= 0) {
+            return email;
+        }
+        String prefix = email.substring(0, atIndex);
+        String suffix = email.substring(atIndex);
+        if (prefix.length() <= 2) {
+            return prefix.charAt(0) + "***" + suffix;
+        }
+        return prefix.substring(0, 2) + "***" + suffix;
+    }
+    
+    /**
+     * 手机号脱敏处理
+     * 保留前3位和后4位，中间用*替代
+     *
+     * @param phone 原始手机号
+     * @return 脱敏后的手机号
+     */
+    private String maskPhone(String phone) {
+        if (phone == null || phone.isEmpty()) {
+            return phone;
+        }
+        if (phone.length() <= 7) {
+            return phone.substring(0, 3) + "****";
+        }
+        return phone.substring(0, 3) + "****" + phone.substring(phone.length() - 4);
+    }
+    
+    /**
+     * 学号脱敏处理
+     * 保留前2位和后2位，中间用*替代
+     *
+     * @param studentNo 原始学号
+     * @return 脱敏后的学号
+     */
+    private String maskStudentNo(String studentNo) {
+        if (studentNo == null || studentNo.isEmpty()) {
+            return studentNo;
+        }
+        if (studentNo.length() <= 4) {
+            return studentNo.substring(0, 2) + "**";
+        }
+        return studentNo.substring(0, 2) + "****" + studentNo.substring(studentNo.length() - 2);
     }
 
     @Override
@@ -100,6 +170,11 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         User user = getById(id);
         if (user == null) {
             throw new BusinessException(ResultCode.USER_NOT_FOUND);
+        }
+        
+        // 检查用户状态，被封禁用户不能修改信息
+        if (user.getStatus() == null || user.getStatus() != 1) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR, "账户已被禁用，无法修改信息");
         }
         
         // 检查邮箱是否已被其他用户使用

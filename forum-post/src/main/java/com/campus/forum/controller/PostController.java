@@ -18,6 +18,8 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
+import javax.validation.constraints.Max;
+import javax.validation.constraints.Min;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,6 +36,7 @@ import java.util.Map;
 @RequestMapping("/api/v1/posts")
 @RequiredArgsConstructor
 @Tag(name = "帖子管理", description = "帖子相关接口")
+@Validated
 public class PostController {
 
     private final PostService postService;
@@ -55,8 +58,8 @@ public class PostController {
     @GetMapping
     @Operation(summary = "获取帖子列表", description = "分页获取帖子列表，支持多种筛选条件")
     public Result<PageResult<PostListVO>> getPostList(
-            @Parameter(description = "当前页") @RequestParam(defaultValue = "1") Integer current,
-            @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") Integer size,
+            @Parameter(description = "当前页") @RequestParam(defaultValue = "1") @Min(value = 1, message = "页码最小值为1") Integer current,
+            @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") @Min(value = 1, message = "每页大小最小值为1") @Max(value = 100, message = "每页大小最大值为100") Integer size,
             @Parameter(description = "板块ID") @RequestParam(required = false) Long forumId,
             @Parameter(description = "用户ID（查询指定用户的帖子）") @RequestParam(required = false) Long userId,
             @Parameter(description = "帖子类型") @RequestParam(required = false) Integer type,
@@ -79,11 +82,19 @@ public class PostController {
         queryDTO.setSortType(sortType);
         queryDTO.setIsTop(isTop);
         queryDTO.setIsEssence(isEssence);
-        // 如果没有传递status参数，默认只查询已发布的帖子
-        queryDTO.setStatus(status != null ? status : 1);
 
         // 获取当前用户ID
         Long currentUserId = getCurrentUserId(request);
+
+        // 权限校验：只有管理员才能查询非已发布状态的帖子
+        boolean isAdmin = isAdmin(request);
+        if (status != null && status != 1 && !isAdmin) {
+            log.warn("普通用户尝试查询非已发布状态帖子, status: {}, userId: {}", status, currentUserId);
+            queryDTO.setStatus(1); // 强制只查询已发布的帖子
+        } else {
+            // 如果没有传递status参数，默认只查询已发布的帖子
+            queryDTO.setStatus(status != null ? status : 1);
+        }
 
         // 查询帖子列表
         PageResult<PostListVO> result;
@@ -326,8 +337,8 @@ public class PostController {
     @Operation(summary = "获取版块帖子列表", description = "分页获取指定版块的帖子列表")
     public Result<PageResult<PostListVO>> getPostsByForum(
             @Parameter(description = "版块ID") @PathVariable Long forumId,
-            @Parameter(description = "当前页") @RequestParam(defaultValue = "1") Integer current,
-            @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") Integer size,
+            @Parameter(description = "当前页") @RequestParam(defaultValue = "1") @Min(value = 1, message = "页码最小值为1") Integer current,
+            @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") @Min(value = 1, message = "每页大小最小值为1") @Max(value = 100, message = "每页大小最大值为100") Integer size,
             HttpServletRequest request) {
 
         log.info("获取版块帖子列表, forumId: {}, current: {}, size: {}", forumId, current, size);
@@ -361,8 +372,8 @@ public class PostController {
     @Operation(summary = "搜索帖子", description = "根据关键词搜索帖子")
     public Result<PageResult<PostListVO>> searchPosts(
             @Parameter(description = "搜索关键词") @RequestParam(required = false) String keyword,
-            @Parameter(description = "当前页") @RequestParam(defaultValue = "1") Integer current,
-            @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") Integer size,
+            @Parameter(description = "当前页") @RequestParam(defaultValue = "1") @Min(value = 1, message = "页码最小值为1") Integer current,
+            @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") @Min(value = 1, message = "每页大小最小值为1") @Max(value = 100, message = "每页大小最大值为100") Integer size,
             @Parameter(description = "板块ID") @RequestParam(required = false) Long forumId,
             HttpServletRequest request) {
 
@@ -459,8 +470,8 @@ public class PostController {
     @Operation(summary = "获取用户帖子列表", description = "获取指定用户发布的帖子列表")
     public Result<PageResult<PostListVO>> getUserPosts(
             @Parameter(description = "用户ID") @PathVariable Long userId,
-            @Parameter(description = "当前页") @RequestParam(defaultValue = "1") Integer current,
-            @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") Integer size,
+            @Parameter(description = "当前页") @RequestParam(defaultValue = "1") @Min(value = 1, message = "页码最小值为1") Integer current,
+            @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") @Min(value = 1, message = "每页大小最小值为1") @Max(value = 100, message = "每页大小最大值为100") Integer size,
             HttpServletRequest request) {
 
         log.info("获取用户帖子列表, userId: {}", userId);

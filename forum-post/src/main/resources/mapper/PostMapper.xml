@@ -93,6 +93,7 @@
         LEFT JOIN user u ON p.user_id = u.id
         LEFT JOIN forum f ON p.forum_id = f.id
         WHERE p.delete_flag = 0
+            AND p.audit_status = 1
         <if test="query.status != null">
             AND p.status = #{query.status}
         </if>
@@ -201,6 +202,7 @@
         LEFT JOIN forum f ON p.forum_id = f.id
         WHERE p.delete_flag = 0
             AND p.status = 1
+            AND p.audit_status = 1
             AND (
                 p.title LIKE CONCAT('%', #{keyword}, '%')
                 OR p.content LIKE CONCAT('%', #{keyword}, '%')
@@ -231,17 +233,17 @@
 
     <!-- 增加点赞数 -->
     <update id="incrementLikeCount">
-        UPDATE post SET like_count = like_count + #{count} WHERE id = #{id}
+        UPDATE post SET like_count = GREATEST(0, like_count + #{count}) WHERE id = #{id}
     </update>
 
     <!-- 增加评论数 -->
     <update id="incrementCommentCount">
-        UPDATE post SET comment_count = comment_count + #{count} WHERE id = #{id}
+        UPDATE post SET comment_count = GREATEST(0, comment_count + #{count}) WHERE id = #{id}
     </update>
 
     <!-- 增加收藏数 -->
     <update id="incrementCollectCount">
-        UPDATE post SET collect_count = collect_count + #{count} WHERE id = #{id}
+        UPDATE post SET collect_count = GREATEST(0, collect_count + #{count}) WHERE id = #{id}
     </update>
 
     <!-- 更新最后回复信息 -->

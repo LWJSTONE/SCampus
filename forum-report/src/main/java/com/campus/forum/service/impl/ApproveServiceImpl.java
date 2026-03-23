@@ -109,16 +109,24 @@ public class ApproveServiceImpl extends ServiceImpl<ApproveMapper, Approve> impl
      * 填充名称
      */
     private void fillNames(ApproveVO vo) {
-        // 内容类型名称
+        // 内容类型名称 - 使用Map替代数组避免越界
         if (vo.getContentType() != null) {
-            String[] typeNames = {"", "帖子", "评论", "头像", "昵称"};
-            vo.setContentTypeName(typeNames[vo.getContentType()]);
+            java.util.Map<Integer, String> typeNames = new java.util.HashMap<>();
+            typeNames.put(0, "");
+            typeNames.put(1, "帖子");
+            typeNames.put(2, "评论");
+            typeNames.put(3, "头像");
+            typeNames.put(4, "昵称");
+            vo.setContentTypeName(typeNames.getOrDefault(vo.getContentType(), "未知类型"));
         }
         
-        // 审核状态名称
+        // 审核状态名称 - 使用Map替代数组避免越界
         if (vo.getStatus() != null) {
-            String[] statusNames = {"待审核", "审核通过", "审核拒绝"};
-            vo.setStatusName(statusNames[vo.getStatus()]);
+            java.util.Map<Integer, String> statusNames = new java.util.HashMap<>();
+            statusNames.put(0, "待审核");
+            statusNames.put(1, "审核通过");
+            statusNames.put(2, "审核拒绝");
+            vo.setStatusName(statusNames.getOrDefault(vo.getStatus(), "未知状态"));
         }
     }
 }
