@@ -12,11 +12,13 @@ import java.time.LocalDateTime;
  * 
  * 记录帖子或评论中@提及用户的信息
  * 
+ * 数据库表: forum_mention
+ * 
  * @author campus
  * @since 2024-01-01
  */
 @Data
-@TableName("t_mention")
+@TableName("forum_mention")
 public class Mention implements Serializable {
 
     private static final long serialVersionUID = 1L;
@@ -28,34 +30,28 @@ public class Mention implements Serializable {
     private Long id;
 
     /**
-     * 来源类型（1-帖子 2-评论）
-     */
-    @TableField("source_type")
-    private Integer sourceType;
-
-    /**
-     * 来源ID（帖子ID或评论ID）
-     */
-    @TableField("source_id")
-    private Long sourceId;
-
-    /**
-     * 提及的用户ID
-     */
-    @TableField("user_id")
-    private Long userId;
-
-    /**
-     * 发起提及的用户ID
+     * 发起提及的用户ID（@别人的人）
      */
     @TableField("from_user_id")
     private Long fromUserId;
 
     /**
-     * 提及内容片段
+     * 被提及的用户ID（被@的人）
      */
-    @TableField("content")
-    private String content;
+    @TableField("to_user_id")
+    private Long toUserId;
+
+    /**
+     * 目标类型（1-帖子 2-评论）
+     */
+    @TableField("target_type")
+    private Integer targetType;
+
+    /**
+     * 目标ID（帖子ID或评论ID）
+     */
+    @TableField("target_id")
+    private Long targetId;
 
     /**
      * 是否已读（0-未读，1-已读）
@@ -69,11 +65,4 @@ public class Mention implements Serializable {
     @TableField(fill = FieldFill.INSERT)
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime createTime;
-
-    /**
-     * 删除标志（0-未删除，1-已删除）
-     */
-    @TableLogic
-    @TableField("delete_flag")
-    private Integer deleteFlag;
 }

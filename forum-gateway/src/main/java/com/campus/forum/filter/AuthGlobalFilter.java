@@ -79,9 +79,17 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
     private static final String INTERNAL_REQUEST_HEADER = "X-Internal-Request";
 
     /**
-     * 内部服务请求头预期值
+     * 内部服务签名请求头名称
+     * 使用签名验证内部服务调用，防止请求伪造
      */
-    private static final String INTERNAL_REQUEST_VALUE = "true";
+    private static final String INTERNAL_SIGNATURE_HEADER = "X-Internal-Signature";
+    
+    /**
+     * 内部服务密钥 - 从配置中心读取
+     * 生产环境必须配置此项
+     */
+    @Value("${app.internal-service-secret:}")
+    private String internalServiceSecret;
 
     /**
      * 白名单路径列表 - 不需要认证的路径
@@ -166,14 +174,58 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
         
         log.debug("Gateway处理请求: {}", path);
         
-        // 检查是否为内部服务路径（需要验证X-Internal-Request请求头）
+        // 检查是否为内部服务路径（需要验证内部服务签名）
         if (isInternalPath(path)) {
             String internalHeader = request.getHeaders().getFirst(INTERNAL_REQUEST_HEADER);
-            if (!INTERNAL_REQUEST_VALUE.equals(internalHeader)) {
-                log.warn("内部服务接口未授权访问: {}, 来源IP: {}", path, 
+            String signature = request.getHeaders().getFirst(INTERNAL_SIGNATURE_HEADER);
+            
+            // 验证内部服务请求头
+            if (!"true".equals(internalHeader)) {
+                log.warn("内部服务接口未授权访问(缺少请求头): {}, 来源IP: {}", path, 
                         request.getRemoteAddress() != null ? request.getRemoteAddress().getAddress().getHostAddress() : "unknown");
                 return unauthorizedResponse(exchange, "禁止访问内部接口");
             }
+            
+            // 验证签名（如果配置了密钥）
+            if (StringUtils.hasText(internalServiceSecret)) {
+                if (!StringUtils.hasText(signature)) {
+                    log.warn("内部服务接口缺少签名: {}, 来源IP: {}", path,
+                            request.getRemoteAddress() != null ? request.getRemoteAddress().getAddress().getHostAddress() : "unknown");
+                    return unauthorizedResponse(exchange, "禁止访问内部接口");
+                }
+                
+                // 验证签名：签名 = HMAC-SHA256(path + timestamp + secret)
+                String timestamp = request.getHeaders().getFirst("X-Timestamp");
+                if (!StringUtils.hasText(timestamp)) {
+                    log.warn("内部服务接口缺少时间戳: {}", path);
+                    return unauthorizedResponse(exchange, "禁止访问内部接口");
+                }
+                
+                // 检查时间戳是否在5分钟内有效
+                try {
+                    long requestTime = Long.parseLong(timestamp);
+                    long currentTime = System.currentTimeMillis();
+                    if (Math.abs(currentTime - requestTime) > 5 * 60 * 1000) {
+                        log.warn("内部服务接口时间戳过期: {}", path);
+                        return unauthorizedResponse(exchange, "请求已过期");
+                    }
+                } catch (NumberFormatException e) {
+                    log.warn("内部服务接口时间戳格式错误: {}", path);
+                    return unauthorizedResponse(exchange, "禁止访问内部接口");
+                }
+                
+                // 验证签名
+                String expectedSignature = generateSignature(path, timestamp, internalServiceSecret);
+                if (!expectedSignature.equals(signature)) {
+                    log.warn("内部服务接口签名验证失败: {}, 来源IP: {}", path,
+                            request.getRemoteAddress() != null ? request.getRemoteAddress().getAddress().getHostAddress() : "unknown");
+                    return unauthorizedResponse(exchange, "禁止访问内部接口");
+                }
+            } else {
+                // 未配置密钥时，记录警告（开发环境）
+                log.debug("内部服务接口验证通过(未配置签名验证): {}", path);
+            }
+            
             log.debug("内部服务接口验证通过: {}", path);
             return chain.filter(exchange);
         }
@@ -284,6 +336,39 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
         
         // 验证Token
         return verifier.verify(token);
+    }
+
+    /**
+     * 生成内部服务签名
+     * 使用HMAC-SHA256算法生成签名
+     * 
+     * @param path 请求路径
+     * @param timestamp 时间戳
+     * @param secret 密钥
+     * @return 签名字符串
+     */
+    private String generateSignature(String path, String timestamp, String secret) {
+        try {
+            javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+            javax.crypto.spec.SecretKeySpec secretKeySpec = new javax.crypto.spec.SecretKeySpec(
+                    secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+            mac.init(secretKeySpec);
+            String data = path + timestamp;
+            byte[] hash = mac.doFinal(data.getBytes(StandardCharsets.UTF_8));
+            // 转换为十六进制字符串
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hash) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) {
+                    hexString.append('0');
+                }
+                hexString.append(hex);
+            }
+            return hexString.toString();
+        } catch (Exception e) {
+            log.error("生成签名失败", e);
+            return "";
+        }
     }
 
     /**

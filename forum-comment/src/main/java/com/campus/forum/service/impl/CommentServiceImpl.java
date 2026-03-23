@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.campus.forum.api.notify.NotifyApi;
 import com.campus.forum.api.post.PostApi;
+import com.campus.forum.api.post.PostDTO;
 import com.campus.forum.api.user.UserApi;
 import com.campus.forum.api.user.UserDTO;
 import com.campus.forum.entity.Result;
@@ -54,9 +55,8 @@ public class CommentServiceImpl implements CommentService {
     private final CommentConfig commentConfig;
     private final StringRedisTemplate redisTemplate;
 
-    // 远程服务调用（需要时注入）
-    // private final NotifyApi notifyApi;
-    // private final PostApi postApi;
+    // 远程服务调用
+    private final PostApi postApi;
     private final UserApi userApi;
 
     // Redis Key前缀
@@ -309,7 +309,8 @@ public class CommentServiceImpl implements CommentService {
             if (isLike) {
                 redisTemplate.opsForValue().set(cacheKey, "1", Duration.ofDays(30));
             } else {
-                redisTemplate.delete(cacheKey);
+                // 取消点赞时设置为"0"而非删除，防止缓存穿透
+                redisTemplate.opsForValue().set(cacheKey, "0", Duration.ofDays(30));
             }
             
             log.info("评论{}成功, commentId: {}, userId: {}", isLike ? "点赞" : "取消点赞", commentId, userId);
@@ -530,17 +531,24 @@ public class CommentServiceImpl implements CommentService {
             throw new BusinessException(ResultCode.PARAM_ERROR, "帖子ID不能为空");
         }
         
-        // 验证帖子是否存在（需要集成PostApi后启用）
-        // TODO: 集成帖子服务后，添加帖子存在性验证
-        // try {
-        //     PostDTO post = postApi.getPostById(createDTO.getPostId());
-        //     if (post == null) {
-        //         throw new BusinessException(ResultCode.POST_NOT_FOUND, "帖子不存在或已删除");
-        //     }
-        // } catch (Exception e) {
-        //     log.error("验证帖子存在性失败, postId: {}", createDTO.getPostId(), e);
-        //     throw new BusinessException(ResultCode.POST_NOT_FOUND, "帖子不存在或已删除");
-        // }
+        // 验证帖子是否存在
+        try {
+            Result<PostDTO> postResult = postApi.getPostById(createDTO.getPostId());
+            if (postResult == null || !postResult.isSuccess() || postResult.getData() == null) {
+                throw new BusinessException(ResultCode.POST_NOT_FOUND, "帖子不存在或已删除");
+            }
+            // 检查帖子状态是否正常
+            PostDTO post = postResult.getData();
+            if (post.getStatus() == null || post.getStatus() != 1) {
+                throw new BusinessException(ResultCode.POST_NOT_FOUND, "帖子不存在或已被删除");
+            }
+        } catch (BusinessException e) {
+            throw e; // 重新抛出业务异常
+        } catch (Exception e) {
+            log.error("验证帖子存在性失败, postId: {}", createDTO.getPostId(), e);
+            // 服务调用失败时，为了用户体验，允许评论提交，但记录警告
+            log.warn("帖子服务不可用，跳过帖子验证: {}", e.getMessage());
+        }
         
         if (StrUtil.isBlank(createDTO.getContent())) {
             throw new BusinessException(ResultCode.PARAM_ERROR, "评论内容不能为空");

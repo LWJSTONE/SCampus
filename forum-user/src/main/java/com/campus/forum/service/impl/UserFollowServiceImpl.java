@@ -22,8 +22,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -49,15 +51,26 @@ public class UserFollowServiceImpl extends ServiceImpl<UserFollowMapper, UserFol
     private final StringRedisTemplate redisTemplate;
 
     private static final String FOLLOW_LOCK_PREFIX = "follow:lock:";
-    private static final long LOCK_WAIT_TIME = 3; // 锁等待时间（秒）
+    private static final long LOCK_WAIT_TIME = 10; // 锁过期时间（秒）
+
+    // 使用ThreadLocal存储当前线程的锁值，用于安全释放锁
+    private static final ThreadLocal<String> lockValueHolder = new ThreadLocal<>();
 
     /**
      * 获取分布式锁
+     * 使用UUID作为锁值，确保只有锁持有者才能释放锁
      */
     private boolean tryLock(String key) {
         try {
-            Boolean result = redisTemplate.opsForValue().setIfAbsent(key, "1", LOCK_WAIT_TIME, TimeUnit.SECONDS);
-            return Boolean.TRUE.equals(result);
+            // 生成唯一的锁值
+            String lockValue = UUID.randomUUID().toString();
+            Boolean result = redisTemplate.opsForValue().setIfAbsent(key, lockValue, LOCK_WAIT_TIME, TimeUnit.SECONDS);
+            if (Boolean.TRUE.equals(result)) {
+                // 保存锁值到ThreadLocal，用于后续释放
+                lockValueHolder.set(lockValue);
+                return true;
+            }
+            return false;
         } catch (Exception e) {
             log.warn("获取分布式锁失败: {}", key, e);
             return false;
@@ -66,12 +79,29 @@ public class UserFollowServiceImpl extends ServiceImpl<UserFollowMapper, UserFol
 
     /**
      * 释放分布式锁
+     * 使用Lua脚本保证原子性，只有锁持有者才能释放锁
      */
     private void unlock(String key) {
         try {
-            redisTemplate.delete(key);
+            String lockValue = lockValueHolder.get();
+            if (lockValue == null) {
+                log.warn("释放分布式锁失败: 未找到锁值");
+                return;
+            }
+            // 使用Lua脚本原子性释放锁：只有值匹配时才删除
+            String luaScript = "if redis.call('get', KEYS[1]) == ARGV[1] then " +
+                    "return redis.call('del', KEYS[1]) " +
+                    "else return 0 end";
+            redisTemplate.execute(
+                    new org.springframework.data.redis.core.script.DefaultRedisScript<>(luaScript, Long.class),
+                    Collections.singletonList(key),
+                    lockValue
+            );
+            // 清理ThreadLocal
+            lockValueHolder.remove();
         } catch (Exception e) {
             log.warn("释放分布式锁失败: {}", key, e);
+            lockValueHolder.remove();
         }
     }
 
@@ -97,7 +127,12 @@ public class UserFollowServiceImpl extends ServiceImpl<UserFollowMapper, UserFol
         // 检查被关注的用户是否存在
         User followingUser = userMapper.selectById(followingId);
         if (followingUser == null) {
-            throw new BusinessException(ResultCode.USER_NOT_FOUND);
+            throw new BusinessException(ResultCode.USER_NOT_FOUND, "被关注的用户不存在");
+        }
+        
+        // 检查被关注用户的状态，不能关注被禁用的用户
+        if (followingUser.getStatus() == null || followingUser.getStatus() != 1) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR, "该用户已被禁用，无法关注");
         }
         
         // 使用分布式锁防止并发问题

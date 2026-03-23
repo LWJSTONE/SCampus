@@ -74,24 +74,24 @@ public class ReportController {
             return Result.fail(401, "请先登录");
         }
         
-        // 频率限制检查
+        // 频率限制检查 - 使用Redis原子操作防止竞态条件
         String rateLimitKey = REPORT_RATE_LIMIT_KEY_PREFIX + userId;
-        String countStr = stringRedisTemplate.opsForValue().get(rateLimitKey);
-        int count = countStr != null ? Integer.parseInt(countStr) : 0;
         
-        if (count >= REPORT_RATE_LIMIT_PER_HOUR) {
-            log.warn("用户{}举报次数超过限制", userId);
+        // 原子性地增加计数器
+        Long newCount = stringRedisTemplate.opsForValue().increment(rateLimitKey);
+        
+        // 如果是第一次计数，设置过期时间
+        if (newCount != null && newCount == 1) {
+            stringRedisTemplate.expire(rateLimitKey, 1, TimeUnit.HOURS);
+        }
+        
+        // 检查是否超过限制
+        if (newCount != null && newCount > REPORT_RATE_LIMIT_PER_HOUR) {
+            log.warn("用户{}举报次数超过限制: {}", userId, newCount);
             return Result.fail(429, "举报过于频繁，请稍后再试");
         }
         
         Long reportId = reportService.submitReport(createDTO, userId);
-        
-        // 更新计数器
-        if (count == 0) {
-            stringRedisTemplate.opsForValue().set(rateLimitKey, "1", 1, TimeUnit.HOURS);
-        } else {
-            stringRedisTemplate.opsForValue().increment(rateLimitKey);
-        }
         
         return Result.success("举报提交成功，我们会尽快处理", reportId);
     }

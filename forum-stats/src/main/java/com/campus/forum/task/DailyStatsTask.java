@@ -15,11 +15,13 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 统计数据定时任务
  * 
  * 每日凌晨自动统计前一天的数据
+ * 从Redis中收集实时统计数据并持久化到数据库
  * 
  * @author campus
  * @since 2024-01-01
@@ -33,10 +35,14 @@ public class DailyStatsTask {
     private final RedisTemplate<String, Object> redisTemplate;
 
     private static final String CACHE_PREFIX = "stats:";
+    
+    // Redis中实时统计的key前缀
+    private static final String DAILY_STATS_PREFIX = "daily:stats:";
+    private static final String GLOBAL_STATS_KEY = "global:stats";
 
     /**
      * 每日凌晨1点执行统计数据生成
-     * 统计前一天的数据
+     * 统计前一天的数据，从Redis中获取实时统计并持久化
      */
     @Scheduled(cron = "0 0 1 * * ?")
     public void generateDailyStats() {
@@ -56,33 +62,62 @@ public class DailyStatsTask {
             DailyStats stats = new DailyStats();
             stats.setStatsDate(yesterday);
             
-            // TODO: 实际项目中应该从各业务服务获取真实数据
-            // 这里初始化为0，等待后续从其他服务同步数据
-            stats.setNewUsers(0);
-            stats.setNewPosts(0);
-            stats.setNewComments(0);
-            stats.setActiveUsers(0);
-            stats.setViewCount(0L);
-            stats.setLikeCount(0);
-            stats.setCollectCount(0);
-            stats.setFollowCount(0);
+            // 从Redis获取昨日的统计数据
+            String yesterdayKey = DAILY_STATS_PREFIX + yesterday.toString();
             
-            // 累计数据 = 最新累计数据 + 今日新增数据
+            // 获取新增用户数
+            Object newUsersObj = redisTemplate.opsForValue().get(yesterdayKey + ":new_users");
+            stats.setNewUsers(newUsersObj != null ? Integer.parseInt(newUsersObj.toString()) : 0);
+            
+            // 获取活跃用户数（从独立用户集合大小获取）
+            Long activeUserCount = redisTemplate.opsForSet().size(yesterdayKey + ":active_users");
+            stats.setActiveUsers(activeUserCount != null ? activeUserCount.intValue() : 0);
+            
+            // 获取新增帖子数
+            Object newPostsObj = redisTemplate.opsForValue().get(yesterdayKey + ":new_posts");
+            stats.setNewPosts(newPostsObj != null ? Integer.parseInt(newPostsObj.toString()) : 0);
+            
+            // 获取新增评论数
+            Object newCommentsObj = redisTemplate.opsForValue().get(yesterdayKey + ":new_comments");
+            stats.setNewComments(newCommentsObj != null ? Integer.parseInt(newCommentsObj.toString()) : 0);
+            
+            // 获取点赞数
+            Object likeCountObj = redisTemplate.opsForValue().get(yesterdayKey + ":likes");
+            stats.setLikeCount(likeCountObj != null ? Integer.parseInt(likeCountObj.toString()) : 0);
+            
+            // 获取收藏数
+            Object collectCountObj = redisTemplate.opsForValue().get(yesterdayKey + ":collects");
+            stats.setCollectCount(collectCountObj != null ? Integer.parseInt(collectCountObj.toString()) : 0);
+            
+            // 获取关注数
+            Object followCountObj = redisTemplate.opsForValue().get(yesterdayKey + ":follows");
+            stats.setFollowCount(followCountObj != null ? Integer.parseInt(followCountObj.toString()) : 0);
+            
+            // 获取浏览量
+            Object viewCountObj = redisTemplate.opsForValue().get(yesterdayKey + ":views");
+            stats.setViewCount(viewCountObj != null ? Long.parseLong(viewCountObj.toString()) : 0L);
+            
+            // 计算累计数据 = 最新累计数据 + 今日新增数据
             DailyStats latestStats = dailyStatsMapper.selectLatest();
             long baseTotalUsers = (latestStats != null && latestStats.getTotalUsers() != null) ? latestStats.getTotalUsers() : 0L;
             long baseTotalPosts = (latestStats != null && latestStats.getTotalPosts() != null) ? latestStats.getTotalPosts() : 0L;
             long baseTotalComments = (latestStats != null && latestStats.getTotalComments() != null) ? latestStats.getTotalComments() : 0L;
-            stats.setTotalUsers(baseTotalUsers + (stats.getNewUsers() != null ? stats.getNewUsers() : 0));
-            stats.setTotalPosts(baseTotalPosts + (stats.getNewPosts() != null ? stats.getNewPosts() : 0));
-            stats.setTotalComments(baseTotalComments + (stats.getNewComments() != null ? stats.getNewComments() : 0));
+            
+            stats.setTotalUsers(baseTotalUsers + stats.getNewUsers());
+            stats.setTotalPosts(baseTotalPosts + stats.getNewPosts());
+            stats.setTotalComments(baseTotalComments + stats.getNewComments());
             
             // 插入统计记录
             dailyStatsMapper.insert(stats);
             
+            // 清理昨日的Redis统计key（保留今日的）
+            cleanupYesterdayStats(yesterdayKey);
+            
             // 清除所有统计相关的缓存
             clearStatsCache();
             
-            log.info("日期 {} 的统计数据生成完成", yesterday);
+            log.info("日期 {} 的统计数据生成完成: 新增用户={}, 新增帖子={}, 新增评论={}, 浏览量={}", 
+                    yesterday, stats.getNewUsers(), stats.getNewPosts(), stats.getNewComments(), stats.getViewCount());
         } catch (Exception e) {
             log.error("生成每日统计数据失败", e);
         }
@@ -101,6 +136,18 @@ public class DailyStatsTask {
             
             // 检查今日统计记录是否存在
             DailyStats todayStats = dailyStatsMapper.selectByDate(today);
+            
+            // 从Redis获取今日实时数据
+            String todayKey = DAILY_STATS_PREFIX + today.toString();
+            
+            // 获取活跃用户数
+            Long activeUserCount = redisTemplate.opsForSet().size(todayKey + ":active_users");
+            int activeUsers = activeUserCount != null ? activeUserCount.intValue() : 0;
+            
+            // 获取浏览量
+            Object viewCountObj = redisTemplate.opsForValue().get(todayKey + ":views");
+            long viewCount = viewCountObj != null ? Long.parseLong(viewCountObj.toString()) : 0L;
+            
             if (todayStats == null) {
                 // 创建今日统计记录
                 todayStats = new DailyStats();
@@ -108,30 +155,83 @@ public class DailyStatsTask {
                 todayStats.setNewUsers(0);
                 todayStats.setNewPosts(0);
                 todayStats.setNewComments(0);
-                todayStats.setActiveUsers(0);
-                todayStats.setViewCount(0L);
+                todayStats.setActiveUsers(activeUsers);
+                todayStats.setViewCount(viewCount);
                 todayStats.setLikeCount(0);
                 todayStats.setCollectCount(0);
                 todayStats.setFollowCount(0);
                 
-                // 累计数据 = 最新累计数据 + 今日新增数据
+                // 累计数据 = 最新累计数据
                 DailyStats latestStats = dailyStatsMapper.selectLatest();
                 long baseTotalUsers = (latestStats != null && latestStats.getTotalUsers() != null) ? latestStats.getTotalUsers() : 0L;
                 long baseTotalPosts = (latestStats != null && latestStats.getTotalPosts() != null) ? latestStats.getTotalPosts() : 0L;
                 long baseTotalComments = (latestStats != null && latestStats.getTotalComments() != null) ? latestStats.getTotalComments() : 0L;
-                todayStats.setTotalUsers(baseTotalUsers + (todayStats.getNewUsers() != null ? todayStats.getNewUsers() : 0));
-                todayStats.setTotalPosts(baseTotalPosts + (todayStats.getNewPosts() != null ? todayStats.getNewPosts() : 0));
-                todayStats.setTotalComments(baseTotalComments + (todayStats.getNewComments() != null ? todayStats.getNewComments() : 0));
+                todayStats.setTotalUsers(baseTotalUsers);
+                todayStats.setTotalPosts(baseTotalPosts);
+                todayStats.setTotalComments(baseTotalComments);
                 
                 dailyStatsMapper.insert(todayStats);
+            } else {
+                // 更新今日活跃用户数和浏览量
+                todayStats.setActiveUsers(activeUsers);
+                todayStats.setViewCount(viewCount);
+                dailyStatsMapper.updateById(todayStats);
             }
             
             // 清除缓存，让下次查询获取最新数据
             clearStatsCache();
             
-            log.info("今日统计数据更新完成");
+            log.info("今日统计数据更新完成: 活跃用户={}, 浏览量={}", activeUsers, viewCount);
         } catch (Exception e) {
             log.error("更新今日统计数据失败", e);
+        }
+    }
+
+    /**
+     * 每5分钟同步一次今日实时计数器到Redis
+     * 确保数据不会因Redis重启而丢失
+     */
+    @Scheduled(cron = "0 */5 * * * ?")
+    public void syncTodayCounters() {
+        try {
+            LocalDate today = LocalDate.now();
+            String todayKey = DAILY_STATS_PREFIX + today.toString();
+            
+            // 更新今日统计到全局统计key（用于快速查询）
+            Object newUsers = redisTemplate.opsForValue().get(todayKey + ":new_users");
+            Object newPosts = redisTemplate.opsForValue().get(todayKey + ":new_posts");
+            Object newComments = redisTemplate.opsForValue().get(todayKey + ":new_comments");
+            
+            if (newUsers != null || newPosts != null || newComments != null) {
+                // 设置缓存过期时间为7天，确保数据有足够时间被定时任务持久化
+                redisTemplate.expire(todayKey + ":new_users", 7, TimeUnit.DAYS);
+                redisTemplate.expire(todayKey + ":new_posts", 7, TimeUnit.DAYS);
+                redisTemplate.expire(todayKey + ":new_comments", 7, TimeUnit.DAYS);
+            }
+        } catch (Exception e) {
+            log.warn("同步今日计数器失败", e);
+        }
+    }
+
+    /**
+     * 清理昨日的Redis统计key
+     */
+    private void cleanupYesterdayStats(String yesterdayKey) {
+        try {
+            Set<String> keysToDelete = new HashSet<>();
+            keysToDelete.add(yesterdayKey + ":new_users");
+            keysToDelete.add(yesterdayKey + ":new_posts");
+            keysToDelete.add(yesterdayKey + ":new_comments");
+            keysToDelete.add(yesterdayKey + ":likes");
+            keysToDelete.add(yesterdayKey + ":collects");
+            keysToDelete.add(yesterdayKey + ":follows");
+            keysToDelete.add(yesterdayKey + ":views");
+            keysToDelete.add(yesterdayKey + ":active_users");
+            
+            redisTemplate.delete(keysToDelete);
+            log.debug("已清理昨日统计key: {}", yesterdayKey);
+        } catch (Exception e) {
+            log.warn("清理昨日统计key失败", e);
         }
     }
 
