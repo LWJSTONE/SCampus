@@ -16,7 +16,7 @@ import java.time.LocalDateTime;
  * @since 2024-01-01
  */
 @Data
-@TableName("t_like")
+@TableName("forum_like")
 public class Like implements Serializable {
 
     private static final long serialVersionUID = 1L;
@@ -54,8 +54,9 @@ public class Like implements Serializable {
 
     /**
      * 删除标志（0-未取消，1-已取消）
+     * 注：forum_like 表无此字段，保留用于扩展
      */
-    @TableLogic
+    // @TableLogic
     @TableField("delete_flag")
     private Integer deleteFlag;
 }

@@ -78,6 +78,9 @@ public class ReportController {
             @Parameter(description = "原因类型") @RequestParam(required = false) Integer reasonType,
             HttpServletRequest request) {
         
+        // 验证管理员权限
+        validateAdminPermission(request);
+        
         log.info("获取举报列表, current: {}, size: {}", current, size);
         
         ReportQueryDTO queryDTO = new ReportQueryDTO();
@@ -117,6 +120,9 @@ public class ReportController {
             @Parameter(description = "举报ID") @PathVariable Long id,
             @Validated @RequestBody ReportHandleDTO handleDTO,
             HttpServletRequest request) {
+        
+        // 验证管理员权限
+        validateAdminPermission(request);
         
         log.info("处理举报, id: {}, result: {}", id, handleDTO.getResult());
         
@@ -163,6 +169,9 @@ public class ReportController {
             @Parameter(description = "用户ID") @RequestParam(required = false) Long userId,
             HttpServletRequest request) {
         
+        // 验证管理员权限
+        validateAdminPermission(request);
+        
         log.info("获取待审核列表, current: {}, size: {}", current, size);
         
         ApproveQueryDTO queryDTO = new ApproveQueryDTO();
@@ -186,6 +195,9 @@ public class ReportController {
             @Parameter(description = "审核ID") @PathVariable Long id,
             @Validated @RequestBody ApproveHandleDTO handleDTO,
             HttpServletRequest request) {
+        
+        // 验证管理员权限
+        validateAdminPermission(request);
         
         log.info("审核处理, id: {}, status: {}", id, handleDTO.getStatus());
         
@@ -226,6 +238,9 @@ public class ReportController {
             @Validated @RequestBody UserBanDTO banDTO,
             HttpServletRequest request) {
         
+        // 验证管理员权限
+        validateAdminPermission(request);
+        
         log.info("禁言用户, userId: {}, days: {}", banDTO.getUserId(), banDTO.getBanDays());
         
         Long operatorId = getCurrentUserId(request);
@@ -247,6 +262,9 @@ public class ReportController {
             @Parameter(description = "用户ID") @PathVariable Long userId,
             @Parameter(description = "解除原因") @RequestParam(required = false) String reason,
             HttpServletRequest request) {
+        
+        // 验证管理员权限
+        validateAdminPermission(request);
         
         log.info("解除禁言, userId: {}", userId);
         
@@ -287,6 +305,9 @@ public class ReportController {
             @Parameter(description = "用户ID") @RequestParam(required = false) Long userId,
             @Parameter(description = "禁言状态") @RequestParam(required = false) Integer status,
             HttpServletRequest request) {
+        
+        // 验证管理员权限
+        validateAdminPermission(request);
         
         log.info("获取禁言列表, current: {}, size: {}", current, size);
         
@@ -332,5 +353,15 @@ public class ReportController {
         }
         
         return null;
+    }
+
+    /**
+     * 验证管理员权限
+     */
+    private void validateAdminPermission(HttpServletRequest request) {
+        String role = request.getHeader("X-User-Role");
+        if (role == null || (!"ADMIN".equalsIgnoreCase(role) && !"ROLE_ADMIN".equalsIgnoreCase(role))) {
+            throw new RuntimeException("无权限执行此操作，需要管理员权限");
+        }
     }
 }

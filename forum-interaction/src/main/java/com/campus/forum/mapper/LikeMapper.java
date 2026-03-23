@@ -18,12 +18,12 @@ public interface LikeMapper extends BaseMapper<Like> {
     /**
      * 统计目标的点赞数
      */
-    @Select("SELECT COUNT(*) FROM t_like WHERE target_type = #{targetType} AND target_id = #{targetId} AND delete_flag = 0")
+    @Select("SELECT COUNT(*) FROM forum_like WHERE target_type = #{targetType} AND target_id = #{targetId}")
     int countByTarget(@Param("targetType") Integer targetType, @Param("targetId") Long targetId);
 
     /**
      * 检查是否已点赞
      */
-    @Select("SELECT COUNT(*) FROM t_like WHERE target_type = #{targetType} AND target_id = #{targetId} AND user_id = #{userId} AND delete_flag = 0")
+    @Select("SELECT COUNT(*) FROM forum_like WHERE target_type = #{targetType} AND target_id = #{targetId} AND user_id = #{userId}")
     int checkLiked(@Param("targetType") Integer targetType, @Param("targetId") Long targetId, @Param("userId") Long userId);
 }

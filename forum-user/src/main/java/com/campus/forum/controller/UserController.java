@@ -19,6 +19,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -48,6 +49,12 @@ public class UserController {
     private final UserFollowService userFollowService;
     private final PostApi postApi;
     private final CommentApi commentApi;
+
+    /**
+     * 内部服务调用密钥
+     */
+    @Value("${app.internal-service-key:campus-internal-service-key-2024}")
+    private String internalServiceKey;
 
     // ==================== 用户信息管理 ====================
 
@@ -356,12 +363,19 @@ public class UserController {
      * 内部API：增加用户帖子数
      *
      * @param id 用户ID
+     * @param serviceKey 内部服务密钥
      * @return 操作结果
      */
     @PutMapping("/api/internal/user/{id}/post-count/increment")
     @Operation(summary = "内部API-增加帖子数", description = "供其他服务调用的内部接口")
     public Result<Boolean> incrementPostCount(
-            @Parameter(description = "用户ID") @PathVariable Long id) {
+            @Parameter(description = "用户ID") @PathVariable Long id,
+            @Parameter(description = "内部服务密钥") @RequestHeader(value = "X-Internal-Service-Key", required = false) String serviceKey) {
+        // 验证内部服务密钥
+        if (internalServiceKey == null || !internalServiceKey.equals(serviceKey)) {
+            log.warn("内部API调用鉴权失败，serviceKey: {}", serviceKey);
+            return Result.fail(403, "无权限访问内部API");
+        }
         log.info("内部API调用：增加用户帖子数，用户ID: {}", id);
         userService.incrementPostCount(id);
         return Result.success(true);
@@ -371,12 +385,19 @@ public class UserController {
      * 内部API：减少用户帖子数
      *
      * @param id 用户ID
+     * @param serviceKey 内部服务密钥
      * @return 操作结果
      */
     @PutMapping("/api/internal/user/{id}/post-count/decrement")
     @Operation(summary = "内部API-减少帖子数", description = "供其他服务调用的内部接口")
     public Result<Boolean> decrementPostCount(
-            @Parameter(description = "用户ID") @PathVariable Long id) {
+            @Parameter(description = "用户ID") @PathVariable Long id,
+            @Parameter(description = "内部服务密钥") @RequestHeader(value = "X-Internal-Service-Key", required = false) String serviceKey) {
+        // 验证内部服务密钥
+        if (internalServiceKey == null || !internalServiceKey.equals(serviceKey)) {
+            log.warn("内部API调用鉴权失败，serviceKey: {}", serviceKey);
+            return Result.fail(403, "无权限访问内部API");
+        }
         log.info("内部API调用：减少用户帖子数，用户ID: {}", id);
         userService.decrementPostCount(id);
         return Result.success(true);
@@ -386,12 +407,19 @@ public class UserController {
      * 内部API：增加用户评论数
      *
      * @param id 用户ID
+     * @param serviceKey 内部服务密钥
      * @return 操作结果
      */
     @PutMapping("/api/internal/user/{id}/comment-count/increment")
     @Operation(summary = "内部API-增加评论数", description = "供其他服务调用的内部接口")
     public Result<Boolean> incrementCommentCount(
-            @Parameter(description = "用户ID") @PathVariable Long id) {
+            @Parameter(description = "用户ID") @PathVariable Long id,
+            @Parameter(description = "内部服务密钥") @RequestHeader(value = "X-Internal-Service-Key", required = false) String serviceKey) {
+        // 验证内部服务密钥
+        if (internalServiceKey == null || !internalServiceKey.equals(serviceKey)) {
+            log.warn("内部API调用鉴权失败，serviceKey: {}", serviceKey);
+            return Result.fail(403, "无权限访问内部API");
+        }
         log.info("内部API调用：增加用户评论数，用户ID: {}", id);
         userService.incrementCommentCount(id);
         return Result.success(true);
@@ -401,12 +429,19 @@ public class UserController {
      * 内部API：减少用户评论数
      *
      * @param id 用户ID
+     * @param serviceKey 内部服务密钥
      * @return 操作结果
      */
     @PutMapping("/api/internal/user/{id}/comment-count/decrement")
     @Operation(summary = "内部API-减少评论数", description = "供其他服务调用的内部接口")
     public Result<Boolean> decrementCommentCount(
-            @Parameter(description = "用户ID") @PathVariable Long id) {
+            @Parameter(description = "用户ID") @PathVariable Long id,
+            @Parameter(description = "内部服务密钥") @RequestHeader(value = "X-Internal-Service-Key", required = false) String serviceKey) {
+        // 验证内部服务密钥
+        if (internalServiceKey == null || !internalServiceKey.equals(serviceKey)) {
+            log.warn("内部API调用鉴权失败，serviceKey: {}", serviceKey);
+            return Result.fail(403, "无权限访问内部API");
+        }
         log.info("内部API调用：减少用户评论数，用户ID: {}", id);
         userService.decrementCommentCount(id);
         return Result.success(true);

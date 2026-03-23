@@ -175,6 +175,25 @@ public class JwtUtils {
     }
 
     /**
+     * 从令牌中获取用户ID（需验证签名）
+     *
+     * @param token JWT令牌
+     * @param secret 密钥
+     * @return 用户ID
+     */
+    public static Long getUserId(String token, String secret) {
+        try {
+            Algorithm algorithm = Algorithm.HMAC256(secret);
+            JWTVerifier verifier = JWT.require(algorithm).withIssuer(ISSUER).build();
+            DecodedJWT jwt = verifier.verify(token);
+            return jwt.getClaim("userId").asLong();
+        } catch (JWTVerificationException e) {
+            log.error("JWT令牌验证失败: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
      * 从令牌中获取用户名
      *
      * @param token JWT令牌
@@ -186,6 +205,25 @@ public class JwtUtils {
             return jwt.getSubject();
         }
         return null;
+    }
+
+    /**
+     * 从令牌中获取用户名（需验证签名）
+     *
+     * @param token JWT令牌
+     * @param secret 密钥
+     * @return 用户名
+     */
+    public static String getUsername(String token, String secret) {
+        try {
+            Algorithm algorithm = Algorithm.HMAC256(secret);
+            JWTVerifier verifier = JWT.require(algorithm).withIssuer(ISSUER).build();
+            DecodedJWT jwt = verifier.verify(token);
+            return jwt.getSubject();
+        } catch (JWTVerificationException e) {
+            log.error("JWT令牌验证失败: {}", e.getMessage());
+            return null;
+        }
     }
 
     /**

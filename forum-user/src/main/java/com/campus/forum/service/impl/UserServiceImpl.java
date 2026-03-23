@@ -152,13 +152,19 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             throw new BusinessException(ResultCode.OLD_PASSWORD_ERROR);
         }
         
+        // 验证密码强度：长度必须在6-20位之间
+        String newPassword = passwordDTO.getNewPassword();
+        if (newPassword == null || newPassword.length() < 6 || newPassword.length() > 20) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR, "密码长度必须在6-20位之间");
+        }
+        
         // 验证两次密码是否一致
-        if (!passwordDTO.getNewPassword().equals(passwordDTO.getConfirmPassword())) {
+        if (!newPassword.equals(passwordDTO.getConfirmPassword())) {
             throw new BusinessException(ResultCode.PASSWORD_NOT_MATCH);
         }
         
         // 加密新密码
-        String encodedPassword = BCrypt.hashpw(passwordDTO.getNewPassword(), BCrypt.gensalt());
+        String encodedPassword = BCrypt.hashpw(newPassword, BCrypt.gensalt());
         
         return userMapper.updatePassword(id, encodedPassword) > 0;
     }

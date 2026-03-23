@@ -130,13 +130,22 @@ public class CommentServiceImpl implements CommentService {
         String ipLocation = IpUtils.getIpLocation(ipAddress);
         comment.setIpLocation(ipLocation);
         
-        // 4. 处理父评论和回复用户
+        // 4. 处理父评论和回复用户（只允许一级嵌套）
         Long parentId = createDTO.getParentId();
         if (parentId != null && parentId > 0) {
             // 验证父评论是否存在
             Comment parentComment = commentMapper.selectById(parentId);
             if (parentComment == null || parentComment.getDeleteFlag() == 1) {
                 throw new BusinessException(ResultCode.COMMENT_NOT_FOUND);
+            }
+            
+            // 只允许一级嵌套：如果父评论已经是子评论，则使用其父评论ID
+            if (parentComment.getParentId() != null && parentComment.getParentId() > 0) {
+                parentId = parentComment.getParentId();
+                // 更新回复用户为一级评论的作者或指定的回复用户
+                if (createDTO.getReplyToUserId() == null) {
+                    createDTO.setReplyToUserId(parentComment.getUserId());
+                }
             }
             comment.setParentId(parentId);
             comment.setReplyToUserId(createDTO.getReplyToUserId() != null ? 
@@ -192,8 +201,14 @@ public class CommentServiceImpl implements CommentService {
             commentMapper.decrementReplyCount(comment.getParentId());
         }
         
-        // 5. 更新帖子评论数
-        updatePostCommentCount(comment.getPostId(), -1);
+        // 5. 处理子评论统计
+        int subCommentCount = 0;
+        if (comment.getReplyCount() != null && comment.getReplyCount() > 0) {
+            subCommentCount = comment.getReplyCount();
+        }
+        
+        // 6. 更新帖子评论数（包括子评论）
+        updatePostCommentCount(comment.getPostId(), -1 - subCommentCount);
         
         log.info("评论删除成功, commentId: {}", commentId);
         return true;
@@ -328,18 +343,27 @@ public class CommentServiceImpl implements CommentService {
      */
     @Override
     public int countByPostId(Long postId) {
-        // 先从缓存获取
-        String cacheKey = REDIS_KEY_COMMENT_COUNT + postId;
-        String count = redisTemplate.opsForValue().get(cacheKey);
-        if (count != null) {
-            return Integer.parseInt(count);
+        try {
+            // 先从缓存获取
+            String cacheKey = REDIS_KEY_COMMENT_COUNT + postId;
+            String count = redisTemplate.opsForValue().get(cacheKey);
+            if (count != null) {
+                return Integer.parseInt(count);
+            }
+        } catch (Exception e) {
+            log.warn("获取评论数缓存失败, postId: {}", postId, e);
         }
         
         // 从数据库查询
         int commentCount = commentMapper.countByPostId(postId);
         
         // 写入缓存
-        redisTemplate.opsForValue().set(cacheKey, String.valueOf(commentCount), Duration.ofHours(1));
+        try {
+            String cacheKey = REDIS_KEY_COMMENT_COUNT + postId;
+            redisTemplate.opsForValue().set(cacheKey, String.valueOf(commentCount), Duration.ofHours(1));
+        } catch (Exception e) {
+            log.warn("写入评论数缓存失败, postId: {}", postId, e);
+        }
         
         return commentCount;
     }
@@ -517,9 +541,17 @@ public class CommentServiceImpl implements CommentService {
      * 更新帖子评论数
      */
     private void updatePostCommentCount(Long postId, int delta) {
-        // 更新缓存
-        String cacheKey = REDIS_KEY_COMMENT_COUNT + postId;
-        redisTemplate.opsForValue().increment(cacheKey, delta);
+        try {
+            // 更新缓存
+            String cacheKey = REDIS_KEY_COMMENT_COUNT + postId;
+            Boolean hasKey = redisTemplate.hasKey(cacheKey);
+            if (Boolean.TRUE.equals(hasKey)) {
+                redisTemplate.opsForValue().increment(cacheKey, delta);
+            }
+            // 如果缓存不存在，不创建，让下次查询时从数据库加载
+        } catch (Exception e) {
+            log.warn("更新评论数缓存失败, postId: {}", postId, e);
+        }
         
         // 实际项目中应该调用帖子服务更新数据库
         // postApi.updateCommentCount(postId, delta);

@@ -60,13 +60,13 @@ public class UserFollowServiceImpl extends ServiceImpl<UserFollowMapper, UserFol
             throw new BusinessException(ResultCode.USER_NOT_FOUND);
         }
         
-        // 检查是否已关注
+        // 检查是否已关注（包括已取消的记录）
         UserFollow existFollow = userFollowMapper.selectByFollowerAndFollowing(followerId, followingId);
-        if (existFollow != null && existFollow.getStatus() == 1) {
-            throw new BusinessException(ResultCode.BUSINESS_ERROR, "已经关注了该用户");
-        }
         
         if (existFollow != null) {
+            if (existFollow.getStatus() == 1) {
+                throw new BusinessException(ResultCode.BUSINESS_ERROR, "已经关注了该用户");
+            }
             // 之前关注过但取消了，更新状态为关注
             existFollow.setStatus(1);
             updateById(existFollow);

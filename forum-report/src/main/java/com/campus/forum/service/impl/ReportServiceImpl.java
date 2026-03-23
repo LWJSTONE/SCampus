@@ -20,6 +20,9 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * 举报服务实现类
  *
@@ -37,7 +40,22 @@ public class ReportServiceImpl extends ServiceImpl<ReportMapper, Report> impleme
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Long submitReport(ReportCreateDTO createDTO, Long reporterId) {
-        // 检查是否已举报
+        // 验证举报类型
+        if (createDTO.getReportType() == null || createDTO.getReportType() < 1 || createDTO.getReportType() > 3) {
+            throw new BusinessException("举报类型不合法");
+        }
+        
+        // 验证原因类型
+        if (createDTO.getReasonType() == null || createDTO.getReasonType() < 1 || createDTO.getReasonType() > 6) {
+            throw new BusinessException("举报原因类型不合法");
+        }
+        
+        // 验证不能举报自己
+        if (createDTO.getReportedUserId() != null && createDTO.getReportedUserId().equals(reporterId)) {
+            throw new BusinessException("不能举报自己");
+        }
+        
+        // 检查是否已举报（待处理或处理中的举报）
         int count = reportMapper.countByReporterAndTarget(reporterId, createDTO.getTargetId());
         if (count > 0) {
             throw new BusinessException("您已举报过该内容，请等待处理");
@@ -92,8 +110,8 @@ public class ReportServiceImpl extends ServiceImpl<ReportMapper, Report> impleme
             throw new BusinessException("举报记录不存在");
         }
         
-        if (report.getStatus() == 2) {
-            throw new BusinessException("该举报已处理");
+        if (report.getStatus() == 2 || report.getStatus() == 3) {
+            throw new BusinessException("该举报已处理，无法重复操作");
         }
 
         int result = reportMapper.updateHandleStatus(id, 2, handlerId, 
@@ -128,26 +146,44 @@ public class ReportServiceImpl extends ServiceImpl<ReportMapper, Report> impleme
     private void fillNames(ReportVO vo) {
         // 举报类型名称
         if (vo.getReportType() != null) {
-            String[] typeNames = {"", "帖子", "评论", "用户"};
-            vo.setReportTypeName(typeNames[vo.getReportType()]);
+            Map<Integer, String> typeMap = new HashMap<>();
+            typeMap.put(1, "帖子");
+            typeMap.put(2, "评论");
+            typeMap.put(3, "用户");
+            vo.setReportTypeName(typeMap.getOrDefault(vo.getReportType(), "未知类型"));
         }
         
         // 原因类型名称
         if (vo.getReasonType() != null) {
-            String[] reasonNames = {"", "垃圾广告", "色情低俗", "违法违规", "人身攻击", "恶意灌水", "其他"};
-            vo.setReasonTypeName(reasonNames[vo.getReasonType()]);
+            Map<Integer, String> reasonMap = new HashMap<>();
+            reasonMap.put(1, "垃圾广告");
+            reasonMap.put(2, "色情低俗");
+            reasonMap.put(3, "违法违规");
+            reasonMap.put(4, "人身攻击");
+            reasonMap.put(5, "恶意灌水");
+            reasonMap.put(6, "其他");
+            vo.setReasonTypeName(reasonMap.getOrDefault(vo.getReasonType(), "其他"));
         }
         
         // 状态名称
         if (vo.getStatus() != null) {
-            String[] statusNames = {"待处理", "处理中", "已处理", "已驳回"};
-            vo.setStatusName(statusNames[vo.getStatus()]);
+            Map<Integer, String> statusMap = new HashMap<>();
+            statusMap.put(0, "待处理");
+            statusMap.put(1, "处理中");
+            statusMap.put(2, "已处理");
+            statusMap.put(3, "已驳回");
+            vo.setStatusName(statusMap.getOrDefault(vo.getStatus(), "未知状态"));
         }
         
         // 处理结果名称
         if (vo.getResult() != null) {
-            String[] resultNames = {"无违规", "警告", "删除内容", "禁言", "封号"};
-            vo.setResultName(resultNames[vo.getResult()]);
+            Map<Integer, String> resultMap = new HashMap<>();
+            resultMap.put(0, "无违规");
+            resultMap.put(1, "警告");
+            resultMap.put(2, "删除内容");
+            resultMap.put(3, "禁言");
+            resultMap.put(4, "封号");
+            vo.setResultName(resultMap.getOrDefault(vo.getResult(), "未知结果"));
         }
     }
 }

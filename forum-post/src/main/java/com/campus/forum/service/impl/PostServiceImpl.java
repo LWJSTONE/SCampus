@@ -156,11 +156,17 @@ public class PostServiceImpl implements PostService {
         // 1. 参数校验
         validatePost(createDTO);
 
-        // 2. 敏感词过滤
+        // 2. 验证板块是否存在（简化处理，实际应调用forum服务）
+        // Forum forum = forumMapper.selectById(createDTO.getForumId());
+        // if (forum == null || forum.getStatus() != 1) {
+        //     throw new BusinessException(ResultCode.FORUM_NOT_FOUND, "板块不存在或已关闭");
+        // }
+
+        // 3. 敏感词过滤
         String content = filterSensitiveWords(createDTO.getContent());
         String title = filterSensitiveWords(createDTO.getTitle());
 
-        // 3. 构建帖子实体
+        // 4. 构建帖子实体
         Post post = new Post();
         post.setForumId(createDTO.getForumId());
         post.setUserId(userId);
@@ -182,22 +188,22 @@ public class PostServiceImpl implements PostService {
         post.setIpAddress(ipAddress);
         post.setAuditStatus(1); // 审核通过（实际项目可能需要审核流程）
 
-        // 4. 保存帖子
+        // 5. 保存帖子
         postMapper.insert(post);
 
         Long postId = post.getId();
 
-        // 5. 保存标签关联
+        // 6. 保存标签关联
         if (createDTO.getTagIds() != null && !createDTO.getTagIds().isEmpty()) {
             savePostTags(postId, createDTO.getTagIds());
         }
 
-        // 6. 保存附件
+        // 7. 保存附件
         if (createDTO.getAttachments() != null && !createDTO.getAttachments().isEmpty()) {
             savePostAttachments(postId, createDTO.getAttachments());
         }
 
-        // 7. 更新用户帖子数缓存
+        // 8. 更新用户帖子数缓存
         String countKey = REDIS_KEY_POST_COUNT + userId;
         redisTemplate.opsForValue().increment(countKey);
 
@@ -221,11 +227,19 @@ public class PostServiceImpl implements PostService {
             throw new BusinessException(ResultCode.POST_NO_PERMISSION);
         }
 
-        // 3. 敏感词过滤
+        // 3. 检查帖子状态
+        if (post.getStatus() == 3) {
+            throw new BusinessException(ResultCode.POST_NOT_FOUND, "帖子已被删除，无法编辑");
+        }
+        if (post.getStatus() == 2) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR, "帖子已关闭，无法编辑");
+        }
+
+        // 4. 敏感词过滤
         String content = updateDTO.getContent() != null ? filterSensitiveWords(updateDTO.getContent()) : null;
         String title = updateDTO.getTitle() != null ? filterSensitiveWords(updateDTO.getTitle()) : null;
 
-        // 4. 更新帖子
+        // 5. 更新帖子
         if (updateDTO.getForumId() != null) {
             post.setForumId(updateDTO.getForumId());
         }
@@ -248,7 +262,7 @@ public class PostServiceImpl implements PostService {
 
         postMapper.updateById(post);
 
-        // 5. 更新标签
+        // 6. 更新标签
         if (updateDTO.getTagIds() != null) {
             postTagMapper.deleteByPostId(updateDTO.getId());
             if (!updateDTO.getTagIds().isEmpty()) {
@@ -256,7 +270,7 @@ public class PostServiceImpl implements PostService {
             }
         }
 
-        // 6. 更新附件
+        // 7. 更新附件
         if (updateDTO.getAttachments() != null) {
             postAttachmentMapper.deleteByPostId(updateDTO.getId());
             if (!updateDTO.getAttachments().isEmpty()) {
@@ -297,7 +311,13 @@ public class PostServiceImpl implements PostService {
 
         // 6. 更新用户帖子数缓存
         String countKey = REDIS_KEY_POST_COUNT + post.getUserId();
-        redisTemplate.opsForValue().decrement(countKey);
+        String count = redisTemplate.opsForValue().get(countKey);
+        if (count != null) {
+            long currentCount = Long.parseLong(count);
+            if (currentCount > 0) {
+                redisTemplate.opsForValue().decrement(countKey);
+            }
+        }
 
         log.info("帖子删除成功, postId: {}", id);
         return true;
@@ -314,17 +334,11 @@ public class PostServiceImpl implements PostService {
             throw new BusinessException(ResultCode.POST_NOT_FOUND);
         }
 
-        // 2. 更新置顶状态
+        // 2. 更新置顶状态（SQL中已经处理了top_time的设置）
         int rows = postMapper.updateTopStatus(id, isTop);
-        if (rows > 0 && isTop == 1) {
-            // 设置置顶时间
-            post.setIsTop(1);
-            post.setTopTime(LocalDateTime.now());
-            postMapper.updateById(post);
-        }
 
         log.info("帖子置顶状态更新成功, postId: {}, isTop: {}", id, isTop);
-        return true;
+        return rows > 0;
     }
 
     @Override
@@ -338,17 +352,11 @@ public class PostServiceImpl implements PostService {
             throw new BusinessException(ResultCode.POST_NOT_FOUND);
         }
 
-        // 2. 更新精华状态
+        // 2. 更新精华状态（SQL中已经处理了essence_time的设置）
         int rows = postMapper.updateEssenceStatus(id, isEssence);
-        if (rows > 0 && isEssence == 1) {
-            // 设置精华时间
-            post.setIsEssence(1);
-            post.setEssenceTime(LocalDateTime.now());
-            postMapper.updateById(post);
-        }
 
         log.info("帖子精华状态更新成功, postId: {}, isEssence: {}", id, isEssence);
-        return true;
+        return rows > 0;
     }
 
     @Override
@@ -399,9 +407,13 @@ public class PostServiceImpl implements PostService {
 
     @Override
     public void incrementViewCount(Long id) {
-        // 使用Redis计数
-        String viewKey = REDIS_KEY_POST_VIEW + id;
-        redisTemplate.opsForValue().increment(viewKey);
+        // 使用Redis计数，添加异常处理
+        try {
+            String viewKey = REDIS_KEY_POST_VIEW + id;
+            redisTemplate.opsForValue().increment(viewKey);
+        } catch (Exception e) {
+            log.warn("Redis浏览量计数失败, postId: {}", id, e);
+        }
 
         // 定期同步到数据库（这里简化处理，每次都更新）
         postMapper.incrementViewCount(id);

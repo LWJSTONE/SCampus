@@ -9,6 +9,7 @@ import com.campus.forum.service.CollectService;
 import com.campus.forum.vo.CollectVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,6 +37,14 @@ public class CollectServiceImpl implements CollectService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean collect(Long postId, Long userId, Long folderId) {
+        // 检查参数有效性
+        if (postId == null || postId <= 0) {
+            throw new IllegalArgumentException("无效的帖子ID");
+        }
+        if (userId == null || userId <= 0) {
+            throw new IllegalArgumentException("无效的用户ID");
+        }
+        
         // 查询是否已收藏
         LambdaQueryWrapper<Collect> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Collect::getPostId, postId)
@@ -44,7 +53,7 @@ public class CollectServiceImpl implements CollectService {
         Collect existCollect = collectMapper.selectOne(wrapper);
         
         if (existCollect != null) {
-            // 已存在，执行取消收藏（逻辑删除）
+            // 已存在，执行取消收藏（物理删除）
             collectMapper.deleteById(existCollect.getId());
             
             // 更新缓存
@@ -59,7 +68,13 @@ public class CollectServiceImpl implements CollectService {
             collect.setPostId(postId);
             collect.setUserId(userId);
             collect.setFolderId(folderId);
-            collectMapper.insert(collect);
+            
+            try {
+                collectMapper.insert(collect);
+            } catch (DuplicateKeyException e) {
+                // 并发场景：其他线程已插入，视为收藏成功
+                log.info("并发收藏检测到重复记录: postId={}, userId={}", postId, userId);
+            }
             
             // 更新缓存
             updateCollectCountCache(postId, 1);
@@ -120,7 +135,19 @@ public class CollectServiceImpl implements CollectService {
      */
     private void updateCollectCountCache(Long postId, int delta) {
         String key = getCollectCountKey(postId);
-        redisTemplate.opsForValue().increment(key, delta);
+        try {
+            // 检查key是否存在
+            Boolean hasKey = redisTemplate.hasKey(key);
+            if (Boolean.TRUE.equals(hasKey)) {
+                redisTemplate.opsForValue().increment(key, delta);
+            } else {
+                // key不存在时，从数据库加载真实值
+                int count = collectMapper.countByPostId(postId);
+                redisTemplate.opsForValue().set(key, String.valueOf(count), CACHE_EXPIRE, TimeUnit.SECONDS);
+            }
+        } catch (Exception e) {
+            log.warn("更新收藏数缓存失败, postId={}", postId, e);
+        }
     }
 
     /**

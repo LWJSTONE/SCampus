@@ -6,6 +6,7 @@ import com.campus.forum.mapper.LikeMapper;
 import com.campus.forum.service.LikeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +34,17 @@ public class LikeServiceImpl implements LikeService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean like(Integer targetType, Long targetId, Long userId) {
+        // 检查参数有效性
+        if (targetType == null || (targetType != 1 && targetType != 2)) {
+            throw new IllegalArgumentException("无效的目标类型");
+        }
+        if (targetId == null || targetId <= 0) {
+            throw new IllegalArgumentException("无效的目标ID");
+        }
+        if (userId == null || userId <= 0) {
+            throw new IllegalArgumentException("无效的用户ID");
+        }
+        
         // 查询是否已点赞
         LambdaQueryWrapper<Like> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Like::getTargetType, targetType)
@@ -42,7 +54,7 @@ public class LikeServiceImpl implements LikeService {
         Like existLike = likeMapper.selectOne(wrapper);
         
         if (existLike != null) {
-            // 已存在，执行取消点赞（逻辑删除）
+            // 已存在，执行取消点赞（物理删除）
             likeMapper.deleteById(existLike.getId());
             
             // 更新缓存
@@ -57,7 +69,13 @@ public class LikeServiceImpl implements LikeService {
             like.setTargetType(targetType);
             like.setTargetId(targetId);
             like.setUserId(userId);
-            likeMapper.insert(like);
+            
+            try {
+                likeMapper.insert(like);
+            } catch (DuplicateKeyException e) {
+                // 并发场景：其他线程已插入，视为点赞成功
+                log.info("并发点赞检测到重复记录: targetType={}, targetId={}, userId={}", targetType, targetId, userId);
+            }
             
             // 更新缓存
             updateLikeCountCache(targetType, targetId, 1);
@@ -112,7 +130,19 @@ public class LikeServiceImpl implements LikeService {
      */
     private void updateLikeCountCache(Integer targetType, Long targetId, int delta) {
         String key = getLikeCountKey(targetType, targetId);
-        redisTemplate.opsForValue().increment(key, delta);
+        try {
+            // 检查key是否存在
+            Boolean hasKey = redisTemplate.hasKey(key);
+            if (Boolean.TRUE.equals(hasKey)) {
+                redisTemplate.opsForValue().increment(key, delta);
+            } else {
+                // key不存在时，从数据库加载真实值
+                int count = likeMapper.countByTarget(targetType, targetId);
+                redisTemplate.opsForValue().set(key, String.valueOf(count), CACHE_EXPIRE, TimeUnit.SECONDS);
+            }
+        } catch (Exception e) {
+            log.warn("更新点赞数缓存失败, targetType={}, targetId={}", targetType, targetId, e);
+        }
     }
 
     /**

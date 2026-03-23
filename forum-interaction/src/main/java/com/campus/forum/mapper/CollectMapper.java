@@ -21,13 +21,13 @@ public interface CollectMapper extends BaseMapper<Collect> {
     /**
      * 统计帖子的收藏数
      */
-    @Select("SELECT COUNT(*) FROM t_collect WHERE post_id = #{postId} AND delete_flag = 0")
+    @Select("SELECT COUNT(*) FROM forum_collect WHERE post_id = #{postId}")
     int countByPostId(@Param("postId") Long postId);
 
     /**
      * 检查是否已收藏
      */
-    @Select("SELECT COUNT(*) FROM t_collect WHERE post_id = #{postId} AND user_id = #{userId} AND delete_flag = 0")
+    @Select("SELECT COUNT(*) FROM forum_collect WHERE post_id = #{postId} AND user_id = #{userId}")
     int checkCollected(@Param("postId") Long postId, @Param("userId") Long userId);
 
     /**
@@ -37,11 +37,11 @@ public interface CollectMapper extends BaseMapper<Collect> {
             "p.title as post_title, p.summary as post_summary, p.cover as post_cover, " +
             "u.id as author_id, u.nickname as author_name, u.avatar as author_avatar, " +
             "cat.id as category_id, cat.name as category_name " +
-            "FROM t_collect c " +
-            "LEFT JOIN t_post p ON c.post_id = p.id " +
-            "LEFT JOIN t_user u ON p.user_id = u.id " +
-            "LEFT JOIN t_category cat ON p.category_id = cat.id " +
-            "WHERE c.user_id = #{userId} AND c.delete_flag = 0 " +
+            "FROM forum_collect c " +
+            "LEFT JOIN forum_post p ON c.post_id = p.id " +
+            "LEFT JOIN sys_user u ON p.user_id = u.id " +
+            "LEFT JOIN forum_category cat ON p.category_id = cat.id " +
+            "WHERE c.user_id = #{userId} " +
             "ORDER BY c.create_time DESC")
     IPage<CollectVO> selectCollectPage(Page<CollectVO> page, @Param("userId") Long userId);
 }
