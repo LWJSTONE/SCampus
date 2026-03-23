@@ -193,26 +193,30 @@ public class CommentServiceImpl implements CommentService {
             throw new BusinessException(ResultCode.COMMENT_NO_PERMISSION);
         }
         
-        // 3. 逻辑删除评论
+        // 3. 获取子评论数量
+        int subCommentCount = 0;
+        if (comment.getReplyCount() != null && comment.getReplyCount() > 0) {
+            subCommentCount = comment.getReplyCount();
+            
+            // 4. 逻辑删除所有子评论
+            commentMapper.deleteByParentId(commentId);
+            log.info("删除子评论, parentId: {}, count: {}", commentId, subCommentCount);
+        }
+        
+        // 5. 逻辑删除当前评论
         comment.setDeleteFlag(1);
         comment.setStatus(1);  // 设置为已删除状态
         commentMapper.updateById(comment);
         
-        // 4. 更新父评论的回复数
+        // 6. 更新父评论的回复数
         if (comment.getParentId() != null && comment.getParentId() > 0) {
             commentMapper.decrementReplyCount(comment.getParentId());
         }
         
-        // 5. 处理子评论统计
-        int subCommentCount = 0;
-        if (comment.getReplyCount() != null && comment.getReplyCount() > 0) {
-            subCommentCount = comment.getReplyCount();
-        }
-        
-        // 6. 更新帖子评论数（包括子评论）
+        // 7. 更新帖子评论数（包括子评论）
         updatePostCommentCount(comment.getPostId(), -1 - subCommentCount);
         
-        log.info("评论删除成功, commentId: {}", commentId);
+        log.info("评论删除成功, commentId: {}, subCommentCount: {}", commentId, subCommentCount);
         return true;
     }
 

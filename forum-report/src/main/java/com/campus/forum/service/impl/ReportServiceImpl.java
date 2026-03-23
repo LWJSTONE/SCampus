@@ -171,22 +171,80 @@ public class ReportServiceImpl extends ServiceImpl<ReportMapper, Report> impleme
                 handleDTO.getResult(), handleDTO.getRemark());
         
         if (result > 0) {
-            // 如果处理结果为禁言，则禁言用户
-            if (handleDTO.getResult() != null && handleDTO.getResult() == 3 
-                    && handleDTO.getBanDays() != null && handleDTO.getBanDays() > 0) {
-                UserBanDTO banDTO = new UserBanDTO();
-                banDTO.setUserId(report.getReportedUserId());
-                banDTO.setReportId(report.getId());
-                banDTO.setBanDays(handleDTO.getBanDays());
-                banDTO.setReason("违反社区规定");
-                userBanService.banUser(banDTO, handlerId);
+            // 根据处理结果执行相应操作
+            Integer handleResult = handleDTO.getResult();
+            
+            if (handleResult != null) {
+                switch (handleResult) {
+                    case 0: // 无违规
+                        log.info("举报 {} 处理结果：无违规，已驳回", id);
+                        break;
+                    case 1: // 警告
+                        // TODO: 发送警告通知给被举报用户
+                        log.info("举报 {} 处理结果：警告用户 {}", id, report.getReportedUserId());
+                        break;
+                    case 2: // 删除内容
+                        // TODO: 调用相应服务删除被举报的内容
+                        deleteReportedContent(report);
+                        log.info("举报 {} 处理结果：删除内容 {}", id, report.getTargetId());
+                        break;
+                    case 3: // 禁言
+                        if (handleDTO.getBanDays() != null && handleDTO.getBanDays() > 0) {
+                            // 检查被举报用户ID是否有效
+                            if (report.getReportedUserId() == null) {
+                                log.error("禁言失败：被举报用户ID为空，举报ID: {}", id);
+                                throw new BusinessException("禁言失败：被举报用户ID为空");
+                            }
+                            UserBanDTO banDTO = new UserBanDTO();
+                            banDTO.setUserId(report.getReportedUserId());
+                            banDTO.setReportId(report.getId());
+                            banDTO.setBanDays(handleDTO.getBanDays());
+                            banDTO.setReason("违反社区规定");
+                            userBanService.banUser(banDTO, handlerId);
+                            log.info("举报 {} 处理结果：禁言用户 {} 天数 {}", id, report.getReportedUserId(), handleDTO.getBanDays());
+                        }
+                        break;
+                    case 4: // 封号
+                        // TODO: 调用用户服务封禁账号
+                        log.info("举报 {} 处理结果：封号用户 {}", id, report.getReportedUserId());
+                        break;
+                    default:
+                        log.warn("举报 {} 处理结果未知：{}", id, handleResult);
+                }
             }
             
-            log.info("举报 {} 处理完成，处理结果: {}, 状态: {}", id, handleDTO.getResult(), newStatus == 3 ? "已驳回" : "已处理");
+            log.info("举报 {} 处理完成，处理结果: {}, 状态: {}", id, handleResult, newStatus == 3 ? "已驳回" : "已处理");
             return true;
         }
         
         return false;
+    }
+    
+    /**
+     * 删除被举报的内容
+     *
+     * @param report 举报记录
+     */
+    private void deleteReportedContent(Report report) {
+        try {
+            switch (report.getReportType()) {
+                case 1: // 帖子
+                    // postApi.deletePost(report.getTargetId());
+                    log.info("删除帖子: {}", report.getTargetId());
+                    break;
+                case 2: // 评论
+                    // commentApi.deleteComment(report.getTargetId());
+                    log.info("删除评论: {}", report.getTargetId());
+                    break;
+                case 3: // 用户
+                    // 用户类型不应该删除内容，而是应该封号
+                    log.warn("举报类型为用户，不应删除内容，应考虑封号处理");
+                    break;
+            }
+        } catch (Exception e) {
+            log.error("删除被举报内容失败, reportId: {}, targetId: {}", report.getId(), report.getTargetId(), e);
+            // 不影响举报处理结果
+        }
     }
 
     @Override

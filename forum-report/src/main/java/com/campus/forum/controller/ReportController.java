@@ -99,10 +99,13 @@ public class ReportController {
      * 获取举报详情
      */
     @GetMapping("/{id}")
-    @Operation(summary = "获取举报详情", description = "获取指定举报的详细信息")
+    @Operation(summary = "获取举报详情", description = "获取指定举报的详细信息（管理员）")
     public Result<ReportVO> getReportDetail(
             @Parameter(description = "举报ID") @PathVariable Long id,
             HttpServletRequest request) {
+        
+        // 验证管理员权限（举报详情包含敏感信息，仅管理员可查看）
+        validateAdminPermission(request);
         
         log.info("获取举报详情, id: {}", id);
         

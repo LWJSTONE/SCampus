@@ -51,9 +51,10 @@ import java.util.Map;
 public class AuthGlobalFilter implements GlobalFilter, Ordered {
 
     /**
-     * JWT签名密钥（生产环境应从配置中心获取）
+     * JWT签名密钥
+     * 注意：生产环境必须从环境变量配置，不提供默认值
      */
-    @Value("${jwt.secret:campus-forum-jwt-secret-key-2024}")
+    @Value("${jwt.secret}")
     private String jwtSecret;
 
     /**
@@ -192,7 +193,8 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
             
         } catch (JWTVerificationException e) {
             log.warn("Token验证失败: {}, 错误: {}", path, e.getMessage());
-            return unauthorizedResponse(exchange, "Token无效或已过期: " + e.getMessage());
+            // 不返回具体错误信息，防止信息泄露
+            return unauthorizedResponse(exchange, "Token无效或已过期");
         } catch (Exception e) {
             log.error("认证过程发生异常: {}", path, e);
             return unauthorizedResponse(exchange, "认证服务异常");

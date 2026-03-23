@@ -80,11 +80,17 @@ spring:
           predicates:
             - Path=/api/v1/files/**
 
-      # Global CORS
+      # Global CORS（生产环境应限制允许的域名）
       globalcors:
         cors-configurations:
           '[/**]':
-            allowedOriginPatterns: "*"
+            # 开发环境允许localhost，生产环境应配置实际域名
+            allowedOriginPatterns:
+              - "http://localhost:*"
+              - "http://127.0.0.1:*"
+            # 生产环境请取消注释并配置实际域名：
+            # allowedOrigins:
+            #   - "https://yourdomain.com"
             allowedMethods:
               - GET
               - POST
@@ -101,8 +107,9 @@ spring:
         - AddRequestHeader=X-Gateway-Name, forum-gateway
 
 # ==================== JWT Configuration ====================
+# 注意：生产环境必须通过环境变量配置密钥，不要使用默认值
 jwt:
-  secret: campus-forum-jwt-secret-key-2024
+  secret: ${JWT_SECRET:}  # 必须从环境变量注入，无默认值
   expiration: 604800000
   prefix: Bearer
   header: Authorization
@@ -118,16 +125,19 @@ logging:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n"
 
 # ==================== Actuator ====================
+# 注意：生产环境应限制暴露的端点，并使用独立管理端口
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,gateway
+        include: health  # 只暴露health端点
   endpoint:
     health:
-      show-details: always
+      show-details: never  # 不显示详细信息
     gateway:
-      enabled: true
+      enabled: false  # 禁用gateway端点暴露
+  # server:
+  #   port: 8081  # 生产环境建议使用独立管理端口
 
 # ==================== Service Info ====================
 info:

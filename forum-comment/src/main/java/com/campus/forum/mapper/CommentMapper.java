@@ -200,4 +200,13 @@ public interface CommentMapper extends BaseMapper<Comment> {
      */
     @Update("UPDATE t_comment SET is_hot = #{isHot} WHERE id = #{commentId}")
     int updateHotStatus(@Param("commentId") Long commentId, @Param("isHot") Integer isHot);
+
+    /**
+     * 批量逻辑删除子评论
+     * 
+     * @param parentId 父评论ID
+     * @return 影响行数
+     */
+    @Update("UPDATE t_comment SET delete_flag = 1, status = 1 WHERE parent_id = #{parentId} AND delete_flag = 0")
+    int deleteByParentId(@Param("parentId") Long parentId);
 }

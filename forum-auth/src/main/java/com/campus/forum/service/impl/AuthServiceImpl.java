@@ -76,11 +76,12 @@ public class AuthServiceImpl implements AuthService {
     public Result<LoginVO> login(LoginDTO loginDTO, HttpServletRequest request) {
         log.info("用户登录请求：username={}", loginDTO.getUsername());
 
-        // 1. 验证码校验（如果提供了验证码）
-        if (StrUtil.isNotBlank(loginDTO.getCaptchaKey()) && StrUtil.isNotBlank(loginDTO.getCaptcha())) {
-            if (!validateCaptcha(loginDTO.getCaptchaKey(), loginDTO.getCaptcha())) {
-                return Result.fail(400, "验证码错误或已过期");
-            }
+        // 1. 验证码校验（强制要求）
+        if (StrUtil.isBlank(loginDTO.getCaptchaKey()) || StrUtil.isBlank(loginDTO.getCaptcha())) {
+            return Result.fail(400, "请输入验证码");
+        }
+        if (!validateCaptcha(loginDTO.getCaptchaKey(), loginDTO.getCaptcha())) {
+            return Result.fail(400, "验证码错误或已过期");
         }
 
         // 2. 查询用户
@@ -205,6 +206,10 @@ public class AuthServiceImpl implements AuthService {
         if (password.length() > 20) {
             return Result.fail(400, "密码长度不能超过20位");
         }
+        // 增强密码强度校验：必须包含字母和数字
+        if (!password.matches("^(?=.*[a-zA-Z])(?=.*\\d).+$")) {
+            return Result.fail(400, "密码必须包含字母和数字");
+        }
         
         // 3. 密码确认校验
         if (registerDTO.getConfirmPassword() != null && 
@@ -293,15 +298,22 @@ public class AuthServiceImpl implements AuthService {
         // 6. 生成新的访问令牌（包含角色信息）
         String newAccessToken = JwtUtils.generateToken(userId, username, role, jwtSecret,
                 accessTokenExpiration * 1000);
+        
+        // 7. 生成新的刷新令牌，使旧的失效
+        String newRefreshToken = JwtUtils.generateRefreshToken(userId, username, jwtSecret);
+        
+        // 将旧的刷新令牌加入黑名单
+        String oldRefreshKey = Constants.CACHE_PREFIX + "refresh:blacklist:" + refreshToken;
+        redisUtils.set(oldRefreshKey, "1", Constants.REFRESH_TOKEN_EXPIRE_TIME);
 
-        // 7. 更新Redis中的Token
+        // 8. 更新Redis中的Token
         String tokenKey = Constants.TOKEN_PREFIX + userId;
         redisUtils.set(tokenKey, newAccessToken, Constants.TOKEN_EXPIRE_TIME);
 
-        // 8. 构建返回结果
+        // 9. 构建返回结果
         TokenVO tokenVO = new TokenVO();
         tokenVO.setAccessToken(newAccessToken);
-        tokenVO.setRefreshToken(refreshToken);
+        tokenVO.setRefreshToken(newRefreshToken);
         tokenVO.setExpiresIn(Constants.TOKEN_EXPIRE_TIME);
         tokenVO.setExpiresAt(LocalDateTime.now().plusSeconds(Constants.TOKEN_EXPIRE_TIME));
 
