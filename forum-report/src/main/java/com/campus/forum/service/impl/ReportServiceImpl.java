@@ -4,11 +4,15 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.campus.forum.api.comment.CommentApi;
+import com.campus.forum.api.post.PostApi;
+import com.campus.forum.api.user.UserApi;
 import com.campus.forum.dto.ReportCreateDTO;
 import com.campus.forum.dto.ReportHandleDTO;
 import com.campus.forum.dto.ReportQueryDTO;
 import com.campus.forum.dto.UserBanDTO;
 import com.campus.forum.entity.Report;
+import com.campus.forum.entity.Result;
 import com.campus.forum.exception.BusinessException;
 import com.campus.forum.mapper.ReportMapper;
 import com.campus.forum.service.ReportService;
@@ -36,6 +40,9 @@ public class ReportServiceImpl extends ServiceImpl<ReportMapper, Report> impleme
 
     private final ReportMapper reportMapper;
     private final UserBanService userBanService;
+    private final PostApi postApi;
+    private final CommentApi commentApi;
+    private final UserApi userApi;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -55,6 +62,9 @@ public class ReportServiceImpl extends ServiceImpl<ReportMapper, Report> impleme
             throw new BusinessException("不能举报自己");
         }
         
+        // 验证举报目标是否存在
+        validateReportTarget(createDTO);
+        
         // 检查是否已举报（待处理或处理中的举报）
         int count = reportMapper.countByReporterAndTarget(reporterId, createDTO.getTargetId());
         if (count > 0) {
@@ -71,6 +81,46 @@ public class ReportServiceImpl extends ServiceImpl<ReportMapper, Report> impleme
         
         log.info("用户 {} 提交举报成功，举报ID: {}", reporterId, report.getId());
         return report.getId();
+    }
+    
+    /**
+     * 验证举报目标是否存在
+     *
+     * @param createDTO 举报创建DTO
+     */
+    private void validateReportTarget(ReportCreateDTO createDTO) {
+        try {
+            switch (createDTO.getReportType()) {
+                case 1: // 帖子
+                    Result<?> postResult = postApi.getPostById(createDTO.getTargetId());
+                    if (postResult == null || postResult.getData() == null) {
+                        throw new BusinessException("举报的帖子不存在");
+                    }
+                    break;
+                case 2: // 评论
+                    Result<?> commentResult = commentApi.getCommentById(createDTO.getTargetId());
+                    if (commentResult == null || commentResult.getData() == null) {
+                        throw new BusinessException("举报的评论不存在");
+                    }
+                    break;
+                case 3: // 用户
+                    if (createDTO.getReportedUserId() == null) {
+                        throw new BusinessException("举报用户时必须提供被举报用户ID");
+                    }
+                    Result<?> userResult = userApi.getUserById(createDTO.getReportedUserId());
+                    if (userResult == null || userResult.getData() == null) {
+                        throw new BusinessException("举报的用户不存在");
+                    }
+                    break;
+                default:
+                    throw new BusinessException("举报类型不合法");
+            }
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.warn("验证举报目标时发生异常: {}", e.getMessage());
+            // 服务调用失败时，不阻断举报流程，只记录警告日志
+        }
     }
 
     @Override

@@ -45,7 +45,7 @@ public class LikeServiceImpl implements LikeService {
             throw new IllegalArgumentException("无效的用户ID");
         }
         
-        // 查询是否已点赞
+        // 查询是否已点赞（包括已取消的记录）
         LambdaQueryWrapper<Like> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Like::getTargetType, targetType)
                .eq(Like::getTargetId, targetId)
@@ -54,21 +54,37 @@ public class LikeServiceImpl implements LikeService {
         Like existLike = likeMapper.selectOne(wrapper);
         
         if (existLike != null) {
-            // 已存在，执行取消点赞（物理删除）
-            likeMapper.deleteById(existLike.getId());
-            
-            // 更新缓存
-            updateLikeCountCache(targetType, targetId, -1);
-            redisTemplate.opsForValue().set(getUserLikeKey(targetType, targetId, userId), "0", CACHE_EXPIRE, TimeUnit.SECONDS);
-            
-            log.info("取消点赞: targetType={}, targetId={}, userId={}", targetType, targetId, userId);
-            return false;
+            // 已存在记录，检查状态
+            if (existLike.getDeleteFlag() == null || existLike.getDeleteFlag() == 0) {
+                // 当前是点赞状态，执行取消点赞（逻辑删除）
+                existLike.setDeleteFlag(1);
+                likeMapper.updateById(existLike);
+                
+                // 更新缓存
+                updateLikeCountCache(targetType, targetId, -1);
+                redisTemplate.opsForValue().set(getUserLikeKey(targetType, targetId, userId), "0", CACHE_EXPIRE, TimeUnit.SECONDS);
+                
+                log.info("取消点赞: targetType={}, targetId={}, userId={}", targetType, targetId, userId);
+                return false;
+            } else {
+                // 当前是取消状态，恢复点赞
+                existLike.setDeleteFlag(0);
+                likeMapper.updateById(existLike);
+                
+                // 更新缓存
+                updateLikeCountCache(targetType, targetId, 1);
+                redisTemplate.opsForValue().set(getUserLikeKey(targetType, targetId, userId), "1", CACHE_EXPIRE, TimeUnit.SECONDS);
+                
+                log.info("点赞成功: targetType={}, targetId={}, userId={}", targetType, targetId, userId);
+                return true;
+            }
         } else {
-            // 不存在，执行点赞
+            // 不存在记录，创建新的点赞记录
             Like like = new Like();
             like.setTargetType(targetType);
             like.setTargetId(targetId);
             like.setUserId(userId);
+            like.setDeleteFlag(0); // 使用逻辑删除标记，0表示正常
             
             try {
                 likeMapper.insert(like);

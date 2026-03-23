@@ -45,7 +45,7 @@ public class CollectServiceImpl implements CollectService {
             throw new IllegalArgumentException("无效的用户ID");
         }
         
-        // 查询是否已收藏
+        // 查询是否已收藏（包括已取消的记录）
         LambdaQueryWrapper<Collect> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Collect::getPostId, postId)
                .eq(Collect::getUserId, userId);
@@ -53,21 +53,38 @@ public class CollectServiceImpl implements CollectService {
         Collect existCollect = collectMapper.selectOne(wrapper);
         
         if (existCollect != null) {
-            // 已存在，执行取消收藏（物理删除）
-            collectMapper.deleteById(existCollect.getId());
-            
-            // 更新缓存
-            updateCollectCountCache(postId, -1);
-            redisTemplate.opsForValue().set(getUserCollectKey(postId, userId), "0", CACHE_EXPIRE, TimeUnit.SECONDS);
-            
-            log.info("取消收藏: postId={}, userId={}", postId, userId);
-            return false;
+            // 已存在记录，检查状态
+            if (existCollect.getDeleteFlag() == null || existCollect.getDeleteFlag() == 0) {
+                // 当前是收藏状态，执行取消收藏（逻辑删除）
+                existCollect.setDeleteFlag(1);
+                collectMapper.updateById(existCollect);
+                
+                // 更新缓存
+                updateCollectCountCache(postId, -1);
+                redisTemplate.opsForValue().set(getUserCollectKey(postId, userId), "0", CACHE_EXPIRE, TimeUnit.SECONDS);
+                
+                log.info("取消收藏: postId={}, userId={}", postId, userId);
+                return false;
+            } else {
+                // 当前是取消状态，恢复收藏
+                existCollect.setDeleteFlag(0);
+                existCollect.setFolderId(folderId); // 更新收藏夹
+                collectMapper.updateById(existCollect);
+                
+                // 更新缓存
+                updateCollectCountCache(postId, 1);
+                redisTemplate.opsForValue().set(getUserCollectKey(postId, userId), "1", CACHE_EXPIRE, TimeUnit.SECONDS);
+                
+                log.info("收藏成功: postId={}, userId={}", postId, userId);
+                return true;
+            }
         } else {
-            // 不存在，执行收藏
+            // 不存在记录，创建新的收藏记录
             Collect collect = new Collect();
             collect.setPostId(postId);
             collect.setUserId(userId);
             collect.setFolderId(folderId);
+            collect.setDeleteFlag(0); // 使用逻辑删除标记，0表示正常
             
             try {
                 collectMapper.insert(collect);

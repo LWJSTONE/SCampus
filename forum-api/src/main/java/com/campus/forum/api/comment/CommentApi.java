@@ -16,6 +16,15 @@ import org.springframework.web.bind.annotation.RequestParam;
 public interface CommentApi {
 
     /**
+     * Get comment by ID
+     *
+     * @param id Comment ID
+     * @return Comment info
+     */
+    @GetMapping("/api/internal/comment/{id}")
+    Result<CommentDTO> getCommentById(@PathVariable("id") Long id);
+
+    /**
      * Get comments by post ID
      *
      * @param postId Post ID

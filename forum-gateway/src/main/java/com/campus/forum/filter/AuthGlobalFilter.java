@@ -89,7 +89,7 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
             // 认证相关 - 白名单
             "/api/v1/auth/login",
             "/api/v1/auth/register",
-            "/api/v1/auth/logout",
+            // 注意：logout不应该在白名单中，因为需要验证Token才能使Token失效
             "/api/v1/auth/captcha/**",
             "/api/v1/auth/code/**",
             "/api/v1/auth/email/code",

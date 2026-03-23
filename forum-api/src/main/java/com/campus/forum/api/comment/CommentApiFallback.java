@@ -15,6 +15,12 @@ import org.springframework.stereotype.Component;
 public class CommentApiFallback implements CommentApi {
 
     @Override
+    public Result<CommentDTO> getCommentById(Long id) {
+        log.error("调用评论服务失败，获取评论详情，评论ID: {}", id);
+        return Result.fail("评论服务不可用，请稍后重试");
+    }
+
+    @Override
     public Result<Page<CommentDTO>> getCommentsByPostId(Long postId, int page, int size) {
         log.error("调用评论服务失败，获取帖子评论列表，帖子ID: {}, 页码: {}, 每页大小: {}", postId, page, size);
         return Result.fail("评论服务不可用，请稍后重试");

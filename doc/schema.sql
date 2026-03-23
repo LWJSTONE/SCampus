@@ -459,11 +459,13 @@ CREATE TABLE `forum_like` (
     `user_id` BIGINT(20) NOT NULL COMMENT '用户ID',
     `target_type` TINYINT(1) NOT NULL COMMENT '目标类型：1-帖子，2-评论',
     `target_id` BIGINT(20) NOT NULL COMMENT '目标ID',
+    `delete_flag` TINYINT(1) DEFAULT 0 COMMENT '删除标记：0-正常，1-已取消',
     `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_user_target` (`user_id`, `target_type`, `target_id`),
     KEY `idx_user_id` (`user_id`),
-    KEY `idx_target` (`target_type`, `target_id`)
+    KEY `idx_target` (`target_type`, `target_id`),
+    KEY `idx_delete_flag` (`delete_flag`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='点赞表';
 
 -- ---------------------------------------------------
@@ -475,11 +477,15 @@ CREATE TABLE `forum_collect` (
     `id` BIGINT(20) NOT NULL AUTO_INCREMENT COMMENT '收藏ID',
     `user_id` BIGINT(20) NOT NULL COMMENT '用户ID',
     `post_id` BIGINT(20) NOT NULL COMMENT '帖子ID',
+    `folder_id` BIGINT(20) DEFAULT NULL COMMENT '收藏夹ID',
+    `delete_flag` TINYINT(1) DEFAULT 0 COMMENT '删除标记：0-正常，1-已取消',
     `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_user_post` (`user_id`, `post_id`),
     KEY `idx_user_id` (`user_id`),
-    KEY `idx_post_id` (`post_id`)
+    KEY `idx_post_id` (`post_id`),
+    KEY `idx_folder_id` (`folder_id`),
+    KEY `idx_delete_flag` (`delete_flag`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='收藏表';
 
 -- ---------------------------------------------------

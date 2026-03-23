@@ -11,8 +11,15 @@ export const useUserStore = defineStore('user', () => {
 
   // 计算属性
   const isLoggedIn = computed(() => !!token.value)
-  const isAdmin = computed(() => userInfo.value?.roles?.some(r => r === 'admin') || false)
-  const isModerator = computed(() => userInfo.value?.roles?.some(r => r === 'moderator') || false)
+  // 修复：角色判断统一使用大写比较，与后端返回的角色格式一致
+  const isAdmin = computed(() => userInfo.value?.roles?.some(r => {
+    const role = typeof r === 'string' ? r.toUpperCase() : (r as any).roleCode?.toUpperCase()
+    return role === 'ADMIN' || role === 'ROLE_ADMIN'
+  }) || false)
+  const isModerator = computed(() => userInfo.value?.roles?.some(r => {
+    const role = typeof r === 'string' ? r.toUpperCase() : (r as any).roleCode?.toUpperCase()
+    return role === 'MODERATOR' || role === 'ROLE_MODERATOR'
+  }) || false)
   const username = computed(() => userInfo.value?.nickname || userInfo.value?.username || '')
 
   // 登录

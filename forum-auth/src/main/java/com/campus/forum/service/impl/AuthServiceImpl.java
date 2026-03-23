@@ -505,11 +505,28 @@ public class AuthServiceImpl implements AuthService {
      * @param userId 用户ID
      */
     private void handleLoginFail(Long userId) {
+        // 检查用户是否已被锁定
+        AuthUser user = authUserMapper.selectById(userId);
+        if (user == null) {
+            return;
+        }
+        
+        // 如果用户已被锁定，延长锁定时间
+        if (user.getLockTime() != null) {
+            LocalDateTime unlockTime = user.getLockTime().plusMinutes(LOCK_TIME_MINUTES);
+            if (LocalDateTime.now().isBefore(unlockTime)) {
+                // 用户仍处于锁定状态，延长锁定时间并重置失败计数
+                authUserMapper.lockUser(userId, LocalDateTime.now());
+                log.warn("账户锁定时间已延长：userId={}, 原解锁时间={}", userId, unlockTime);
+                return;
+            }
+        }
+        
         // 增加失败次数
         authUserMapper.incrementLoginFailCount(userId);
 
-        // 检查是否需要锁定
-        AuthUser user = authUserMapper.selectById(userId);
+        // 重新查询用户获取最新的失败次数
+        user = authUserMapper.selectById(userId);
         if (user != null && user.getLoginFailCount() != null 
                 && user.getLoginFailCount() >= MAX_LOGIN_FAIL_COUNT) {
             authUserMapper.lockUser(userId, LocalDateTime.now());
