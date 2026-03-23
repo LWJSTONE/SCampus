@@ -105,7 +105,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { getCaptcha, sendEmailCode, resetPassword } from '@/api/auth'
@@ -127,7 +127,8 @@ const loginForm = reactive({
   rememberMe: false
 })
 
-const rules: FormRules = {
+// 动态验证规则：当captchaUrl存在时才要求验证码
+const rules = computed<FormRules>(() => ({
   username: [
     { required: true, message: '请输入用户名', trigger: 'blur' }
   ],
@@ -135,10 +136,10 @@ const rules: FormRules = {
     { required: true, message: '请输入密码', trigger: 'blur' },
     { min: 6, message: '密码长度不能少于6位', trigger: 'blur' }
   ],
-  captcha: [
+  captcha: captchaUrl.value ? [
     { required: true, message: '请输入验证码', trigger: 'blur' }
-  ]
-}
+  ] : []
+}))
 
 // 忘记密码相关
 const forgotPasswordVisible = ref(false)
@@ -167,6 +168,12 @@ function showForgotPassword() {
 }
 
 async function sendForgotCode() {
+  // 验证用户名
+  if (!forgotForm.username || !forgotForm.username.trim()) {
+    ElMessage.warning('请输入用户名')
+    return
+  }
+  // 验证邮箱
   if (!forgotForm.email) {
     ElMessage.warning('请输入邮箱')
     return
@@ -176,7 +183,7 @@ async function sendForgotCode() {
     ElMessage.warning('请输入正确的邮箱格式')
     return
   }
-  
+
   sendingCode.value = true
   try {
     await sendEmailCode(forgotForm.email)
@@ -259,8 +266,11 @@ async function refreshCaptcha() {
 }
 
 async function handleLogin() {
-  const valid = await formRef.value?.validate()
-  if (!valid) return
+  const valid = await formRef.value?.validate().catch(() => false)
+  if (!valid) {
+    ElMessage.warning('请检查表单')
+    return
+  }
 
   loading.value = true
   try {

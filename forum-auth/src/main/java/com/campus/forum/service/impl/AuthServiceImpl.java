@@ -25,6 +25,7 @@ import com.campus.forum.vo.TokenVO;
 import com.campus.forum.vo.UserInfoVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,7 +36,7 @@ import java.util.List;
 
 /**
  * 认证服务实现类
- * 
+ *
  * <p>实现用户认证相关的业务逻辑</p>
  *
  * @author campus
@@ -60,9 +61,16 @@ public class AuthServiceImpl implements AuthService {
     private static final int LOCK_TIME_MINUTES = 30;
 
     /**
-     * JWT密钥
+     * JWT密钥 - 从配置文件读取
      */
-    private static final String JWT_SECRET = "campus-forum-jwt-secret-key-2024";
+    @Value("${jwt.secret:campus-forum-jwt-secret-key-2024-please-change-in-production}")
+    private String jwtSecret;
+
+    /**
+     * 访问令牌过期时间（秒）
+     */
+    @Value("${jwt.access-token-expiration:86400}")
+    private long accessTokenExpiration;
 
     @Override
     public Result<LoginVO> login(LoginDTO loginDTO, HttpServletRequest request) {
@@ -103,9 +111,9 @@ public class AuthServiceImpl implements AuthService {
         }
 
         // 6. 生成Token
-        String accessToken = JwtUtils.generateToken(user.getId(), user.getUsername(), JWT_SECRET, 
-                Constants.TOKEN_EXPIRE_TIME * 1000);
-        String refreshToken = JwtUtils.generateRefreshToken(user.getId(), user.getUsername(), JWT_SECRET);
+        String accessToken = JwtUtils.generateToken(user.getId(), user.getUsername(), jwtSecret,
+                accessTokenExpiration * 1000);
+        String refreshToken = JwtUtils.generateRefreshToken(user.getId(), user.getUsername(), jwtSecret);
 
         // 7. 将Token存入Redis
         String tokenKey = Constants.TOKEN_PREFIX + user.getId();
@@ -234,7 +242,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         // 1. 验证刷新令牌
-        if (!JwtUtils.verifyToken(refreshToken, JWT_SECRET)) {
+        if (!JwtUtils.verifyToken(refreshToken, jwtSecret)) {
             return Result.fail(401, "刷新令牌无效或已过期");
         }
 
@@ -259,8 +267,8 @@ public class AuthServiceImpl implements AuthService {
         }
 
         // 5. 生成新的访问令牌
-        String newAccessToken = JwtUtils.generateToken(userId, username, JWT_SECRET, 
-                Constants.TOKEN_EXPIRE_TIME * 1000);
+        String newAccessToken = JwtUtils.generateToken(userId, username, jwtSecret,
+                accessTokenExpiration * 1000);
 
         // 6. 更新Redis中的Token
         String tokenKey = Constants.TOKEN_PREFIX + userId;
@@ -296,7 +304,7 @@ public class AuthServiceImpl implements AuthService {
         captchaVO.setCaptchaImage(captcha.getImageBase64Data());
         captchaVO.setExpireTime(Constants.CAPTCHA_EXPIRE_TIME);
 
-        log.debug("生成验证码：captchaKey={}, code={}", captchaKey, captchaCode);
+        log.debug("生成验证码：captchaKey={}", captchaKey);
         return Result.success(captchaVO);
     }
 
@@ -597,8 +605,8 @@ public class AuthServiceImpl implements AuthService {
 
         // 6. 发送邮件（这里简化处理，实际项目中应该调用邮件服务）
         // TODO: 集成邮件服务发送验证码
-        log.info("邮箱验证码已生成：email={}, code={}", email, code);
-        
+        log.info("邮箱验证码已生成：email={}", email);
+
         // 开发环境下，将验证码打印到日志方便测试
         if (log.isDebugEnabled()) {
             log.debug("验证码已发送至邮箱 {}，验证码：{}", email, code);

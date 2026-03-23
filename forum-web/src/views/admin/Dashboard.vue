@@ -293,10 +293,12 @@ async function fetchCategoryDistribution() {
   try {
     const categories = await getCategoryList()
     const pieData = categories.map((cat: any) => ({
-      value: cat.postCount || cat.threadCount || Math.floor(Math.random() * 1000),
+      value: cat.postCount || cat.threadCount || 0,  // 使用真实数据，如果不存在则显示0
       name: cat.name
     })).slice(0, 5)
-    updatePieChart(pieData)
+    // 过滤掉没有帖子的版块，如果全部为空则显示提示
+    const filteredData = pieData.filter((item: any) => item.value > 0)
+    updatePieChart(filteredData.length > 0 ? filteredData : null)
   } catch (error) {
     console.error('获取版块分布失败:', error)
     // 使用默认数据

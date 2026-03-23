@@ -1,35 +1,35 @@
 <template>
   <div class="comment-item">
     <div class="comment-avatar">
-      <el-avatar :size="40" :src="comment.userAvatar">
-        {{ comment.username?.charAt(0) }}
+      <el-avatar :size="40" :src="localComment.userAvatar">
+        {{ localComment.username?.charAt(0) }}
       </el-avatar>
     </div>
     <div class="comment-content">
       <div class="comment-header">
-        <router-link :to="`/user/${comment.userId}`" class="username">
-          {{ comment.username }}
+        <router-link :to="`/user/${localComment.userId}`" class="username">
+          {{ localComment.username }}
         </router-link>
-        <span v-if="comment.replyToUsername" class="reply-to">
-          回复 <router-link :to="`/user/${comment.replyToUserId}`">@{{ comment.replyToUsername }}</router-link>
+        <span v-if="localComment.replyToUsername" class="reply-to">
+          回复 <router-link :to="`/user/${localComment.replyToUserId}`">@{{ localComment.replyToUsername }}</router-link>
         </span>
-        <span class="time">{{ formatTime(comment.createTime) }}</span>
+        <span class="time">{{ formatTime(localComment.createTime) }}</span>
       </div>
-      <div class="comment-text">{{ comment.content }}</div>
+      <div class="comment-text">{{ localComment.content }}</div>
       <div class="comment-actions">
         <el-button link size="small" @click="handleReply">
           <el-icon><ChatDotRound /></el-icon>
           回复
         </el-button>
-        <el-button link size="small" :type="comment.isLiked ? 'primary' : 'default'" @click="handleLike">
+        <el-button link size="small" :type="localComment.isLiked ? 'primary' : 'default'" @click="handleLike">
           <el-icon><Star /></el-icon>
-          {{ comment.likeCount || 0 }}
+          {{ localComment.likeCount || 0 }}
         </el-button>
-        <el-button 
-          v-if="canDelete" 
-          link 
-          size="small" 
-          type="danger" 
+        <el-button
+          v-if="canDelete"
+          link
+          size="small"
+          type="danger"
           @click="handleDelete"
         >
           删除
@@ -50,7 +50,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { likeComment } from '@/api/comment'
 import type { CommentVO } from '@/types'
@@ -72,13 +73,21 @@ const emit = defineEmits<{
 
 const userStore = useUserStore()
 
+// 使用本地副本避免直接修改props
+const localComment = ref<CommentVO>({ ...props.comment })
+
+// 监听props变化更新本地副本
+watch(() => props.comment, (newVal) => {
+  localComment.value = { ...newVal }
+}, { deep: true })
+
 // 兼容后端字段名：userName -> username, replies -> children
 const commentChildren = computed(() => {
-  return props.comment.children || props.comment.replies || []
+  return localComment.value.children || localComment.value.replies || []
 })
 
 const canDelete = computed(() => {
-  return userStore.isAdmin || props.comment.userId === userStore.userInfo?.id
+  return userStore.isAdmin || localComment.value.userId === userStore.userInfo?.id
 })
 
 function formatTime(time: string) {
@@ -90,19 +99,23 @@ function handleReply() {
 }
 
 function handleDelete() {
-  emit('delete', props.comment.id)
+  emit('delete', localComment.value.id)
 }
 
 async function handleLike() {
   if (!userStore.isLoggedIn) {
+    ElMessage.warning('请先登录')
     return
   }
   try {
-    const result = await likeComment(props.comment.id)
-    // 更新本地状态和计数
+    const result = await likeComment(localComment.value.id)
+    // 更新本地状态和计数（不直接修改props）
     const isLiked = result.isLike
-    props.comment.isLiked = isLiked
-    props.comment.likeCount = (props.comment.likeCount || 0) + (isLiked ? 1 : -1)
+    localComment.value = {
+      ...localComment.value,
+      isLiked: isLiked,
+      likeCount: (localComment.value.likeCount || 0) + (isLiked ? 1 : -1)
+    }
   } catch (e) {
     console.error('点赞失败:', e)
   }

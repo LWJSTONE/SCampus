@@ -215,7 +215,7 @@ public class PostController {
      * @return 操作结果
      */
     @PutMapping("/{id}/top")
-    @Operation(summary = "置顶帖子", description = "设置或取消帖子置顶状态")
+    @Operation(summary = "置顶帖子", description = "设置或取消帖子置顶状态（需要管理员权限）")
     public Result<Map<String, Object>> setTop(
             @Parameter(description = "帖子ID") @PathVariable Long id,
             @Parameter(description = "是否置顶(0-取消 1-置顶)") @RequestParam(defaultValue = "1") Integer isTop,
@@ -227,6 +227,12 @@ public class PostController {
         Long operatorId = getCurrentUserId(request);
         if (operatorId == null) {
             return Result.fail(401, "请先登录");
+        }
+
+        // 验证管理员权限
+        if (!isAdmin(request)) {
+            log.warn("用户无管理员权限，无法置顶帖子: operatorId={}", operatorId);
+            return Result.fail(403, "无权限执行此操作，需要管理员权限");
         }
 
         // 置顶帖子
@@ -247,7 +253,7 @@ public class PostController {
      * @return 操作结果
      */
     @PutMapping("/{id}/essence")
-    @Operation(summary = "加精帖子", description = "设置或取消帖子精华状态")
+    @Operation(summary = "加精帖子", description = "设置或取消帖子精华状态（需要管理员权限）")
     public Result<Map<String, Object>> setEssence(
             @Parameter(description = "帖子ID") @PathVariable Long id,
             @Parameter(description = "是否精华(0-取消 1-精华)") @RequestParam(defaultValue = "1") Integer isEssence,
@@ -259,6 +265,12 @@ public class PostController {
         Long operatorId = getCurrentUserId(request);
         if (operatorId == null) {
             return Result.fail(401, "请先登录");
+        }
+
+        // 验证管理员权限
+        if (!isAdmin(request)) {
+            log.warn("用户无管理员权限，无法加精帖子: operatorId={}", operatorId);
+            return Result.fail(403, "无权限执行此操作，需要管理员权限");
         }
 
         // 加精帖子
@@ -488,6 +500,22 @@ public class PostController {
         }
 
         return null;
+    }
+
+    /**
+     * 检查当前用户是否为管理员
+     *
+     * @param request HTTP请求
+     * @return true-管理员，false-非管理员
+     */
+    private boolean isAdmin(HttpServletRequest request) {
+        // 从请求头获取用户角色（由网关解析JWT后传递）
+        String role = request.getHeader("X-User-Role");
+        if (role != null) {
+            // 检查是否为管理员角色（ADMIN或ROLE_ADMIN）
+            return "ADMIN".equalsIgnoreCase(role) || "ROLE_ADMIN".equalsIgnoreCase(role);
+        }
+        return false;
     }
 
     // ==================== 内部API（供其他服务调用） ====================

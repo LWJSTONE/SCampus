@@ -154,6 +154,18 @@ logging:
     console: '%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n'
     file: '%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n'
 
+# JWT配置
+jwt:
+  # JWT密钥（生产环境请使用环境变量或配置中心配置）
+  # 建议使用至少256位的强随机密钥
+  secret: ${JWT_SECRET:campus-forum-jwt-secret-key-2024-please-change-in-production}
+  # 访问令牌过期时间（秒）- 默认24小时
+  access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:86400}
+  # 刷新令牌过期时间（秒）- 默认7天
+  refresh-token-expiration: ${JWT_REFRESH_TOKEN_EXPIRATION:604800}
+  # 令牌发行者
+  issuer: campus-forum
+
 # 管理端点配置
 management:
   endpoints:

@@ -43,7 +43,7 @@
         <el-divider />
 
         <!-- 正文内容 -->
-        <div class="post-content" v-html="postDetail.content"></div>
+        <div class="post-content" v-html="sanitizedContent"></div>
 
         <!-- 标签 -->
         <div class="post-tags" v-if="postDetail.tags?.length">
@@ -138,7 +138,7 @@
 /**
  * 帖子详情页面组件逻辑
  */
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getPostById, likePost, collectPost } from '@/api/post'
@@ -159,8 +159,14 @@ const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 
-// 帖子ID
+// 帖子ID - 添加有效性验证
 const postId = Number(route.params.id)
+const isValidPostId = computed(() => !isNaN(postId) && postId > 0)
+
+// 如果postId无效，跳转到404
+if (!isValidPostId.value) {
+  router.push('/404')
+}
 
 // 加载状态
 const loading = ref(false)
@@ -168,6 +174,93 @@ const submitting = ref(false)
 
 // 帖子详情
 const postDetail = ref<PostDetailVO | null>(null)
+
+// XSS净化：过滤危险HTML标签和属性
+const sanitizedContent = computed(() => {
+  if (!postDetail.value?.content) return ''
+  const content = postDetail.value.content
+
+  // 允许的标签白名单
+  const allowedTags = ['p', 'br', 'b', 'i', 'u', 'strong', 'em', 'span', 'div',
+    'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'blockquote',
+    'pre', 'code', 'a', 'img', 'table', 'thead', 'tbody', 'tr', 'td', 'th', 'hr']
+
+  // 允许的属性白名单
+  const allowedAttrs: Record<string, string[]> = {
+    'a': ['href', 'title', 'target'],
+    'img': ['src', 'alt', 'title', 'width', 'height'],
+    'span': ['style'],
+    'div': ['style', 'class'],
+    'p': ['style'],
+    'pre': ['class'],
+    'code': ['class']
+  }
+
+  // 允许的样式白名单
+  const allowedStyles = ['color', 'background-color', 'font-size', 'font-weight', 'text-align']
+
+  // 危险的协议
+  const dangerousProtocols = ['javascript:', 'vbscript:', 'data:', 'file:']
+
+  let result = content
+
+  // 移除script标签及其内容
+  result = result.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+
+  // 移除style标签及其内容
+  result = result.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+
+  // 移除所有事件处理属性
+  result = result.replace(/\s*on\w+\s*=\s*["'][^"']*["']/gi, '')
+
+  // 处理所有HTML标签
+  result = result.replace(/<\/?(\w+)([^>]*)>/gi, (match, tagName, attrs) => {
+    const tag = tagName.toLowerCase()
+    if (!allowedTags.includes(tag)) {
+      return ''
+    }
+
+    // 过滤属性
+    if (attrs) {
+      const allowedForTag = allowedAttrs[tag] || []
+      const filteredAttrs = attrs.split(/\s+/)
+        .filter(attr => {
+          if (!attr) return false
+          const [name] = attr.split('=')
+          const attrName = name.toLowerCase().trim()
+
+          if (!allowedForTag.includes(attrName)) return false
+
+          // 检查href和src属性是否包含危险协议
+          if (attrName === 'href' || attrName === 'src') {
+            const value = attr.substring(attr.indexOf('=') + 1).replace(/["']/g, '').trim().toLowerCase()
+            if (dangerousProtocols.some(p => value.startsWith(p))) {
+              return false
+            }
+          }
+
+          // 过滤style属性中的危险内容
+          if (attrName === 'style') {
+            const value = attr.substring(attr.indexOf('=') + 1).replace(/["']/g, '').trim()
+            const styles = value.split(';').filter(s => {
+              const [prop] = s.split(':')
+              return allowedStyles.includes(prop.trim().toLowerCase())
+            })
+            return styles.length > 0
+          }
+
+          return true
+        })
+        .join(' ')
+
+      return `<${tag}${filteredAttrs ? ' ' + filteredAttrs : ''}>`
+    }
+
+    return match
+  })
+
+  return result
+})
 
 // 评论列表
 const commentList = ref<CommentVO[]>([])
@@ -299,11 +392,28 @@ const handleCollect = async () => {
 /**
  * 处理分享
  */
-const handleShare = () => {
+const handleShare = async () => {
   // 复制链接到剪贴板
   const url = window.location.href
-  navigator.clipboard.writeText(url)
-  ElMessage.success('链接已复制到剪贴板')
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(url)
+    } else {
+      // 降级方案：使用textarea
+      const textarea = document.createElement('textarea')
+      textarea.value = url
+      textarea.style.position = 'fixed'
+      textarea.style.opacity = '0'
+      document.body.appendChild(textarea)
+      textarea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textarea)
+    }
+    ElMessage.success('链接已复制到剪贴板')
+  } catch (error) {
+    console.error('复制失败:', error)
+    ElMessage.error('复制失败，请手动复制链接')
+  }
 }
 
 /**

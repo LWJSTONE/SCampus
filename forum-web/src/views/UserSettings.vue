@@ -166,29 +166,34 @@ function beforeAvatarUpload(file: File) {
 // 上传头像
 async function handleAvatarUpload(options: UploadRequestOptions) {
   const file = options.file
+
+  // 验证用户是否已登录
+  if (!userStore.userInfo?.id) {
+    ElMessage.error('用户信息获取失败，请重新登录')
+    return
+  }
+
   uploadingAvatar.value = true
-  
+
   try {
     // 先上传文件到服务器
     const formData = new FormData()
     formData.append('file', file)
-    
+
     const uploadRes = await request.post<{ url: string }>('/files/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
-    
+
     const avatarUrl = uploadRes.url
-    
+
     // 更新头像URL
-    if (userStore.userInfo?.id) {
-      await updateAvatar(userStore.userInfo.id, avatarUrl)
-      form.avatar = avatarUrl
-      
-      // 更新 store 中的用户信息
-      userStore.updateUserInfo({ avatar: avatarUrl })
-      
-      ElMessage.success('头像更新成功')
-    }
+    await updateAvatar(userStore.userInfo.id, avatarUrl)
+    form.avatar = avatarUrl
+
+    // 更新 store 中的用户信息
+    userStore.updateUserInfo({ avatar: avatarUrl })
+
+    ElMessage.success('头像更新成功')
   } catch (e) {
     console.error('上传头像失败:', e)
     ElMessage.error('上传头像失败')
@@ -201,14 +206,18 @@ async function handleSave() {
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
 
+  // 验证用户是否已登录
+  if (!userStore.userInfo?.id) {
+    ElMessage.error('用户信息获取失败，请重新登录')
+    return
+  }
+
   saving.value = true
   try {
-    if (userStore.userInfo?.id) {
-      await updateUser(userStore.userInfo.id, form)
-      // 更新 store 中的用户信息
-      userStore.updateUserInfo(form)
-      ElMessage.success('保存成功')
-    }
+    await updateUser(userStore.userInfo.id, form)
+    // 更新 store 中的用户信息
+    userStore.updateUserInfo(form)
+    ElMessage.success('保存成功')
   } catch (e) {
     console.error('保存失败:', e)
   } finally {
@@ -220,17 +229,21 @@ async function handleChangePwd() {
   const valid = await pwdFormRef.value?.validate().catch(() => false)
   if (!valid) return
 
+  // 验证用户是否已登录
+  if (!userStore.userInfo?.id) {
+    ElMessage.error('用户信息获取失败，请重新登录')
+    return
+  }
+
   saving.value = true
   try {
-    if (userStore.userInfo?.id) {
-      await updatePassword(userStore.userInfo.id, {
-        oldPassword: pwdForm.oldPassword,
-        newPassword: pwdForm.newPassword,
-        confirmPassword: pwdForm.confirmPassword
-      })
-      ElMessage.success('密码修改成功')
-      pwdFormRef.value?.resetFields()
-    }
+    await updatePassword(userStore.userInfo.id, {
+      oldPassword: pwdForm.oldPassword,
+      newPassword: pwdForm.newPassword,
+      confirmPassword: pwdForm.confirmPassword
+    })
+    ElMessage.success('密码修改成功')
+    pwdFormRef.value?.resetFields()
   } catch (e) {
     console.error('修改密码失败:', e)
   } finally {

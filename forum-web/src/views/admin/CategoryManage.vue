@@ -48,14 +48,14 @@
 
     <!-- 分类表单对话框 -->
     <el-dialog v-model="dialogVisible" :title="dialogTitle" width="500px">
-      <el-form :model="categoryForm" label-width="80px">
-        <el-form-item label="名称" required>
+      <el-form ref="categoryFormRef" :model="categoryForm" :rules="categoryRules" label-width="80px">
+        <el-form-item label="名称" prop="name">
           <el-input v-model="categoryForm.name" placeholder="请输入分类名称" maxlength="50" />
         </el-form-item>
         <el-form-item label="图标">
           <el-input v-model="categoryForm.icon" placeholder="请输入图标名称" maxlength="50" />
         </el-form-item>
-        <el-form-item label="描述">
+        <el-form-item label="描述" prop="description">
           <el-input v-model="categoryForm.description" type="textarea" :rows="3" placeholder="请输入分类描述" maxlength="200" />
         </el-form-item>
         <el-form-item label="排序">
@@ -70,14 +70,14 @@
 
     <!-- 版块表单对话框 -->
     <el-dialog v-model="forumDialogVisible" :title="forumDialogTitle" width="500px">
-      <el-form :model="forumForm" label-width="80px">
+      <el-form ref="forumFormRef" :model="forumForm" :rules="forumRules" label-width="80px">
         <el-form-item label="所属分类">
           <el-input :value="currentCategory?.name" disabled />
         </el-form-item>
-        <el-form-item label="名称" required>
+        <el-form-item label="名称" prop="name">
           <el-input v-model="forumForm.name" placeholder="请输入版块名称" maxlength="50" />
         </el-form-item>
-        <el-form-item label="描述">
+        <el-form-item label="描述" prop="description">
           <el-input v-model="forumForm.description" type="textarea" :rows="3" placeholder="请输入版块描述" maxlength="200" />
         </el-form-item>
       </el-form>
@@ -91,7 +91,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { getCategoryList, createCategory, updateCategory, deleteCategory, createForum, updateForum, deleteForum } from '@/api/category'
 import type { CategoryVO } from '@/types'
 
@@ -113,20 +113,20 @@ const flattenedCategories = computed(() => {
   const result: CategoryTreeVO[] = []
   function flatten(items: CategoryTreeVO[], level: number = 0, parentId?: number) {
     items.forEach(item => {
-      result.push({ 
-        ...item, 
-        _level: level, 
+      result.push({
+        ...item,
+        _level: level,
         _isForum: false,
-        _parentId: parentId 
+        _parentId: parentId
       })
       // 添加版块
       if (item.forums && item.forums.length > 0) {
         item.forums.forEach(forum => {
-          result.push({ 
-            ...forum, 
-            _level: level + 1, 
+          result.push({
+            ...forum,
+            _level: level + 1,
             _isForum: true,
-            _parentId: item.id 
+            _parentId: item.id
           })
         })
       }
@@ -145,6 +145,7 @@ const dialogVisible = ref(false)
 const dialogTitle = ref('新增分类')
 const editingId = ref<number | null>(null)
 const submitting = ref(false)
+const categoryFormRef = ref<FormInstance>()
 const categoryForm = reactive({
   name: '',
   icon: '',
@@ -157,10 +158,33 @@ const forumDialogVisible = ref(false)
 const forumDialogTitle = ref('添加版块')
 const currentCategory = ref<CategoryTreeVO | null>(null)
 const editingForumId = ref<number | null>(null)
+const forumFormRef = ref<FormInstance>()
 const forumForm = reactive({
   name: '',
   description: ''
 })
+
+// 分类表单验证规则
+const categoryRules: FormRules = {
+  name: [
+    { required: true, message: '请输入分类名称', trigger: 'blur' },
+    { min: 2, max: 50, message: '分类名称长度为2-50个字符', trigger: 'blur' }
+  ],
+  description: [
+    { max: 200, message: '描述不能超过200个字符', trigger: 'blur' }
+  ]
+}
+
+// 版块表单验证规则
+const forumRules: FormRules = {
+  name: [
+    { required: true, message: '请输入版块名称', trigger: 'blur' },
+    { min: 2, max: 50, message: '版块名称长度为2-50个字符', trigger: 'blur' }
+  ],
+  description: [
+    { max: 200, message: '描述不能超过200个字符', trigger: 'blur' }
+  ]
+}
 
 async function fetchCategories() {
   loading.value = true
@@ -200,11 +224,10 @@ function handleEdit(row: CategoryTreeVO) {
 }
 
 async function handleSubmit() {
-  if (!categoryForm.name.trim()) {
-    ElMessage.warning('请输入分类名称')
-    return
-  }
-  
+  // 表单验证
+  const valid = await categoryFormRef.value?.validate().catch(() => false)
+  if (!valid) return
+
   submitting.value = true
   try {
     if (editingId.value) {
@@ -218,6 +241,7 @@ async function handleSubmit() {
     fetchCategories()
   } catch (e) {
     console.error('操作失败:', e)
+    ElMessage.error('操作失败')
   } finally {
     submitting.value = false
   }
@@ -247,12 +271,12 @@ function handleEditForum(row: CategoryTreeVO) {
 }
 
 async function submitForum() {
-  if (!forumForm.name.trim()) {
-    ElMessage.warning('请输入版块名称')
-    return
-  }
+  // 表单验证
+  const valid = await forumFormRef.value?.validate().catch(() => false)
+  if (!valid) return
+
   if (!currentCategory.value && !editingForumId.value) return
-  
+
   submitting.value = true
   try {
     if (editingForumId.value) {
@@ -273,6 +297,7 @@ async function submitForum() {
     fetchCategories()
   } catch (e) {
     console.error('操作版块失败:', e)
+    ElMessage.error('操作失败')
   } finally {
     submitting.value = false
   }
