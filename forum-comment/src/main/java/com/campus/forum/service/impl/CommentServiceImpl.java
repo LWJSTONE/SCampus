@@ -123,7 +123,7 @@ public class CommentServiceImpl implements CommentService {
         comment.setContent(content);
         comment.setLikeCount(0);
         comment.setReplyCount(0);
-        comment.setStatus(0);  // 正常状态
+        comment.setStatus(1);  // 正常状态：0-已删除，1-正常，2-被系统屏蔽
         comment.setIsHot(0);   // 非热门
         comment.setAuditStatus(1);  // 审核通过（实际项目可能需要审核流程）
         comment.setIpAddress(ipAddress);
@@ -138,7 +138,11 @@ public class CommentServiceImpl implements CommentService {
             // 验证父评论是否存在
             Comment parentComment = commentMapper.selectById(parentId);
             if (parentComment == null || parentComment.getDeleteFlag() == 1) {
-                throw new BusinessException(ResultCode.COMMENT_NOT_FOUND);
+                throw new BusinessException(ResultCode.COMMENT_NOT_FOUND, "父评论不存在或已被删除");
+            }
+            // 检查父评论是否被删除或屏蔽（status: 0-正常, 1-已删除, 2-被系统屏蔽）
+            if (parentComment.getStatus() != null && parentComment.getStatus() != 0) {
+                throw new BusinessException(ResultCode.COMMENT_NOT_FOUND, "无法回复已删除或被屏蔽的评论");
             }
             
             // 只允许一级嵌套：如果父评论已经是子评论，则使用其父评论ID
@@ -205,7 +209,7 @@ public class CommentServiceImpl implements CommentService {
         
         // 5. 逻辑删除当前评论
         comment.setDeleteFlag(1);
-        comment.setStatus(1);  // 设置为已删除状态
+        comment.setStatus(0);  // 设置为已删除状态：0-已删除，1-正常，2-被系统屏蔽
         commentMapper.updateById(comment);
         
         // 6. 更新父评论的回复数
@@ -483,11 +487,11 @@ public class CommentServiceImpl implements CommentService {
         
         // 2. 更新审核状态
         comment.setAuditStatus(status);
-        // 如果审核不通过，设置评论状态为不可见
+        // 如果审核不通过，设置评论状态为屏蔽
         if (status == 2) {
-            comment.setStatus(2); // 2表示审核未通过
+            comment.setStatus(2); // 2表示被系统屏蔽
         } else {
-            comment.setStatus(0); // 审核通过，恢复正常状态
+            comment.setStatus(1); // 审核通过，恢复正常状态
         }
         
         int result = commentMapper.updateById(comment);

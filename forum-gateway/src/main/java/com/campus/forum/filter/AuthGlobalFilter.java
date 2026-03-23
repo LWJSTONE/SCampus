@@ -84,6 +84,7 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
      *     <li>公开信息接口</li>
      *     <li>健康检查接口</li>
      *     <li>Swagger文档接口</li>
+     *     <li>内部服务调用接口（需要验证X-Internal-Request头）</li>
      * </ul>
      */
     private static final List<String> WHITE_LIST = Arrays.asList(
@@ -108,6 +109,11 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
             "/api/v1/posts/search",
             "/api/v1/users/public/**",
             "/api/v1/stats/public/**",
+            
+            // 内部服务调用接口（需配合X-Internal-Request验证）
+            "/api/v1/posts/internal/**",
+            "/api/v1/users/internal/**",
+            "/api/v1/comments/internal/**",
             
             // 健康检查
             "/actuator/**",

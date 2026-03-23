@@ -528,14 +528,24 @@ public class PostController {
 
     /**
      * 内部API：根据ID获取帖子信息
+     * 注意：此接口仅供内部服务调用，需要验证内部请求标识
      *
      * @param id 帖子ID
+     * @param request HTTP请求
      * @return 帖子信息
      */
-    @GetMapping("/api/internal/post/{id}")
+    @GetMapping("/internal/{id}")
     @Operation(summary = "内部API-获取帖子信息", description = "供其他服务调用的内部接口")
     public Result<PostListVO> getPostByIdInternal(
-            @Parameter(description = "帖子ID") @PathVariable Long id) {
+            @Parameter(description = "帖子ID") @PathVariable Long id,
+            HttpServletRequest request) {
+        // 验证内部请求标识（网关或内部服务调用时会传递此标识）
+        String internalFlag = request.getHeader("X-Internal-Request");
+        if (!"true".equals(internalFlag)) {
+            log.warn("拒绝非内部访问: postId={}", id);
+            return Result.fail(403, "无权访问此接口");
+        }
+        
         log.info("内部API调用：获取帖子信息, postId: {}", id);
 
         // 查询帖子
@@ -565,18 +575,28 @@ public class PostController {
 
     /**
      * 内部API：更新帖子统计
+     * 注意：此接口仅供内部服务调用，需要验证内部请求标识
      *
      * @param id    帖子ID
      * @param field 统计字段
      * @param delta 变化量
+     * @param request HTTP请求
      * @return 操作结果
      */
-    @PostMapping("/api/internal/post/{id}/stats")
+    @PostMapping("/internal/{id}/stats")
     @Operation(summary = "内部API-更新帖子统计", description = "供其他服务调用的内部接口")
     public Result<Boolean> updatePostStatsInternal(
             @Parameter(description = "帖子ID") @PathVariable Long id,
             @Parameter(description = "统计字段") @RequestParam String field,
-            @Parameter(description = "变化量") @RequestParam int delta) {
+            @Parameter(description = "变化量") @RequestParam int delta,
+            HttpServletRequest request) {
+        // 验证内部请求标识
+        String internalFlag = request.getHeader("X-Internal-Request");
+        if (!"true".equals(internalFlag)) {
+            log.warn("拒绝非内部访问: postId={}, field={}", id, field);
+            return Result.fail(403, "无权访问此接口");
+        }
+        
         log.info("内部API调用：更新帖子统计, postId: {}, field: {}, delta: {}", id, field, delta);
 
         // 根据字段类型更新
@@ -596,18 +616,28 @@ public class PostController {
 
     /**
      * 内部API：获取用户帖子列表
+     * 注意：此接口仅供内部服务调用，需要验证内部请求标识
      *
      * @param userId 用户ID
      * @param page   当前页
      * @param size   每页大小
+     * @param request HTTP请求
      * @return 帖子列表
      */
-    @GetMapping("/api/internal/post/user/{userId}")
+    @GetMapping("/internal/user/{userId}")
     @Operation(summary = "内部API-获取用户帖子列表", description = "供其他服务调用的内部接口")
     public Result<PageResult<PostListVO>> getPostsByUserIdInternal(
             @Parameter(description = "用户ID") @PathVariable Long userId,
             @Parameter(description = "当前页") @RequestParam(defaultValue = "1") int page,
-            @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") int size) {
+            @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") int size,
+            HttpServletRequest request) {
+        // 验证内部请求标识
+        String internalFlag = request.getHeader("X-Internal-Request");
+        if (!"true".equals(internalFlag)) {
+            log.warn("拒绝非内部访问: userId={}", userId);
+            return Result.fail(403, "无权访问此接口");
+        }
+        
         log.info("内部API调用：获取用户帖子列表, userId: {}, page: {}, size: {}", userId, page, size);
 
         // 构建查询参数

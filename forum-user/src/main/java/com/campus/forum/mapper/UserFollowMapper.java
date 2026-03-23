@@ -30,7 +30,7 @@ public interface UserFollowMapper extends BaseMapper<UserFollow> {
      * @param followingId 被关注者ID
      * @return 关注关系实体
      */
-    @Select("SELECT * FROM user_follow WHERE follower_id = #{followerId} AND following_id = #{followingId} AND delete_flag = 0")
+    @Select("SELECT * FROM sys_user_follow WHERE follower_id = #{followerId} AND following_id = #{followingId} AND delete_flag = 0")
     UserFollow selectByFollowerAndFollowing(@Param("followerId") Long followerId, @Param("followingId") Long followingId);
 
     /**
@@ -40,7 +40,7 @@ public interface UserFollowMapper extends BaseMapper<UserFollow> {
      * @param followingId 被关注者ID
      * @return 关注关系实体
      */
-    @Select("SELECT * FROM user_follow WHERE follower_id = #{followerId} AND following_id = #{followingId}")
+    @Select("SELECT * FROM sys_user_follow WHERE follower_id = #{followerId} AND following_id = #{followingId}")
     UserFollow selectFollowStatus(@Param("followerId") Long followerId, @Param("followingId") Long followingId);
 
     /**
@@ -50,7 +50,7 @@ public interface UserFollowMapper extends BaseMapper<UserFollow> {
      * @param followingId 被关注者ID
      * @return 是否已关注
      */
-    @Select("SELECT COUNT(1) > 0 FROM user_follow WHERE follower_id = #{followerId} AND following_id = #{followingId} AND status = 1 AND delete_flag = 0")
+    @Select("SELECT COUNT(1) > 0 FROM sys_user_follow WHERE follower_id = #{followerId} AND following_id = #{followingId} AND status = 1 AND delete_flag = 0")
     boolean isFollowing(@Param("followerId") Long followerId, @Param("followingId") Long followingId);
 
     /**
@@ -60,7 +60,7 @@ public interface UserFollowMapper extends BaseMapper<UserFollow> {
      * @param followingId 被关注者ID
      * @return 粉丝列表
      */
-    @Select("SELECT * FROM user_follow WHERE following_id = #{followingId} AND status = 1 AND delete_flag = 0 ORDER BY create_time DESC")
+    @Select("SELECT * FROM sys_user_follow WHERE following_id = #{followingId} AND status = 1 AND delete_flag = 0 ORDER BY create_time DESC")
     IPage<UserFollow> selectFollowerPage(Page<UserFollow> page, @Param("followingId") Long followingId);
 
     /**
@@ -70,7 +70,7 @@ public interface UserFollowMapper extends BaseMapper<UserFollow> {
      * @param followerId 关注者ID
      * @return 关注列表
      */
-    @Select("SELECT * FROM user_follow WHERE follower_id = #{followerId} AND status = 1 AND delete_flag = 0 ORDER BY create_time DESC")
+    @Select("SELECT * FROM sys_user_follow WHERE follower_id = #{followerId} AND status = 1 AND delete_flag = 0 ORDER BY create_time DESC")
     IPage<UserFollow> selectFollowingPage(Page<UserFollow> page, @Param("followerId") Long followerId);
 
     /**
@@ -79,7 +79,7 @@ public interface UserFollowMapper extends BaseMapper<UserFollow> {
      * @param followingId 被关注者ID
      * @return 粉丝数量
      */
-    @Select("SELECT COUNT(1) FROM user_follow WHERE following_id = #{followingId} AND status = 1 AND delete_flag = 0")
+    @Select("SELECT COUNT(1) FROM sys_user_follow WHERE following_id = #{followingId} AND status = 1 AND delete_flag = 0")
     int countFollowers(@Param("followingId") Long followingId);
 
     /**
@@ -88,6 +88,6 @@ public interface UserFollowMapper extends BaseMapper<UserFollow> {
      * @param followerId 关注者ID
      * @return 关注数量
      */
-    @Select("SELECT COUNT(1) FROM user_follow WHERE follower_id = #{followerId} AND status = 1 AND delete_flag = 0")
+    @Select("SELECT COUNT(1) FROM sys_user_follow WHERE follower_id = #{followerId} AND status = 1 AND delete_flag = 0")
     int countFollowing(@Param("followerId") Long followerId);
 }

@@ -18,7 +18,7 @@ import java.time.LocalDateTime;
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
-@TableName("t_comment")
+@TableName("forum_comment")
 public class Comment extends BaseEntity implements Serializable {
 
     private static final long serialVersionUID = 1L;
@@ -75,8 +75,8 @@ public class Comment extends BaseEntity implements Serializable {
 
     /**
      * 评论状态
-     * 0-正常
-     * 1-已删除
+     * 0-已删除
+     * 1-正常
      * 2-被系统屏蔽
      */
     @TableField("status")

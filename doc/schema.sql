@@ -57,13 +57,17 @@ CREATE TABLE `sys_user` (
 DROP TABLE IF EXISTS `sys_user_follow`;
 CREATE TABLE `sys_user_follow` (
     `id` BIGINT(20) NOT NULL AUTO_INCREMENT COMMENT '关注ID',
-    `user_id` BIGINT(20) NOT NULL COMMENT '用户ID（关注者）',
-    `follow_user_id` BIGINT(20) NOT NULL COMMENT '被关注用户ID',
+    `follower_id` BIGINT(20) NOT NULL COMMENT '关注者ID',
+    `following_id` BIGINT(20) NOT NULL COMMENT '被关注用户ID',
+    `status` TINYINT(1) DEFAULT 1 COMMENT '关注状态：0-已取消，1-正常关注',
     `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '关注时间',
+    `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `delete_flag` TINYINT(1) DEFAULT 0 COMMENT '删除标记：0-未删除，1-已删除',
     PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_user_follow` (`user_id`, `follow_user_id`),
-    KEY `idx_user_id` (`user_id`),
-    KEY `idx_follow_user_id` (`follow_user_id`)
+    UNIQUE KEY `uk_user_follow` (`follower_id`, `following_id`),
+    KEY `idx_follower_id` (`follower_id`),
+    KEY `idx_following_id` (`following_id`),
+    KEY `idx_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='用户关注表';
 
 -- ---------------------------------------------------
