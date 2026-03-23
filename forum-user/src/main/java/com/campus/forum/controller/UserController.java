@@ -3,6 +3,7 @@ package com.campus.forum.controller;
 import com.campus.forum.api.post.PostApi;
 import com.campus.forum.api.post.PostDTO;
 import com.campus.forum.api.comment.CommentApi;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.campus.forum.dto.PasswordUpdateDTO;
 import com.campus.forum.dto.UserQueryDTO;
 import com.campus.forum.dto.UserUpdateDTO;
@@ -21,6 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import javax.servlet.http.HttpServletRequest;
 import java.util.Map;
 
 /**
@@ -164,14 +166,23 @@ public class UserController {
      *
      * @param id     用户ID
      * @param status 状态（0-禁用，1-正常）
+     * @param request HTTP请求
      * @return 操作结果
      */
     @PutMapping("/{id}/status")
     @Operation(summary = "更新用户状态", description = "管理员启用/禁用用户账户")
     public Result<Boolean> updateUserStatus(
             @Parameter(description = "用户ID", required = true) @PathVariable Long id,
-            @Parameter(description = "状态（0-禁用，1-正常）", required = true) @RequestParam Integer status) {
+            @Parameter(description = "状态（0-禁用，1-正常）", required = true) @RequestParam Integer status,
+            HttpServletRequest request) {
         log.info("更新用户状态，用户ID：{}，状态：{}", id, status);
+        
+        // 验证管理员权限
+        String role = request.getHeader("X-User-Role");
+        if (role == null || (!"ADMIN".equalsIgnoreCase(role) && !"ROLE_ADMIN".equalsIgnoreCase(role))) {
+            log.warn("非管理员尝试更新用户状态，角色：{}", role);
+            return Result.fail(403, "无权限执行此操作，需要管理员权限");
+        }
         
         // 验证状态值
         if (status != 0 && status != 1) {
@@ -269,9 +280,9 @@ public class UserController {
         log.info("获取用户帖子，用户ID：{}", id);
         // 通过Feign调用帖子服务获取用户帖子
         try {
-            var result = postApi.getPostsByUserId(id, queryDTO.getCurrent(), queryDTO.getSize());
+            Result<Page<PostDTO>> result = postApi.getPostsByUserId(id, queryDTO.getCurrent(), queryDTO.getSize());
             if (result != null && result.getData() != null) {
-                return Result.success(result.getData());
+                return Result.success(PageResult.of(result.getData()));
             }
         } catch (Exception e) {
             log.error("调用帖子服务失败", e);
@@ -337,5 +348,67 @@ public class UserController {
         log.info("获取当前用户信息，用户ID：{}", currentUserId);
         UserDetailVO detail = userService.getCurrentUser(currentUserId);
         return Result.success(detail);
+    }
+
+    // ==================== 内部API（供其他服务调用） ====================
+
+    /**
+     * 内部API：增加用户帖子数
+     *
+     * @param id 用户ID
+     * @return 操作结果
+     */
+    @PutMapping("/api/internal/user/{id}/post-count/increment")
+    @Operation(summary = "内部API-增加帖子数", description = "供其他服务调用的内部接口")
+    public Result<Boolean> incrementPostCount(
+            @Parameter(description = "用户ID") @PathVariable Long id) {
+        log.info("内部API调用：增加用户帖子数，用户ID: {}", id);
+        userService.incrementPostCount(id);
+        return Result.success(true);
+    }
+
+    /**
+     * 内部API：减少用户帖子数
+     *
+     * @param id 用户ID
+     * @return 操作结果
+     */
+    @PutMapping("/api/internal/user/{id}/post-count/decrement")
+    @Operation(summary = "内部API-减少帖子数", description = "供其他服务调用的内部接口")
+    public Result<Boolean> decrementPostCount(
+            @Parameter(description = "用户ID") @PathVariable Long id) {
+        log.info("内部API调用：减少用户帖子数，用户ID: {}", id);
+        userService.decrementPostCount(id);
+        return Result.success(true);
+    }
+
+    /**
+     * 内部API：增加用户评论数
+     *
+     * @param id 用户ID
+     * @return 操作结果
+     */
+    @PutMapping("/api/internal/user/{id}/comment-count/increment")
+    @Operation(summary = "内部API-增加评论数", description = "供其他服务调用的内部接口")
+    public Result<Boolean> incrementCommentCount(
+            @Parameter(description = "用户ID") @PathVariable Long id) {
+        log.info("内部API调用：增加用户评论数，用户ID: {}", id);
+        userService.incrementCommentCount(id);
+        return Result.success(true);
+    }
+
+    /**
+     * 内部API：减少用户评论数
+     *
+     * @param id 用户ID
+     * @return 操作结果
+     */
+    @PutMapping("/api/internal/user/{id}/comment-count/decrement")
+    @Operation(summary = "内部API-减少评论数", description = "供其他服务调用的内部接口")
+    public Result<Boolean> decrementCommentCount(
+            @Parameter(description = "用户ID") @PathVariable Long id) {
+        log.info("内部API调用：减少用户评论数，用户ID: {}", id);
+        userService.decrementCommentCount(id);
+        return Result.success(true);
     }
 }

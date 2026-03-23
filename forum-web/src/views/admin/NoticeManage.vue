@@ -163,8 +163,9 @@ async function handleSubmit() {
     }
     dialogVisible.value = false
     fetchNotices()
-  } catch (e) {
+  } catch (e: any) {
     console.error('操作失败:', e)
+    ElMessage.error(e?.message || '操作失败，请稍后重试')
   } finally {
     submitting.value = false
   }
@@ -176,8 +177,12 @@ async function handleDelete(row: NoticeVO) {
     await deleteNotice(row.id)
     ElMessage.success('删除成功')
     fetchNotices()
-  } catch (e) {
-    // 用户取消或删除失败
+  } catch (e: any) {
+    // 用户取消确认
+    if (e !== 'cancel') {
+      console.error('删除失败:', e)
+      ElMessage.error(e?.message || '删除失败，请稍后重试')
+    }
   }
 }
 

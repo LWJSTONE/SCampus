@@ -546,7 +546,7 @@ public class PostController {
         listVO.setId(detail.getId());
         listVO.setTitle(detail.getTitle());
         listVO.setUserId(detail.getUserId());
-        listVO.setUsername(detail.getUsername());
+        listVO.setUserName(detail.getUserName());
         listVO.setUserAvatar(detail.getUserAvatar());
         listVO.setForumId(detail.getForumId());
         listVO.setForumName(detail.getForumName());

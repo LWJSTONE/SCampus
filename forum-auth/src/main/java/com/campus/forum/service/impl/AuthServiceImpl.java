@@ -114,6 +114,12 @@ public class AuthServiceImpl implements AuthService {
         String accessToken = JwtUtils.generateToken(user.getId(), user.getUsername(), jwtSecret,
                 accessTokenExpiration * 1000);
         String refreshToken = JwtUtils.generateRefreshToken(user.getId(), user.getUsername(), jwtSecret);
+        
+        // 检查Token是否生成成功
+        if (StrUtil.isBlank(accessToken) || StrUtil.isBlank(refreshToken)) {
+            log.error("Token生成失败：userId={}", user.getId());
+            return Result.fail(500, "登录失败，请稍后重试");
+        }
 
         // 7. 将Token存入Redis
         String tokenKey = Constants.TOKEN_PREFIX + user.getId();
@@ -186,28 +192,37 @@ public class AuthServiceImpl implements AuthService {
             }
         }
 
-        // 2. 密码确认校验
+        // 2. 密码强度校验
+        String password = registerDTO.getPassword();
+        if (StrUtil.isBlank(password) || password.length() < 6) {
+            return Result.fail(400, "密码长度不能少于6位");
+        }
+        if (password.length() > 20) {
+            return Result.fail(400, "密码长度不能超过20位");
+        }
+        
+        // 3. 密码确认校验
         if (registerDTO.getConfirmPassword() != null && 
-            !registerDTO.getPassword().equals(registerDTO.getConfirmPassword())) {
+            !password.equals(registerDTO.getConfirmPassword())) {
             return Result.fail(400, "两次输入的密码不一致");
         }
 
-        // 3. 检查用户名是否已存在
+        // 4. 检查用户名是否已存在
         AuthUser existUser = authUserMapper.selectByUsername(registerDTO.getUsername());
         if (existUser != null) {
             return Result.fail(400, "用户名已被注册");
         }
 
-        // 4. 检查邮箱是否已存在
+        // 5. 检查邮箱是否已存在
         AuthUser existEmail = authUserMapper.selectByEmail(registerDTO.getEmail());
         if (existEmail != null) {
             return Result.fail(400, "邮箱已被注册");
         }
 
-        // 5. 创建用户
+        // 6. 创建用户
         AuthUser user = new AuthUser();
         user.setUsername(registerDTO.getUsername());
-        user.setPassword(PasswordUtils.encode(registerDTO.getPassword()));
+        user.setPassword(PasswordUtils.encode(password));
         user.setNickname(StrUtil.isNotBlank(registerDTO.getNickname()) 
                 ? registerDTO.getNickname() 
                 : registerDTO.getUsername());
@@ -567,9 +582,21 @@ public class AuthServiceImpl implements AuthService {
         // 查询用户角色
         List<String> roleCodes = authUserMapper.selectRoleCodesByUserId(user.getId());
         if (roleCodes != null && !roleCodes.isEmpty()) {
-            userInfoVO.setRoles(roleCodes);
+            // 将角色编码字符串转换为RoleVO对象
+            List<UserInfoVO.RoleVO> roleVOList = new java.util.ArrayList<>();
+            for (String roleCode : roleCodes) {
+                UserInfoVO.RoleVO roleVO = new UserInfoVO.RoleVO();
+                roleVO.setRoleCode(roleCode);
+                roleVO.setRoleName(roleCode);
+                roleVOList.add(roleVO);
+            }
+            userInfoVO.setRoles(roleVOList);
         } else {
-            userInfoVO.setRoles(java.util.Collections.singletonList("USER"));
+            // 默认角色
+            UserInfoVO.RoleVO defaultRole = new UserInfoVO.RoleVO();
+            defaultRole.setRoleCode("USER");
+            defaultRole.setRoleName("普通用户");
+            userInfoVO.setRoles(java.util.Collections.singletonList(defaultRole));
         }
         userInfoVO.setPermissions(java.util.Collections.singletonList("user:view"));
         return userInfoVO;
@@ -612,6 +639,6 @@ public class AuthServiceImpl implements AuthService {
             log.debug("验证码已发送至邮箱 {}，验证码：{}", email, code);
         }
 
-        return Result.success("验证码已发送，请查收邮件");
+        return Result.success();
     }
 }

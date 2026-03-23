@@ -60,6 +60,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { getPostList } from '@/api/post'
 import { getNoticeList } from '@/api/notify'
 import dayjs from 'dayjs'
@@ -137,7 +138,7 @@ async function fetchPosts() {
     hasMore.value = res.current < res.pages
   } catch (e: any) {
     console.error('获取帖子列表失败:', e)
-    // 显示错误提示
+    ElMessage.error(e?.message || '获取帖子列表失败')
   } finally {
     loading.value = false
   }

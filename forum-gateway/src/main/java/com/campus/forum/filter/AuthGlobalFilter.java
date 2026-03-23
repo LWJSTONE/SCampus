@@ -92,10 +92,12 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
             "/api/v1/auth/logout",
             "/api/v1/auth/captcha/**",
             "/api/v1/auth/code/**",
+            "/api/v1/auth/email/code",
             "/api/v1/auth/reset-password",
             "/api/v1/auth/refresh-token",
             "/api/v1/auth/check-username",
             "/api/v1/auth/check-email",
+            "/api/v1/auth/password/reset",
             
             // 公开信息
             "/api/v1/categories/**",

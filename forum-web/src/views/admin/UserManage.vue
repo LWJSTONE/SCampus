@@ -129,8 +129,9 @@ async function fetchUsers() {
     const res = await getUserList(queryParams)
     users.value = res.records || []
     total.value = res.total || 0
-  } catch (e) {
+  } catch (e: any) {
     console.error('获取用户列表失败:', e)
+    ElMessage.error(e?.message || '获取用户列表失败')
     users.value = []
   } finally {
     loading.value = false

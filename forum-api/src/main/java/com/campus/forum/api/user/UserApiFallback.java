@@ -30,4 +30,28 @@ public class UserApiFallback implements UserApi {
         log.error("调用用户服务失败，更新用户状态，用户ID: {}, 状态: {}", id, status);
         return Result.fail("用户服务不可用，请稍后重试");
     }
+
+    @Override
+    public Result<Boolean> incrementPostCount(Long id) {
+        log.error("调用用户服务失败，增加帖子数，用户ID: {}", id);
+        return Result.fail("用户服务不可用，请稍后重试");
+    }
+
+    @Override
+    public Result<Boolean> decrementPostCount(Long id) {
+        log.error("调用用户服务失败，减少帖子数，用户ID: {}", id);
+        return Result.fail("用户服务不可用，请稍后重试");
+    }
+
+    @Override
+    public Result<Boolean> incrementCommentCount(Long id) {
+        log.error("调用用户服务失败，增加评论数，用户ID: {}", id);
+        return Result.fail("用户服务不可用，请稍后重试");
+    }
+
+    @Override
+    public Result<Boolean> decrementCommentCount(Long id) {
+        log.error("调用用户服务失败，减少评论数，用户ID: {}", id);
+        return Result.fail("用户服务不可用，请稍后重试");
+    }
 }

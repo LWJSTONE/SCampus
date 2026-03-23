@@ -42,4 +42,40 @@ public interface UserApi {
      */
     @PutMapping("/api/internal/user/{id}/status")
     Result<Boolean> updateUserStatus(@PathVariable("id") Long id, @RequestParam("status") Integer status);
+
+    /**
+     * Increment user post count
+     *
+     * @param id User ID
+     * @return Result
+     */
+    @PutMapping("/api/internal/user/{id}/post-count/increment")
+    Result<Boolean> incrementPostCount(@PathVariable("id") Long id);
+
+    /**
+     * Decrement user post count
+     *
+     * @param id User ID
+     * @return Result
+     */
+    @PutMapping("/api/internal/user/{id}/post-count/decrement")
+    Result<Boolean> decrementPostCount(@PathVariable("id") Long id);
+
+    /**
+     * Increment user comment count
+     *
+     * @param id User ID
+     * @return Result
+     */
+    @PutMapping("/api/internal/user/{id}/comment-count/increment")
+    Result<Boolean> incrementCommentCount(@PathVariable("id") Long id);
+
+    /**
+     * Decrement user comment count
+     *
+     * @param id User ID
+     * @return Result
+     */
+    @PutMapping("/api/internal/user/{id}/comment-count/decrement")
+    Result<Boolean> decrementCommentCount(@PathVariable("id") Long id);
 }
