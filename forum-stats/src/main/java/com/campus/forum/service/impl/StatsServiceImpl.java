@@ -267,12 +267,12 @@ public class StatsServiceImpl implements StatsService {
         vo.setTotalFollows(dailyStatsMapper.sumFollowCount(monthStart, today).longValue());
         vo.setTotalViews(dailyStatsMapper.sumViewCount(monthStart, today));
 
-        // 计算增长率
-        LocalDate lastWeekStart = monthStart.minusDays(7);
-        Integer lastWeekLikes = dailyStatsMapper.sumLikeCount(lastWeekStart, monthStart);
-        Integer thisWeekLikes = dailyStatsMapper.sumLikeCount(monthStart, today);
-        if (lastWeekLikes != null && lastWeekLikes > 0) {
-            double growth = ((thisWeekLikes - lastWeekLikes) * 100.0) / lastWeekLikes;
+        // 计算增长率（对比本月 vs 上月，都是30天的时间跨度）
+        LocalDate lastMonthStart = monthStart.minusDays(30);
+        Integer thisMonthLikes = dailyStatsMapper.sumLikeCount(monthStart, today);
+        Integer lastMonthLikes = dailyStatsMapper.sumLikeCount(lastMonthStart, monthStart);
+        if (lastMonthLikes != null && lastMonthLikes > 0) {
+            double growth = ((thisMonthLikes - lastMonthLikes) * 100.0) / lastMonthLikes;
             vo.setGrowthRate(Math.round(growth * 100.0) / 100.0);
         } else {
             vo.setGrowthRate(0.0);

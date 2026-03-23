@@ -2,7 +2,7 @@
 -- 论坛评论服务数据库初始化脚本
 -- 数据库名称: forum_comment_db
 -- 包含表：
---   - t_comment: 评论表
+--   - forum_comment: 评论表
 --   - t_comment_like: 评论点赞表
 -- ============================================================
 
@@ -14,8 +14,8 @@ USE `forum_comment_db`;
 -- ============================================================
 -- 评论表
 -- ============================================================
-DROP TABLE IF EXISTS `t_comment`;
-CREATE TABLE `t_comment` (
+DROP TABLE IF EXISTS `forum_comment`;
+CREATE TABLE `forum_comment` (
     `id` BIGINT(20) NOT NULL AUTO_INCREMENT COMMENT '主键ID',
     `post_id` BIGINT(20) NOT NULL COMMENT '帖子ID',
     `parent_id` BIGINT(20) NOT NULL DEFAULT 0 COMMENT '父评论ID（0表示一级评论）',
@@ -24,7 +24,7 @@ CREATE TABLE `t_comment` (
     `content` VARCHAR(500) NOT NULL COMMENT '评论内容',
     `like_count` INT(11) NOT NULL DEFAULT 0 COMMENT '点赞数',
     `reply_count` INT(11) NOT NULL DEFAULT 0 COMMENT '回复数',
-    `status` TINYINT(4) NOT NULL DEFAULT 0 COMMENT '评论状态：0-正常，1-已删除，2-被屏蔽',
+    `status` TINYINT(4) NOT NULL DEFAULT 1 COMMENT '评论状态：0-已删除，1-正常，2-被系统屏蔽',
     `is_hot` TINYINT(4) NOT NULL DEFAULT 0 COMMENT '是否热门：0-否，1-是',
     `ip_address` VARCHAR(50) DEFAULT NULL COMMENT 'IP地址',
     `ip_location` VARCHAR(100) DEFAULT NULL COMMENT 'IP归属地',
@@ -64,12 +64,12 @@ CREATE TABLE `t_comment_like` (
 -- ============================================================
 
 -- 插入测试评论
-INSERT INTO `t_comment` (`post_id`, `parent_id`, `reply_to_user_id`, `user_id`, `content`, `like_count`, `reply_count`, `status`, `is_hot`, `ip_address`, `ip_location`) VALUES
-(1, 0, NULL, 1, '这是一条测试评论，帖子内容很精彩！', 10, 2, 0, 1, '127.0.0.1', '本地'),
-(1, 0, NULL, 2, '支持楼主！', 5, 1, 0, 0, '127.0.0.1', '本地'),
-(1, 1, 1, 3, '感谢支持！', 2, 0, 0, 0, '127.0.0.1', '本地'),
-(1, 1, 1, 4, '同感！', 1, 0, 0, 0, '127.0.0.1', '本地'),
-(1, 2, 2, 1, '谢谢！', 0, 0, 0, 0, '127.0.0.1', '本地');
+INSERT INTO `forum_comment` (`post_id`, `parent_id`, `reply_to_user_id`, `user_id`, `content`, `like_count`, `reply_count`, `status`, `is_hot`, `ip_address`, `ip_location`) VALUES
+(1, 0, NULL, 1, '这是一条测试评论，帖子内容很精彩！', 10, 2, 1, 1, '127.0.0.1', '本地'),
+(1, 0, NULL, 2, '支持楼主！', 5, 1, 1, 0, '127.0.0.1', '本地'),
+(1, 1, 1, 3, '感谢支持！', 2, 0, 1, 0, '127.0.0.1', '本地'),
+(1, 1, 1, 4, '同感！', 1, 0, 1, 0, '127.0.0.1', '本地'),
+(1, 2, 2, 1, '谢谢！', 0, 0, 1, 0, '127.0.0.1', '本地');
 
 -- 插入测试点赞
 INSERT INTO `t_comment_like` (`comment_id`, `user_id`) VALUES
@@ -83,5 +83,5 @@ INSERT INTO `t_comment_like` (`comment_id`, `user_id`) VALUES
 -- 查看创建结果
 -- ============================================================
 SELECT '评论服务数据库初始化完成!' AS message;
-SELECT COUNT(*) AS comment_count FROM t_comment;
+SELECT COUNT(*) AS comment_count FROM forum_comment;
 SELECT COUNT(*) AS like_count FROM t_comment_like;

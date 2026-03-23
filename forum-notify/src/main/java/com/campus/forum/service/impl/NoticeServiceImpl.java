@@ -141,6 +141,7 @@ public class NoticeServiceImpl implements NoticeService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public NoticeVO getNoticeDetail(Long noticeId, Long userId) {
         log.info("获取通知详情, noticeId: {}, userId: {}", noticeId, userId);
         
@@ -153,10 +154,54 @@ public class NoticeServiceImpl implements NoticeService {
         // 增加阅读数
         noticeMapper.incrementReadCount(noticeId);
         
+        // 自动标记已读
+        if (userId != null) {
+            markAsReadInternal(noticeId, userId);
+        }
+        
         // 转换为VO
         NoticeVO vo = convertToVO(notice, userId);
+        vo.setIsRead(true); // 已标记已读
         
         return vo;
+    }
+    
+    /**
+     * 内部标记已读方法，不包含事务注解，供其他方法内部调用
+     *
+     * @param noticeId 通知ID
+     * @param userId 用户ID
+     */
+    private void markAsReadInternal(Long noticeId, Long userId) {
+        // 查询是否已有记录
+        UserNotice userNotice = userNoticeMapper.selectOne(
+                new LambdaQueryWrapper<UserNotice>()
+                        .eq(UserNotice::getUserId, userId)
+                        .eq(UserNotice::getNoticeId, noticeId)
+        );
+        
+        if (userNotice != null) {
+            // 更新已读状态
+            if (userNotice.getIsRead() != 1) {
+                userNotice.setIsRead(1);
+                userNotice.setReadTime(LocalDateTime.now());
+                userNoticeMapper.updateById(userNotice);
+            }
+        } else {
+            // 创建新记录
+            userNotice = new UserNotice();
+            userNotice.setUserId(userId);
+            userNotice.setNoticeId(noticeId);
+            userNotice.setIsRead(1);
+            userNotice.setReadTime(LocalDateTime.now());
+            userNotice.setIsDeleted(0);
+            userNoticeMapper.insert(userNotice);
+        }
+        
+        // 清除未读数缓存
+        clearUnreadCountCache(userId);
+        
+        log.info("通知已自动标记为已读, noticeId: {}, userId: {}", noticeId, userId);
     }
 
     @Override
@@ -175,6 +220,10 @@ public class NoticeServiceImpl implements NoticeService {
         
         // 保存通知
         noticeMapper.insert(notice);
+        
+        // 清除所有用户的未读数缓存
+        // 由于无法获取所有用户ID，使用模式匹配清除所有未读数缓存
+        clearAllUnreadCountCache();
         
         log.info("通知发布成功, noticeId: {}", notice.getId());
         return notice.getId();
@@ -252,9 +301,14 @@ public class NoticeServiceImpl implements NoticeService {
         
         // 先从缓存获取
         String cacheKey = REDIS_KEY_UNREAD_COUNT + userId;
-        String cached = redisTemplate.opsForValue().get(cacheKey);
-        if (cached != null) {
-            return Integer.parseInt(cached);
+        try {
+            String cached = redisTemplate.opsForValue().get(cacheKey);
+            if (cached != null) {
+                return Integer.parseInt(cached);
+            }
+        } catch (Exception e) {
+            log.warn("Redis读取未读数缓存失败, userId: {}, 将直接查询数据库", userId, e);
+            // 降级：直接查询数据库
         }
         
         // 查询已发布但用户未读的通知数量
@@ -263,7 +317,12 @@ public class NoticeServiceImpl implements NoticeService {
         unreadCount = Math.max(0, unreadCount);
         
         // 写入缓存
-        redisTemplate.opsForValue().set(cacheKey, String.valueOf(unreadCount), Duration.ofHours(1));
+        try {
+            redisTemplate.opsForValue().set(cacheKey, String.valueOf(unreadCount), Duration.ofHours(1));
+        } catch (Exception e) {
+            log.warn("Redis写入未读数缓存失败, userId: {}", userId, e);
+            // 缓存写入失败不影响业务，忽略异常
+        }
         
         return unreadCount;
     }
@@ -305,8 +364,7 @@ public class NoticeServiceImpl implements NoticeService {
         }
         
         // 清除未读数缓存
-        String cacheKey = REDIS_KEY_UNREAD_COUNT + userId;
-        redisTemplate.delete(cacheKey);
+        clearUnreadCountCache(userId);
         
         log.info("通知已标记为已读, noticeId: {}, userId: {}", noticeId, userId);
         return true;
@@ -328,7 +386,12 @@ public class NoticeServiceImpl implements NoticeService {
         
         // 清除未读数缓存，设置为0
         String cacheKey = REDIS_KEY_UNREAD_COUNT + userId;
-        redisTemplate.opsForValue().set(cacheKey, "0", Duration.ofHours(1));
+        try {
+            redisTemplate.opsForValue().set(cacheKey, "0", Duration.ofHours(1));
+        } catch (Exception e) {
+            log.warn("Redis写入未读数缓存失败, userId: {}", userId, e);
+            // 缓存写入失败不影响业务，忽略异常
+        }
         
         log.info("全部通知已标记为已读, userId: {}, 更新记录数: {}", userId, updatedCount);
         return true;
@@ -396,5 +459,56 @@ public class NoticeServiceImpl implements NoticeService {
         }
         
         return vo;
+    }
+    
+    // ==================== Redis缓存辅助方法 ====================
+    
+    /**
+     * 清除单个用户的未读数缓存
+     *
+     * @param userId 用户ID
+     */
+    private void clearUnreadCountCache(Long userId) {
+        try {
+            String cacheKey = REDIS_KEY_UNREAD_COUNT + userId;
+            redisTemplate.delete(cacheKey);
+        } catch (Exception e) {
+            log.warn("Redis清除未读数缓存失败, userId: {}", userId, e);
+            // 缓存操作失败不影响业务，忽略异常
+        }
+    }
+    
+    /**
+     * 清除所有用户的未读数缓存
+     * 用于发布新通知后使所有缓存失效
+     */
+    private void clearAllUnreadCountCache() {
+        try {
+            // 使用scan命令遍历并删除所有匹配的key，避免使用keys命令阻塞Redis
+            String pattern = REDIS_KEY_UNREAD_COUNT + "*";
+            java.util.Set<String> keys = redisTemplate.execute(
+                    (org.springframework.data.redis.connection.RedisCallback<java.util.Set<String>>) connection -> {
+                        java.util.Set<String> matchedKeys = new java.util.HashSet<>();
+                        org.springframework.data.redis.core.Cursor<byte[]> cursor = connection.scan(
+                                org.springframework.data.redis.core.ScanOptions.scanOptions()
+                                        .match(pattern)
+                                        .count(1000)
+                                        .build()
+                        );
+                        while (cursor.hasNext()) {
+                            matchedKeys.add(new String(cursor.next()));
+                        }
+                        return matchedKeys;
+                    }
+            );
+            
+            if (keys != null && !keys.isEmpty()) {
+                redisTemplate.delete(keys);
+                log.info("已清除所有用户未读数缓存, 数量: {}", keys.size());
+            }
+        } catch (Exception e) {
+            log.warn("Redis清除所有未读数缓存失败", e);
+            // 缓存操作失败不影响业务，忽略异常
+        }
     }
 }

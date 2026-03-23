@@ -73,6 +73,17 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
     /**
+     * 内部服务请求头名称
+     * 用于验证内部服务之间的调用，防止外部直接访问内部接口
+     */
+    private static final String INTERNAL_REQUEST_HEADER = "X-Internal-Request";
+
+    /**
+     * 内部服务请求头预期值
+     */
+    private static final String INTERNAL_REQUEST_VALUE = "true";
+
+    /**
      * 白名单路径列表 - 不需要认证的路径
      * 
      * <p>包含：</p>
@@ -84,8 +95,9 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
      *     <li>公开信息接口</li>
      *     <li>健康检查接口</li>
      *     <li>Swagger文档接口</li>
-     *     <li>内部服务调用接口（需要验证X-Internal-Request头）</li>
      * </ul>
+     * 
+     * <p>注意：内部服务调用接口不在白名单中，需要通过{@link #INTERNAL_PATHS}单独处理</p>
      */
     private static final List<String> WHITE_LIST = Arrays.asList(
             // 认证相关 - 白名单
@@ -110,11 +122,6 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
             "/api/v1/users/public/**",
             "/api/v1/stats/public/**",
             
-            // 内部服务调用接口（需配合X-Internal-Request验证）
-            "/api/v1/posts/internal/**",
-            "/api/v1/users/internal/**",
-            "/api/v1/comments/internal/**",
-            
             // 健康检查
             "/actuator/**",
             "/health",
@@ -134,6 +141,18 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
     );
 
     /**
+     * 内部服务调用接口路径列表
+     * 
+     * <p>这些路径需要验证X-Internal-Request请求头，只有带有正确请求头的内部服务调用才被允许。</p>
+     * <p>安全说明：外部请求访问这些路径将被拒绝，防止未授权访问内部接口。</p>
+     */
+    private static final List<String> INTERNAL_PATHS = Arrays.asList(
+            "/api/v1/posts/internal/**",
+            "/api/v1/users/internal/**",
+            "/api/v1/comments/internal/**"
+    );
+
+    /**
      * 过滤器执行方法
      * 
      * @param exchange ServerWebExchange对象
@@ -147,6 +166,18 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
         
         log.debug("Gateway处理请求: {}", path);
         
+        // 检查是否为内部服务路径（需要验证X-Internal-Request请求头）
+        if (isInternalPath(path)) {
+            String internalHeader = request.getHeaders().getFirst(INTERNAL_REQUEST_HEADER);
+            if (!INTERNAL_REQUEST_VALUE.equals(internalHeader)) {
+                log.warn("内部服务接口未授权访问: {}, 来源IP: {}", path, 
+                        request.getRemoteAddress() != null ? request.getRemoteAddress().getAddress().getHostAddress() : "unknown");
+                return unauthorizedResponse(exchange, "禁止访问内部接口");
+            }
+            log.debug("内部服务接口验证通过: {}", path);
+            return chain.filter(exchange);
+        }
+
         // 检查是否为白名单路径
         if (isWhitePath(path)) {
             log.debug("白名单路径，放行: {}", path);
@@ -216,6 +247,21 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
     private boolean isWhitePath(String path) {
         for (String whitePath : WHITE_LIST) {
             if (pathMatcher.match(whitePath, path)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 检查路径是否为内部服务路径
+     * 
+     * @param path 请求路径
+     * @return true-内部服务路径，false-非内部路径
+     */
+    private boolean isInternalPath(String path) {
+        for (String internalPath : INTERNAL_PATHS) {
+            if (pathMatcher.match(internalPath, path)) {
                 return true;
             }
         }

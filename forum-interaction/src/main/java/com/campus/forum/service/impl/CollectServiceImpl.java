@@ -155,7 +155,13 @@ public class CollectServiceImpl implements CollectService {
         String cached = redisTemplate.opsForValue().get(key);
         
         if (cached != null) {
-            return Integer.parseInt(cached);
+            try {
+                return Integer.parseInt(cached);
+            } catch (NumberFormatException e) {
+                // 缓存数据格式异常，删除无效缓存并从数据库重新加载
+                log.warn("收藏数缓存解析失败, key={}, cachedValue={}", key, cached, e);
+                redisTemplate.delete(key);
+            }
         }
         
         // 从数据库查询

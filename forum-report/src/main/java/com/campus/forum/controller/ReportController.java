@@ -6,6 +6,7 @@ import com.campus.forum.api.user.UserApi;
 import com.campus.forum.api.user.UserDTO;
 import com.campus.forum.dto.*;
 import com.campus.forum.entity.Result;
+import com.campus.forum.exception.BusinessException;
 import com.campus.forum.service.ApproveService;
 import com.campus.forum.service.ReportService;
 import com.campus.forum.service.UserBanService;
@@ -375,6 +376,18 @@ public class ReportController {
 
     /**
      * 从请求中获取当前用户ID
+     * 
+     * 安全性说明（微服务架构下的信任模型）：
+     * 1. X-User-Id 请求头由 API 网关（forum-gateway）从 JWT Token 中解析后设置
+     * 2. 安全性依赖于以下前提条件：
+     *    - 所有外部请求必须经过 API 网关
+     *    - 服务间网络隔离，外部无法直接访问微服务端口
+     *    - 网关层正确实现了 JWT Token 验证和用户ID提取逻辑
+     * 3. 生产环境建议在网络层面限制只有网关可以访问微服务API端口
+     * 4. 如果绕过网关直接访问微服务，X-User-Id 请求头可能被伪造
+     * 
+     * @param request HTTP请求对象
+     * @return 用户ID，如果未登录返回null
      */
     private Long getCurrentUserId(HttpServletRequest request) {
         String userIdStr = request.getHeader("X-User-Id");
@@ -401,7 +414,7 @@ public class ReportController {
     private void validateAdminPermission(HttpServletRequest request) {
         Long userId = getCurrentUserId(request);
         if (userId == null) {
-            throw new RuntimeException("请先登录");
+            throw new BusinessException("请先登录");
         }
         
         String role = null;
@@ -428,7 +441,7 @@ public class ReportController {
         
         if (role == null || (!"ADMIN".equalsIgnoreCase(role) && !"ROLE_ADMIN".equalsIgnoreCase(role))) {
             log.warn("用户{}权限验证失败，当前角色: {}", userId, role);
-            throw new RuntimeException("无权限执行此操作，需要管理员权限");
+            throw new BusinessException("无权限执行此操作，需要管理员权限");
         }
         
         log.debug("管理员权限验证通过，用户ID: {}", userId);

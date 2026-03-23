@@ -17,9 +17,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import org.springframework.beans.factory.annotation.Value;
+
 import javax.servlet.http.HttpServletRequest;
 import javax.validation.constraints.Max;
 import javax.validation.constraints.Min;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +44,29 @@ import java.util.Map;
 public class PostController {
 
     private final PostService postService;
+
+    /**
+     * 内部服务调用密钥
+     */
+    @Value("${app.internal-service-key:campus-internal-service-key-2024}")
+    private String internalServiceKey;
+
+    /**
+     * 安全比较内部服务密钥（防止时序攻击）
+     * 使用MessageDigest.isEqual进行常量时间比较，避免通过响应时间推断密钥信息
+     *
+     * @param providedKey 请求提供的密钥
+     * @return 是否匹配
+     */
+    private boolean isValidServiceKey(String providedKey) {
+        if (internalServiceKey == null || providedKey == null) {
+            return false;
+        }
+        // 使用常量时间比较，防止时序攻击
+        byte[] expectedBytes = internalServiceKey.getBytes(StandardCharsets.UTF_8);
+        byte[] providedBytes = providedKey.getBytes(StandardCharsets.UTF_8);
+        return MessageDigest.isEqual(expectedBytes, providedBytes);
+    }
 
     /**
      * 获取帖子列表
@@ -522,11 +549,28 @@ public class PostController {
     /**
      * 检查当前用户是否为管理员
      *
+     * 【安全说明】
+     * 本方法的管理员权限验证依赖于HTTP Header中的X-User-Role字段。
+     * 在微服务架构中，该Header由API网关层（forum-gateway）解析JWT Token后设置，
+     * 并非直接来自客户端请求。
+     *
+     * 网关层通过AuthGlobalFilter解析JWT Token，验证用户身份和角色后，
+     * 将用户ID（X-User-Id）和角色（X-User-Role）传递给下游微服务。
+     *
+     * 因此，此方法的安全性依赖于以下前提条件：
+     * 1. 所有外部请求必须经过API网关
+     * 2. 服务间网络隔离，外部无法直接访问微服务端口
+     * 3. 网关层正确实现了JWT Token验证和角色提取逻辑
+     *
+     * 如果直接调用此服务（绕过网关），需要确保请求来源可信。
+     * 生产环境建议在网络层面限制只有网关可以访问此服务的API端口。
+     *
      * @param request HTTP请求
      * @return true-管理员，false-非管理员
      */
     private boolean isAdmin(HttpServletRequest request) {
         // 从请求头获取用户角色（由网关解析JWT后传递）
+        // 注意：X-User-Role由网关层解析JWT Token后设置，请确保请求经过网关验证
         String role = request.getHeader("X-User-Role");
         if (role != null) {
             // 检查是否为管理员角色（ADMIN或ROLE_ADMIN）
@@ -539,22 +583,20 @@ public class PostController {
 
     /**
      * 内部API：根据ID获取帖子信息
-     * 注意：此接口仅供内部服务调用，需要验证内部请求标识
      *
      * @param id 帖子ID
-     * @param request HTTP请求
+     * @param serviceKey 内部服务密钥
      * @return 帖子信息
      */
     @GetMapping("/internal/{id}")
     @Operation(summary = "内部API-获取帖子信息", description = "供其他服务调用的内部接口")
     public Result<PostListVO> getPostByIdInternal(
             @Parameter(description = "帖子ID") @PathVariable Long id,
-            HttpServletRequest request) {
-        // 验证内部请求标识（网关或内部服务调用时会传递此标识）
-        String internalFlag = request.getHeader("X-Internal-Request");
-        if (!"true".equals(internalFlag)) {
-            log.warn("拒绝非内部访问: postId={}", id);
-            return Result.fail(403, "无权访问此接口");
+            @Parameter(description = "内部服务密钥") @RequestHeader(value = "X-Internal-Service-Key", required = false) String serviceKey) {
+        // 验证内部服务密钥（使用常量时间比较，防止时序攻击）
+        if (!isValidServiceKey(serviceKey)) {
+            log.warn("内部API调用鉴权失败，serviceKey: {}", serviceKey);
+            return Result.fail(403, "无权限访问内部API");
         }
         
         log.info("内部API调用：获取帖子信息, postId: {}", id);
@@ -586,12 +628,11 @@ public class PostController {
 
     /**
      * 内部API：更新帖子统计
-     * 注意：此接口仅供内部服务调用，需要验证内部请求标识
      *
      * @param id    帖子ID
      * @param field 统计字段
      * @param delta 变化量
-     * @param request HTTP请求
+     * @param serviceKey 内部服务密钥
      * @return 操作结果
      */
     @PostMapping("/internal/{id}/stats")
@@ -600,12 +641,11 @@ public class PostController {
             @Parameter(description = "帖子ID") @PathVariable Long id,
             @Parameter(description = "统计字段") @RequestParam String field,
             @Parameter(description = "变化量") @RequestParam int delta,
-            HttpServletRequest request) {
-        // 验证内部请求标识
-        String internalFlag = request.getHeader("X-Internal-Request");
-        if (!"true".equals(internalFlag)) {
-            log.warn("拒绝非内部访问: postId={}, field={}", id, field);
-            return Result.fail(403, "无权访问此接口");
+            @Parameter(description = "内部服务密钥") @RequestHeader(value = "X-Internal-Service-Key", required = false) String serviceKey) {
+        // 验证内部服务密钥（使用常量时间比较，防止时序攻击）
+        if (!isValidServiceKey(serviceKey)) {
+            log.warn("内部API调用鉴权失败，serviceKey: {}", serviceKey);
+            return Result.fail(403, "无权限访问内部API");
         }
         
         log.info("内部API调用：更新帖子统计, postId: {}, field: {}, delta: {}", id, field, delta);
@@ -627,12 +667,11 @@ public class PostController {
 
     /**
      * 内部API：获取用户帖子列表
-     * 注意：此接口仅供内部服务调用，需要验证内部请求标识
      *
      * @param userId 用户ID
      * @param page   当前页
      * @param size   每页大小
-     * @param request HTTP请求
+     * @param serviceKey 内部服务密钥
      * @return 帖子列表
      */
     @GetMapping("/internal/user/{userId}")
@@ -641,12 +680,11 @@ public class PostController {
             @Parameter(description = "用户ID") @PathVariable Long userId,
             @Parameter(description = "当前页") @RequestParam(defaultValue = "1") int page,
             @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") int size,
-            HttpServletRequest request) {
-        // 验证内部请求标识
-        String internalFlag = request.getHeader("X-Internal-Request");
-        if (!"true".equals(internalFlag)) {
-            log.warn("拒绝非内部访问: userId={}", userId);
-            return Result.fail(403, "无权访问此接口");
+            @Parameter(description = "内部服务密钥") @RequestHeader(value = "X-Internal-Service-Key", required = false) String serviceKey) {
+        // 验证内部服务密钥（使用常量时间比较，防止时序攻击）
+        if (!isValidServiceKey(serviceKey)) {
+            log.warn("内部API调用鉴权失败，serviceKey: {}", serviceKey);
+            return Result.fail(403, "无权限访问内部API");
         }
         
         log.info("内部API调用：获取用户帖子列表, userId: {}, page: {}, size: {}", userId, page, size);

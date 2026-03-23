@@ -44,9 +44,10 @@ public interface MentionService {
      * 标记为已读
      * 
      * @param id 提及ID
+     * @param userId 用户ID（用于验证归属权）
      * @return 是否成功
      */
-    boolean markAsRead(Long id);
+    boolean markAsRead(Long id, Long userId);
 
     /**
      * 标记所有为已读

@@ -50,7 +50,12 @@ public class PageResult<T> implements Serializable {
         this.size = size;
         this.total = total;
         this.records = records;
-        this.pages = (total + size - 1) / size;
+        // 防止除零错误：当size为0或null时，pages为0
+        if (size != null && size > 0) {
+            this.pages = (total + size - 1) / size;
+        } else {
+            this.pages = 0L;
+        }
     }
 
     /**

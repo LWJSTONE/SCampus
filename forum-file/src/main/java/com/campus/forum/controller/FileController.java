@@ -36,45 +36,60 @@ public class FileController {
 
     /**
      * 上传文件
+     * 需要用户登录
      */
     @PostMapping("/upload")
-    @Operation(summary = "上传文件", description = "上传单个文件")
+    @Operation(summary = "上传文件", description = "上传单个文件（需要登录）")
     public Result<FileVO> upload(
             @Parameter(description = "文件") @RequestParam("file") MultipartFile file,
             @Parameter(description = "业务类型") @RequestParam(value = "bizType", required = false) String bizType,
             @Parameter(description = "业务ID") @RequestParam(value = "bizId", required = false) Long bizId,
             HttpServletRequest request) {
         Long uploaderId = getUserIdFromRequest(request);
+        // 安全检查：未登录用户不能上传文件
+        if (uploaderId == null) {
+            throw new RuntimeException("请先登录后再上传文件");
+        }
         FileVO result = fileService.upload(file, uploaderId, bizType, bizId);
         return Result.success(result);
     }
 
     /**
      * 上传图片
+     * 需要用户登录
      */
     @PostMapping("/upload/image")
-    @Operation(summary = "上传图片", description = "上传图片文件，仅支持图片类型")
+    @Operation(summary = "上传图片", description = "上传图片文件，仅支持图片类型（需要登录）")
     public Result<FileVO> uploadImage(
             @Parameter(description = "图片文件") @RequestParam("file") MultipartFile file,
             @Parameter(description = "业务类型") @RequestParam(value = "bizType", required = false) String bizType,
             @Parameter(description = "业务ID") @RequestParam(value = "bizId", required = false) Long bizId,
             HttpServletRequest request) {
         Long uploaderId = getUserIdFromRequest(request);
+        // 安全检查：未登录用户不能上传文件
+        if (uploaderId == null) {
+            throw new RuntimeException("请先登录后再上传文件");
+        }
         FileVO result = fileService.uploadImage(file, uploaderId, bizType, bizId);
         return Result.success(result);
     }
 
     /**
      * 批量上传文件
+     * 需要用户登录
      */
     @PostMapping("/upload/batch")
-    @Operation(summary = "批量上传文件", description = "批量上传多个文件")
+    @Operation(summary = "批量上传文件", description = "批量上传多个文件（需要登录）")
     public Result<List<FileVO>> uploadBatch(
             @Parameter(description = "文件列表") @RequestParam("files") List<MultipartFile> files,
             @Parameter(description = "业务类型") @RequestParam(value = "bizType", required = false) String bizType,
             @Parameter(description = "业务ID") @RequestParam(value = "bizId", required = false) Long bizId,
             HttpServletRequest request) {
         Long uploaderId = getUserIdFromRequest(request);
+        // 安全检查：未登录用户不能上传文件
+        if (uploaderId == null) {
+            throw new RuntimeException("请先登录后再上传文件");
+        }
         List<FileVO> result = fileService.uploadBatch(files, uploaderId, bizType, bizId);
         return Result.success(result);
     }
@@ -161,12 +176,18 @@ public class FileController {
 
     /**
      * 更新文件状态
+     * 需要管理员权限
      */
     @PutMapping("/{id}/status")
-    @Operation(summary = "更新文件状态", description = "启用或禁用文件")
+    @Operation(summary = "更新文件状态", description = "启用或禁用文件（需要管理员权限）")
     public Result<Void> updateStatus(
             @Parameter(description = "文件ID") @PathVariable Long id,
-            @Parameter(description = "状态") @RequestParam Integer status) {
+            @Parameter(description = "状态") @RequestParam Integer status,
+            HttpServletRequest request) {
+        // 权限验证：只有管理员可以更新文件状态
+        if (!isAdmin(request)) {
+            throw new RuntimeException("无权限执行此操作，需要管理员权限");
+        }
         fileService.updateStatus(id, status);
         return Result.success();
     }
@@ -177,5 +198,17 @@ public class FileController {
     private Long getUserIdFromRequest(HttpServletRequest request) {
         Object userId = request.getAttribute("userId");
         return userId != null ? Long.parseLong(userId.toString()) : null;
+    }
+
+    /**
+     * 检查用户是否为管理员
+     */
+    private boolean isAdmin(HttpServletRequest request) {
+        Object userRole = request.getAttribute("userRole");
+        if (userRole == null) {
+            return false;
+        }
+        String role = userRole.toString();
+        return "ADMIN".equalsIgnoreCase(role) || "admin".equals(role);
     }
 }

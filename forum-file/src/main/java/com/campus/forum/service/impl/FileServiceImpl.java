@@ -148,8 +148,8 @@ public class FileServiceImpl extends ServiceImpl<FileMapper, File> implements Fi
             }
 
             // 生成文件存储信息
-            String originalFilename = file.getOriginalFilename();
-            String fileExt = FileUtil.extName(originalFilename);
+            String originalFilename = sanitizeFilename(file.getOriginalFilename());
+            String fileExt = sanitizeFileExtension(FileUtil.extName(originalFilename));
             String fileName = IdUtil.fastSimpleUUID() + "." + fileExt;
             String datePath = LocalDate.now().format(DATE_FORMATTER);
             String filePath = datePath + "/" + fileName;
@@ -667,8 +667,17 @@ public class FileServiceImpl extends ServiceImpl<FileMapper, File> implements Fi
      */
     private String uploadToLocal(MultipartFile file, String filePath) throws Exception {
         Path fullPath = Paths.get(localStoragePath, filePath);
-        Files.createDirectories(fullPath.getParent());
-        Files.copy(file.getInputStream(), fullPath);
+        
+        // 安全检查：验证规范化路径是否仍在允许的目录内
+        Path normalizedPath = fullPath.normalize();
+        Path baseDir = Paths.get(localStoragePath).normalize();
+        if (!normalizedPath.startsWith(baseDir)) {
+            log.warn("检测到路径遍历攻击尝试: {}", filePath);
+            throw new BusinessException("非法文件路径");
+        }
+        
+        Files.createDirectories(normalizedPath.getParent());
+        Files.copy(file.getInputStream(), normalizedPath);
         
         return urlPrefix + "/" + filePath;
     }
@@ -679,15 +688,16 @@ public class FileServiceImpl extends ServiceImpl<FileMapper, File> implements Fi
     private File createFileRecord(MultipartFile file, String filePath, String fileUrl, 
             String storageType, String fileMd5, Long uploaderId, String bizType, Long bizId) throws IOException {
         File fileEntity = new File();
-        String originalFilename = file.getOriginalFilename();
+        String originalFilename = sanitizeFilename(file.getOriginalFilename());
+        String sanitizedExt = sanitizeFileExtension(FileUtil.extName(originalFilename));
         
-        fileEntity.setFileName(FileUtil.mainName(originalFilename) + "_" + IdUtil.fastSimpleUUID() + "." + FileUtil.extName(originalFilename));
+        fileEntity.setFileName(FileUtil.mainName(originalFilename) + "_" + IdUtil.fastSimpleUUID() + "." + sanitizedExt);
         fileEntity.setOriginalName(originalFilename);
         fileEntity.setFilePath(filePath);
         fileEntity.setFileUrl(fileUrl);
         fileEntity.setFileSize(file.getSize());
         fileEntity.setFileType(file.getContentType());
-        fileEntity.setFileExt(FileUtil.extName(originalFilename));
+        fileEntity.setFileExt(sanitizedExt);
         fileEntity.setStorageType(storageType);
         fileEntity.setFileMd5(fileMd5);
         fileEntity.setUploaderId(uploaderId);
@@ -697,6 +707,65 @@ public class FileServiceImpl extends ServiceImpl<FileMapper, File> implements Fi
         fileEntity.setStatus(0);
         
         return fileEntity;
+    }
+
+    /**
+     * 清理文件名，移除路径遍历字符
+     * 防止路径遍历攻击
+     * 
+     * @param filename 原始文件名
+     * @return 清理后的安全文件名
+     */
+    private String sanitizeFilename(String filename) {
+        if (filename == null || filename.isEmpty()) {
+            return "unknown_file";
+        }
+        
+        // 移除路径分隔符和路径遍历字符
+        String sanitized = filename.replace("../", "")
+                .replace("..\\", "")
+                .replace("/", "_")
+                .replace("\\", "_")
+                .replace("\0", "");  // 空字节
+        
+        // 移除开头的点和短横线，防止隐藏文件和特殊文件
+        while (sanitized.startsWith(".") || sanitized.startsWith("-")) {
+            sanitized = sanitized.substring(1);
+        }
+        
+        // 如果清理后为空，使用默认名称
+        if (sanitized.isEmpty()) {
+            return "unknown_file";
+        }
+        
+        return sanitized;
+    }
+    
+    /**
+     * 清理文件扩展名，只保留安全的字符
+     * 
+     * @param extension 原始扩展名
+     * @return 清理后的安全扩展名
+     */
+    private String sanitizeFileExtension(String extension) {
+        if (extension == null || extension.isEmpty()) {
+            return "bin";
+        }
+        
+        // 只保留字母、数字和下划线，并转换为小写
+        String sanitized = extension.replaceAll("[^a-zA-Z0-9_]", "").toLowerCase();
+        
+        // 如果清理后为空，使用默认扩展名
+        if (sanitized.isEmpty()) {
+            return "bin";
+        }
+        
+        // 限制扩展名长度
+        if (sanitized.length() > 10) {
+            sanitized = sanitized.substring(0, 10);
+        }
+        
+        return sanitized;
     }
 
     /**

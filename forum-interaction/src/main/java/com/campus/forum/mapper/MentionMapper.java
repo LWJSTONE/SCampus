@@ -31,10 +31,10 @@ public interface MentionMapper extends BaseMapper<Mention> {
     List<Mention> selectByUserId(@Param("userId") Long userId);
 
     /**
-     * 标记为已读
+     * 标记为已读（带归属权验证）
      */
-    @Update("UPDATE t_mention SET is_read = 1 WHERE id = #{id}")
-    int markAsRead(@Param("id") Long id);
+    @Update("UPDATE t_mention SET is_read = 1 WHERE id = #{id} AND user_id = #{userId}")
+    int markAsRead(@Param("id") Long id, @Param("userId") Long userId);
 
     /**
      * 标记所有为已读

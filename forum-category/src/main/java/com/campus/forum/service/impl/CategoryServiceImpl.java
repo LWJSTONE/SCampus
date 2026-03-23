@@ -99,9 +99,15 @@ public class CategoryServiceImpl extends ServiceImpl<CategoryMapper, Category> i
             }
         }
 
-        // 检查是否将分类设置为自己的子分类
-        if (dto.getParentId() != null && dto.getParentId().equals(id)) {
-            throw new BusinessException("不能将分类设置为自己的子分类");
+        // 检查是否将分类设置为自己的子分类或后代分类
+        if (dto.getParentId() != null && dto.getParentId() > 0) {
+            if (dto.getParentId().equals(id)) {
+                throw new BusinessException("不能将分类设置为自己的子分类");
+            }
+            // 递归检查目标父分类是否是当前分类的后代
+            if (isDescendant(dto.getParentId(), id)) {
+                throw new BusinessException("不能将分类设置为自己的后代分类");
+            }
         }
 
         BeanUtil.copyProperties(dto, category, "id");
@@ -163,5 +169,38 @@ public class CategoryServiceImpl extends ServiceImpl<CategoryMapper, Category> i
         }
 
         return vo;
+    }
+
+    /**
+     * 递归检查目标分类是否是指定分类的后代
+     * 通过向上遍历祖先链来检查
+     *
+     * @param targetId   目标分类ID（要作为新父分类的分类）
+     * @param ancestorId 祖先分类ID（当前要更新的分类）
+     * @return 如果目标分类是祖先分类的后代则返回true
+     */
+    private boolean isDescendant(Long targetId, Long ancestorId) {
+        if (targetId == null || targetId <= 0) {
+            return false;
+        }
+        
+        // 获取目标分类
+        Category target = getById(targetId);
+        if (target == null) {
+            return false;
+        }
+        
+        // 如果目标分类的父分类是祖先分类，则目标分类是祖先分类的后代
+        if (ancestorId.equals(target.getParentId())) {
+            return true;
+        }
+        
+        // 如果已经到达顶级分类（parentId为0或null），则不是后代
+        if (target.getParentId() == null || target.getParentId() <= 0) {
+            return false;
+        }
+        
+        // 递归向上检查祖先链
+        return isDescendant(target.getParentId(), ancestorId);
     }
 }

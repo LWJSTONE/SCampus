@@ -8,7 +8,12 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import org.springframework.data.redis.core.Cursor;
+import org.springframework.data.redis.core.ScanOptions;
+
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
+import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -62,17 +67,14 @@ public class DailyStatsTask {
             stats.setCollectCount(0);
             stats.setFollowCount(0);
             
-            // 累计数据需要从最新的统计记录获取
+            // 累计数据 = 最新累计数据 + 今日新增数据
             DailyStats latestStats = dailyStatsMapper.selectLatest();
-            if (latestStats != null) {
-                stats.setTotalUsers(latestStats.getTotalUsers());
-                stats.setTotalPosts(latestStats.getTotalPosts());
-                stats.setTotalComments(latestStats.getTotalComments());
-            } else {
-                stats.setTotalUsers(0L);
-                stats.setTotalPosts(0L);
-                stats.setTotalComments(0L);
-            }
+            long baseTotalUsers = (latestStats != null && latestStats.getTotalUsers() != null) ? latestStats.getTotalUsers() : 0L;
+            long baseTotalPosts = (latestStats != null && latestStats.getTotalPosts() != null) ? latestStats.getTotalPosts() : 0L;
+            long baseTotalComments = (latestStats != null && latestStats.getTotalComments() != null) ? latestStats.getTotalComments() : 0L;
+            stats.setTotalUsers(baseTotalUsers + (stats.getNewUsers() != null ? stats.getNewUsers() : 0));
+            stats.setTotalPosts(baseTotalPosts + (stats.getNewPosts() != null ? stats.getNewPosts() : 0));
+            stats.setTotalComments(baseTotalComments + (stats.getNewComments() != null ? stats.getNewComments() : 0));
             
             // 插入统计记录
             dailyStatsMapper.insert(stats);
@@ -112,17 +114,14 @@ public class DailyStatsTask {
                 todayStats.setCollectCount(0);
                 todayStats.setFollowCount(0);
                 
-                // 累计数据从最新的统计记录获取
+                // 累计数据 = 最新累计数据 + 今日新增数据
                 DailyStats latestStats = dailyStatsMapper.selectLatest();
-                if (latestStats != null) {
-                    todayStats.setTotalUsers(latestStats.getTotalUsers());
-                    todayStats.setTotalPosts(latestStats.getTotalPosts());
-                    todayStats.setTotalComments(latestStats.getTotalComments());
-                } else {
-                    todayStats.setTotalUsers(0L);
-                    todayStats.setTotalPosts(0L);
-                    todayStats.setTotalComments(0L);
-                }
+                long baseTotalUsers = (latestStats != null && latestStats.getTotalUsers() != null) ? latestStats.getTotalUsers() : 0L;
+                long baseTotalPosts = (latestStats != null && latestStats.getTotalPosts() != null) ? latestStats.getTotalPosts() : 0L;
+                long baseTotalComments = (latestStats != null && latestStats.getTotalComments() != null) ? latestStats.getTotalComments() : 0L;
+                todayStats.setTotalUsers(baseTotalUsers + (todayStats.getNewUsers() != null ? todayStats.getNewUsers() : 0));
+                todayStats.setTotalPosts(baseTotalPosts + (todayStats.getNewPosts() != null ? todayStats.getNewPosts() : 0));
+                todayStats.setTotalComments(baseTotalComments + (todayStats.getNewComments() != null ? todayStats.getNewComments() : 0));
                 
                 dailyStatsMapper.insert(todayStats);
             }
@@ -138,12 +137,18 @@ public class DailyStatsTask {
 
     /**
      * 清除统计相关缓存
+     * 使用SCAN命令替代keys()，避免在生产环境造成Redis阻塞
      */
     private void clearStatsCache() {
         try {
-            // 清除所有统计相关的缓存
-            Set<String> keys = redisTemplate.keys(CACHE_PREFIX + "*");
-            if (keys != null && !keys.isEmpty()) {
+            // 使用SCAN命令增量遍历键，避免keys()阻塞Redis
+            Set<String> keys = new HashSet<>();
+            Cursor<byte[]> cursor = redisTemplate.getConnectionFactory().getConnection()
+                    .scan(ScanOptions.scanOptions().match(CACHE_PREFIX + "*").count(100).build());
+            while (cursor.hasNext()) {
+                keys.add(new String(cursor.next(), StandardCharsets.UTF_8));
+            }
+            if (!keys.isEmpty()) {
                 redisTemplate.delete(keys);
                 log.info("已清除 {} 个统计缓存", keys.size());
             }

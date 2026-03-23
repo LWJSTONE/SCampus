@@ -625,15 +625,51 @@ public class PostServiceImpl implements PostService {
     }
 
     /**
-     * 敏感词过滤
+     * 敏感词过滤与XSS防护
+     *
+     * 【安全说明】
+     * 本方法对用户输入的内容进行两个层面的安全处理：
+     *
+     * 1. 敏感词过滤：将预定义的敏感词替换为 ***
+     * 2. XSS防护：对常见的危险字符进行HTML实体编码
+     *
+     * 【XSS防护策略】
+     * 采用输入过滤 + 输出转义的双重防护策略：
+     * - 输入时：本方法过滤危险字符，减少存储内容中的安全风险
+     * - 输出时：前端渲染时需要进行HTML转义，防止存储型XSS攻击
+     *
+     * 注意：此方法仅提供基本的XSS防护，对于富文本内容，建议：
+     * 1. 使用专业的XSS过滤库（如OWASP AntiSamy）
+     * 2. 前端使用安全的渲染方式（如React的自动转义）
+     * 3. 设置Content-Security-Policy响应头
+     *
+     * @param content 待过滤的内容
+     * @return 过滤后的安全内容
      */
     private String filterSensitiveWords(String content) {
+        if (content == null) {
+            return null;
+        }
+
         String result = content;
+
+        // 1. 敏感词过滤
         for (String word : SENSITIVE_WORDS) {
             if (result.contains(word)) {
                 result = result.replace(word, "***");
             }
         }
+
+        // 2. 基本XSS过滤 - 对危险字符进行HTML实体编码
+        // 注意：这是基础防护，富文本场景建议使用专业XSS过滤库
+        result = result
+                .replace("&", "&amp;")       // & 符号最先处理，避免重复编码
+                .replace("<", "&lt;")        // < 符号
+                .replace(">", "&gt;")        // > 符号
+                .replace("\"", "&quot;")     // 双引号
+                .replace("'", "&#x27;")      // 单引号
+                .replace("/", "&#x2F;");     // 斜杠（防止闭合标签）
+
         return result;
     }
 

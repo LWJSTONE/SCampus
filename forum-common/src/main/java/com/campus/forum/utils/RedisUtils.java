@@ -492,7 +492,8 @@ public class RedisUtils {
             if (time > 0) {
                 expire(key, time);
             }
-            return count;
+            // 空值保护：防止自动拆箱NPE
+            return count != null ? count : 0;
         } catch (Exception e) {
             log.error("设置Set缓存失败: key={}", key, e);
             return 0;

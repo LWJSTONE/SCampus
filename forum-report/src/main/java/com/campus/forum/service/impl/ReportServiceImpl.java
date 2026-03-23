@@ -166,8 +166,25 @@ public class ReportServiceImpl extends ServiceImpl<ReportMapper, Report> impleme
             throw new BusinessException("举报记录不存在");
         }
         
-        if (report.getStatus() == 2 || report.getStatus() == 3) {
-            throw new BusinessException("该举报已处理，无法重复操作");
+        // 检查当前状态必须是"待处理(0)"才能进行处理
+        // 这样可以防止并发处理：如果有多个请求同时到达，只有一个能通过此检查
+        // 因为数据库更新操作会锁定记录，后续请求在获取数据时会发现状态已变更
+        if (report.getStatus() != 0) {
+            String statusMsg;
+            switch (report.getStatus()) {
+                case 1:
+                    statusMsg = "处理中";
+                    break;
+                case 2:
+                    statusMsg = "已处理";
+                    break;
+                case 3:
+                    statusMsg = "已驳回";
+                    break;
+                default:
+                    statusMsg = "未知状态(" + report.getStatus() + ")";
+            }
+            throw new BusinessException("该举报当前状态为[" + statusMsg + "]，无法重复处理");
         }
 
         // 根据处理结果确定状态：无违规(0)设为驳回(3)，其他设为已处理(2)

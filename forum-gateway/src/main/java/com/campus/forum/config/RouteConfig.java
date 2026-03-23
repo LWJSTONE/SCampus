@@ -5,6 +5,7 @@ import org.springframework.cloud.gateway.route.RouteLocator;
 import org.springframework.cloud.gateway.route.builder.RouteLocatorBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.server.reactive.ServerHttpRequest;
 
 /**
  * 路由配置类
@@ -60,13 +61,13 @@ public class RouteConfig {
                         .filters(f -> f
                                 // 添加请求头
                                 .addRequestHeader("X-Gateway-Name", "forum-gateway")
-                                // 请求日志
+                                // 请求日志 - 添加请求ID
                                 .filter((exchange, chain) -> {
-                                    exchange.getRequest().mutate()
+                                    ServerHttpRequest mutatedRequest = exchange.getRequest().mutate()
                                             .header("X-Request-Id", 
                                                     java.util.UUID.randomUUID().toString())
                                             .build();
-                                    return chain.filter(exchange);
+                                    return chain.filter(exchange.mutate().request(mutatedRequest).build());
                                 })
                                 // Redis限流：每秒10次请求，突发容量20
                                 .requestRateLimiter(config -> config

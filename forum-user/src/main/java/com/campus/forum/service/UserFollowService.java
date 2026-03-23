@@ -50,11 +50,12 @@ public interface UserFollowService extends IService<UserFollow> {
     /**
      * 获取粉丝列表
      *
-     * @param userId   用户ID
-     * @param queryDTO 查询条件
+     * @param userId        用户ID（被查看的用户）
+     * @param queryDTO      查询条件
+     * @param currentUserId 当前登录用户ID（用于判断当前用户是否关注了粉丝，可为null）
      * @return 粉丝列表
      */
-    PageResult<UserFollowVO> getFollowers(Long userId, UserQueryDTO queryDTO);
+    PageResult<UserFollowVO> getFollowers(Long userId, UserQueryDTO queryDTO, Long currentUserId);
 
     /**
      * 获取关注列表

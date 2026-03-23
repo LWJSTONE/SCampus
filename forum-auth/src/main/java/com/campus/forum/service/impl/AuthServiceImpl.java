@@ -153,8 +153,8 @@ public class AuthServiceImpl implements AuthService {
             return Result.success();
         }
 
-        // 解析用户ID
-        Long userId = JwtUtils.getUserId(token);
+        // 解析用户ID（验证签名）
+        Long userId = JwtUtils.getUserId(token, jwtSecret);
         if (userId != null) {
             // 删除Redis中的Token
             String tokenKey = Constants.TOKEN_PREFIX + userId;
@@ -283,9 +283,9 @@ public class AuthServiceImpl implements AuthService {
             return Result.fail(400, "无效的刷新令牌");
         }
 
-        // 3. 获取用户信息
-        Long userId = JwtUtils.getUserId(refreshToken);
-        String username = JwtUtils.getUsername(refreshToken);
+        // 3. 获取用户信息（验证签名）
+        Long userId = JwtUtils.getUserId(refreshToken, jwtSecret);
+        String username = JwtUtils.getUsername(refreshToken, jwtSecret);
 
         if (userId == null || StrUtil.isBlank(username)) {
             return Result.fail(401, "刷新令牌无效");
@@ -435,8 +435,8 @@ public class AuthServiceImpl implements AuthService {
             return Result.fail(401, "未登录");
         }
 
-        // 解析用户ID
-        Long userId = JwtUtils.getUserId(token);
+        // 解析用户ID（验证签名）
+        Long userId = JwtUtils.getUserId(token, jwtSecret);
         if (userId == null) {
             return Result.fail(401, "Token无效");
         }
@@ -532,13 +532,12 @@ public class AuthServiceImpl implements AuthService {
                 return;
             }
             
-            // 如果用户已被锁定，延长锁定时间
+            // 如果用户已被锁定且仍在锁定期间，直接返回，不延长锁定时间
             if (user.getLockTime() != null) {
                 LocalDateTime unlockTime = user.getLockTime().plusMinutes(LOCK_TIME_MINUTES);
                 if (LocalDateTime.now().isBefore(unlockTime)) {
-                    // 用户仍处于锁定状态，延长锁定时间
-                    authUserMapper.lockUser(userId, LocalDateTime.now());
-                    log.warn("账户锁定时间已延长：userId={}, 原解锁时间={}", userId, unlockTime);
+                    // 用户仍处于锁定状态，不做任何操作
+                    log.warn("账户仍在锁定中：userId={}, 解锁时间={}", userId, unlockTime);
                     return;
                 }
             }

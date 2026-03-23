@@ -25,6 +25,8 @@ import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.Map;
 
 /**
@@ -56,6 +58,23 @@ public class UserController {
      */
     @Value("${app.internal-service-key:campus-internal-service-key-2024}")
     private String internalServiceKey;
+
+    /**
+     * 安全比较内部服务密钥（防止时序攻击）
+     * 使用MessageDigest.isEqual进行常量时间比较，避免通过响应时间推断密钥信息
+     *
+     * @param providedKey 请求提供的密钥
+     * @return 是否匹配
+     */
+    private boolean isValidServiceKey(String providedKey) {
+        if (internalServiceKey == null || providedKey == null) {
+            return false;
+        }
+        // 使用常量时间比较，防止时序攻击
+        byte[] expectedBytes = internalServiceKey.getBytes(StandardCharsets.UTF_8);
+        byte[] providedBytes = providedKey.getBytes(StandardCharsets.UTF_8);
+        return MessageDigest.isEqual(expectedBytes, providedBytes);
+    }
 
     // ==================== 用户信息管理 ====================
 
@@ -178,6 +197,22 @@ public class UserController {
     /**
      * 更新用户状态（管理员）
      *
+     * 【安全说明】
+     * 本接口的管理员权限验证依赖于HTTP Header中的X-User-Role字段。
+     * 在微服务架构中，该Header由API网关层（forum-gateway）解析JWT Token后设置，
+     * 并非直接来自客户端请求。
+     * 
+     * 网关层通过AuthGlobalFilter解析JWT Token，验证用户身份和角色后，
+     * 将用户ID（X-User-Id）和角色（X-User-Role）传递给下游微服务。
+     * 
+     * 因此，此接口的安全性依赖于以下前提条件：
+     * 1. 所有外部请求必须经过API网关
+     * 2. 服务间网络隔离，外部无法直接访问微服务端口
+     * 3. 网关层正确实现了JWT Token验证和角色提取逻辑
+     *
+     * 如果直接调用此服务（绕过网关），需要确保请求来源可信。
+     * 生产环境建议在网络层面限制只有网关可以访问此服务的API端口。
+     *
      * @param id     用户ID
      * @param status 状态（0-禁用，1-正常）
      * @param request HTTP请求
@@ -192,6 +227,7 @@ public class UserController {
         log.info("更新用户状态，用户ID：{}，状态：{}", id, status);
         
         // 验证管理员权限
+        // 注意：X-User-Role由网关层解析JWT Token后设置，请确保请求经过网关验证
         String role = request.getHeader("X-User-Role");
         if (role == null || (!"ADMIN".equalsIgnoreCase(role) && !"ROLE_ADMIN".equalsIgnoreCase(role))) {
             log.warn("非管理员尝试更新用户状态，角色：{}", role);
@@ -212,17 +248,19 @@ public class UserController {
     /**
      * 获取粉丝列表
      *
-     * @param id       用户ID
-     * @param queryDTO 查询条件
+     * @param id            用户ID
+     * @param queryDTO      查询条件
+     * @param currentUserId 当前登录用户ID（用于判断当前用户是否关注了粉丝）
      * @return 粉丝列表
      */
     @GetMapping("/{id}/followers")
     @Operation(summary = "获取粉丝列表", description = "分页获取用户的粉丝列表")
     public Result<PageResult<UserFollowVO>> getFollowers(
             @Parameter(description = "用户ID", required = true) @PathVariable Long id,
-            @Parameter(description = "查询条件") UserQueryDTO queryDTO) {
-        log.info("获取粉丝列表，用户ID：{}", id);
-        PageResult<UserFollowVO> result = userFollowService.getFollowers(id, queryDTO);
+            @Parameter(description = "查询条件") UserQueryDTO queryDTO,
+            @Parameter(description = "当前登录用户ID") @RequestHeader(value = "X-User-Id", required = false) Long currentUserId) {
+        log.info("获取粉丝列表，用户ID：{}，当前登录用户ID：{}", id, currentUserId);
+        PageResult<UserFollowVO> result = userFollowService.getFollowers(id, queryDTO, currentUserId);
         return Result.success(result);
     }
 
@@ -378,8 +416,8 @@ public class UserController {
     public Result<Boolean> incrementPostCount(
             @Parameter(description = "用户ID") @PathVariable Long id,
             @Parameter(description = "内部服务密钥") @RequestHeader(value = "X-Internal-Service-Key", required = false) String serviceKey) {
-        // 验证内部服务密钥
-        if (internalServiceKey == null || !internalServiceKey.equals(serviceKey)) {
+        // 验证内部服务密钥（使用常量时间比较，防止时序攻击）
+        if (!isValidServiceKey(serviceKey)) {
             log.warn("内部API调用鉴权失败，serviceKey: {}", serviceKey);
             return Result.fail(403, "无权限访问内部API");
         }
@@ -400,8 +438,8 @@ public class UserController {
     public Result<Boolean> decrementPostCount(
             @Parameter(description = "用户ID") @PathVariable Long id,
             @Parameter(description = "内部服务密钥") @RequestHeader(value = "X-Internal-Service-Key", required = false) String serviceKey) {
-        // 验证内部服务密钥
-        if (internalServiceKey == null || !internalServiceKey.equals(serviceKey)) {
+        // 验证内部服务密钥（使用常量时间比较，防止时序攻击）
+        if (!isValidServiceKey(serviceKey)) {
             log.warn("内部API调用鉴权失败，serviceKey: {}", serviceKey);
             return Result.fail(403, "无权限访问内部API");
         }
@@ -422,8 +460,8 @@ public class UserController {
     public Result<Boolean> incrementCommentCount(
             @Parameter(description = "用户ID") @PathVariable Long id,
             @Parameter(description = "内部服务密钥") @RequestHeader(value = "X-Internal-Service-Key", required = false) String serviceKey) {
-        // 验证内部服务密钥
-        if (internalServiceKey == null || !internalServiceKey.equals(serviceKey)) {
+        // 验证内部服务密钥（使用常量时间比较，防止时序攻击）
+        if (!isValidServiceKey(serviceKey)) {
             log.warn("内部API调用鉴权失败，serviceKey: {}", serviceKey);
             return Result.fail(403, "无权限访问内部API");
         }
@@ -444,8 +482,8 @@ public class UserController {
     public Result<Boolean> decrementCommentCount(
             @Parameter(description = "用户ID") @PathVariable Long id,
             @Parameter(description = "内部服务密钥") @RequestHeader(value = "X-Internal-Service-Key", required = false) String serviceKey) {
-        // 验证内部服务密钥
-        if (internalServiceKey == null || !internalServiceKey.equals(serviceKey)) {
+        // 验证内部服务密钥（使用常量时间比较，防止时序攻击）
+        if (!isValidServiceKey(serviceKey)) {
             log.warn("内部API调用鉴权失败，serviceKey: {}", serviceKey);
             return Result.fail(403, "无权限访问内部API");
         }

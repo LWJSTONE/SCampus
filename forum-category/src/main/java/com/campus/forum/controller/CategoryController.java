@@ -21,6 +21,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import javax.servlet.http.HttpServletRequest;
 import java.util.List;
 
 /**
@@ -77,8 +78,16 @@ public class CategoryController {
     @Operation(summary = "创建分类", description = "创建新的版块分类")
     public Result<Long> createCategory(
             @Parameter(description = "分类信息", required = true) @Validated @RequestBody CategoryDTO dto,
-            @Parameter(description = "当前登录用户ID") @RequestHeader(value = "X-User-Id", required = false) Long currentUserId) {
+            @Parameter(description = "当前登录用户ID") @RequestHeader(value = "X-User-Id", required = false) Long currentUserId,
+            HttpServletRequest request) {
         log.info("创建分类：{}", dto.getName());
+        
+        // 验证管理员权限
+        Result<Void> authResult = checkAdminPermission(request);
+        if (authResult != null) {
+            return Result.fail(authResult.getCode(), authResult.getMessage());
+        }
+        
         Category category = categoryService.createCategory(dto);
         return Result.success(category.getId());
     }
@@ -91,8 +100,16 @@ public class CategoryController {
     public Result<Boolean> updateCategory(
             @Parameter(description = "分类ID", required = true) @PathVariable Long id,
             @Parameter(description = "分类信息", required = true) @Validated @RequestBody CategoryDTO dto,
-            @Parameter(description = "当前登录用户ID") @RequestHeader(value = "X-User-Id", required = false) Long currentUserId) {
+            @Parameter(description = "当前登录用户ID") @RequestHeader(value = "X-User-Id", required = false) Long currentUserId,
+            HttpServletRequest request) {
         log.info("更新分类：{}", id);
+        
+        // 验证管理员权限
+        Result<Void> authResult = checkAdminPermission(request);
+        if (authResult != null) {
+            return Result.fail(authResult.getCode(), authResult.getMessage());
+        }
+        
         boolean result = categoryService.updateCategory(id, dto);
         return Result.success(result);
     }
@@ -104,8 +121,16 @@ public class CategoryController {
     @Operation(summary = "删除分类", description = "删除版块分类")
     public Result<Boolean> deleteCategory(
             @Parameter(description = "分类ID", required = true) @PathVariable Long id,
-            @Parameter(description = "当前登录用户ID") @RequestHeader(value = "X-User-Id", required = false) Long currentUserId) {
+            @Parameter(description = "当前登录用户ID") @RequestHeader(value = "X-User-Id", required = false) Long currentUserId,
+            HttpServletRequest request) {
         log.info("删除分类：{}", id);
+        
+        // 验证管理员权限
+        Result<Void> authResult = checkAdminPermission(request);
+        if (authResult != null) {
+            return Result.fail(authResult.getCode(), authResult.getMessage());
+        }
+        
         boolean result = categoryService.deleteCategory(id);
         return Result.success(result);
     }
@@ -118,8 +143,16 @@ public class CategoryController {
     public Result<Boolean> updateCategoryStatus(
             @Parameter(description = "分类ID", required = true) @PathVariable Long id,
             @Parameter(description = "状态", required = true) @RequestParam Integer status,
-            @Parameter(description = "当前登录用户ID") @RequestHeader(value = "X-User-Id", required = false) Long currentUserId) {
+            @Parameter(description = "当前登录用户ID") @RequestHeader(value = "X-User-Id", required = false) Long currentUserId,
+            HttpServletRequest request) {
         log.info("更新分类状态：{}，状态：{}", id, status);
+        
+        // 验证管理员权限
+        Result<Void> authResult = checkAdminPermission(request);
+        if (authResult != null) {
+            return Result.fail(authResult.getCode(), authResult.getMessage());
+        }
+        
         boolean result = categoryService.updateStatus(id, status);
         return Result.success(result);
     }
@@ -162,8 +195,16 @@ public class CategoryController {
     @Operation(summary = "创建版块", description = "创建新版块")
     public Result<Long> createForum(
             @Parameter(description = "版块信息", required = true) @Validated @RequestBody ForumDTO dto,
-            @Parameter(description = "当前登录用户ID") @RequestHeader(value = "X-User-Id", required = false) Long currentUserId) {
+            @Parameter(description = "当前登录用户ID") @RequestHeader(value = "X-User-Id", required = false) Long currentUserId,
+            HttpServletRequest request) {
         log.info("创建版块：{}", dto.getName());
+        
+        // 验证管理员权限
+        Result<Void> authResult = checkAdminPermission(request);
+        if (authResult != null) {
+            return Result.fail(authResult.getCode(), authResult.getMessage());
+        }
+        
         Forum forum = forumService.createForum(dto);
         return Result.success(forum.getId());
     }
@@ -176,8 +217,16 @@ public class CategoryController {
     public Result<Boolean> updateForum(
             @Parameter(description = "版块ID", required = true) @PathVariable Long id,
             @Parameter(description = "版块信息", required = true) @Validated @RequestBody ForumDTO dto,
-            @Parameter(description = "当前登录用户ID") @RequestHeader(value = "X-User-Id", required = false) Long currentUserId) {
+            @Parameter(description = "当前登录用户ID") @RequestHeader(value = "X-User-Id", required = false) Long currentUserId,
+            HttpServletRequest request) {
         log.info("更新版块：{}", id);
+        
+        // 验证管理员权限
+        Result<Void> authResult = checkAdminPermission(request);
+        if (authResult != null) {
+            return Result.fail(authResult.getCode(), authResult.getMessage());
+        }
+        
         boolean result = forumService.updateForum(id, dto);
         return Result.success(result);
     }
@@ -189,8 +238,16 @@ public class CategoryController {
     @Operation(summary = "删除版块", description = "删除版块")
     public Result<Boolean> deleteForum(
             @Parameter(description = "版块ID", required = true) @PathVariable Long id,
-            @Parameter(description = "当前登录用户ID") @RequestHeader(value = "X-User-Id", required = false) Long currentUserId) {
+            @Parameter(description = "当前登录用户ID") @RequestHeader(value = "X-User-Id", required = false) Long currentUserId,
+            HttpServletRequest request) {
         log.info("删除版块：{}", id);
+        
+        // 验证管理员权限
+        Result<Void> authResult = checkAdminPermission(request);
+        if (authResult != null) {
+            return Result.fail(authResult.getCode(), authResult.getMessage());
+        }
+        
         boolean result = forumService.deleteForum(id);
         return Result.success(result);
     }
@@ -203,8 +260,16 @@ public class CategoryController {
     public Result<Boolean> updateForumStatus(
             @Parameter(description = "版块ID", required = true) @PathVariable Long id,
             @Parameter(description = "状态", required = true) @RequestParam Integer status,
-            @Parameter(description = "当前登录用户ID") @RequestHeader(value = "X-User-Id", required = false) Long currentUserId) {
+            @Parameter(description = "当前登录用户ID") @RequestHeader(value = "X-User-Id", required = false) Long currentUserId,
+            HttpServletRequest request) {
         log.info("更新版块状态：{}，状态：{}", id, status);
+        
+        // 验证管理员权限
+        Result<Void> authResult = checkAdminPermission(request);
+        if (authResult != null) {
+            return Result.fail(authResult.getCode(), authResult.getMessage());
+        }
+        
         boolean result = forumService.updateStatus(id, status);
         return Result.success(result);
     }
@@ -231,8 +296,16 @@ public class CategoryController {
     public Result<Long> addModerator(
             @Parameter(description = "版块ID", required = true) @PathVariable Long id,
             @Parameter(description = "版主信息", required = true) @Validated @RequestBody ModeratorDTO dto,
-            @Parameter(description = "当前登录用户ID") @RequestHeader(value = "X-User-Id", required = false) Long currentUserId) {
+            @Parameter(description = "当前登录用户ID") @RequestHeader(value = "X-User-Id", required = false) Long currentUserId,
+            HttpServletRequest request) {
         log.info("添加版主：版块={}，用户={}", id, dto.getUserId());
+        
+        // 验证管理员权限
+        Result<Void> authResult = checkAdminPermission(request);
+        if (authResult != null) {
+            return Result.fail(authResult.getCode(), authResult.getMessage());
+        }
+        
         Moderator moderator = moderatorService.addModerator(id, dto);
         return Result.success(moderator.getId());
     }
@@ -245,8 +318,16 @@ public class CategoryController {
     public Result<Boolean> removeModerator(
             @Parameter(description = "版块ID", required = true) @PathVariable Long id,
             @Parameter(description = "用户ID", required = true) @PathVariable Long userId,
-            @Parameter(description = "当前登录用户ID") @RequestHeader(value = "X-User-Id", required = false) Long currentUserId) {
+            @Parameter(description = "当前登录用户ID") @RequestHeader(value = "X-User-Id", required = false) Long currentUserId,
+            HttpServletRequest request) {
         log.info("移除版主：版块={}，用户={}", id, userId);
+        
+        // 验证管理员权限
+        Result<Void> authResult = checkAdminPermission(request);
+        if (authResult != null) {
+            return Result.fail(authResult.getCode(), authResult.getMessage());
+        }
+        
         boolean result = moderatorService.removeModerator(id, userId);
         return Result.success(result);
     }
@@ -259,9 +340,38 @@ public class CategoryController {
     public Result<Boolean> setPrimaryModerator(
             @Parameter(description = "版块ID", required = true) @PathVariable Long id,
             @Parameter(description = "用户ID", required = true) @PathVariable Long userId,
-            @Parameter(description = "当前登录用户ID") @RequestHeader(value = "X-User-Id", required = false) Long currentUserId) {
+            @Parameter(description = "当前登录用户ID") @RequestHeader(value = "X-User-Id", required = false) Long currentUserId,
+            HttpServletRequest request) {
         log.info("设置主版主：版块={}，用户={}", id, userId);
+        
+        // 验证管理员权限
+        Result<Void> authResult = checkAdminPermission(request);
+        if (authResult != null) {
+            return Result.fail(authResult.getCode(), authResult.getMessage());
+        }
+        
         boolean result = moderatorService.setPrimaryModerator(id, userId);
         return Result.success(result);
+    }
+
+    // ==================== 私有方法 ====================
+
+    /**
+     * 检查管理员权限
+     * 验证请求头中的用户角色是否为管理员
+     *
+     * @param request HTTP请求
+     * @return 如果没有权限返回错误结果，有权限返回null
+     */
+    private Result<Void> checkAdminPermission(HttpServletRequest request) {
+        String role = request.getHeader("X-User-Role");
+        if (role == null || (!"ADMIN".equalsIgnoreCase(role) 
+                && !"ROLE_ADMIN".equalsIgnoreCase(role)
+                && !"SUPER_ADMIN".equalsIgnoreCase(role)
+                && !"ROLE_SUPER_ADMIN".equalsIgnoreCase(role))) {
+            log.warn("非管理员尝试执行管理操作，角色：{}", role);
+            return Result.fail(403, "无权限执行此操作，需要管理员权限");
+        }
+        return null;
     }
 }

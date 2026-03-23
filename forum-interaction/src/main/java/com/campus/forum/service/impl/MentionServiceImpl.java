@@ -53,8 +53,10 @@ public class MentionServiceImpl implements MentionService {
     }
 
     @Override
-    public boolean markAsRead(Long id) {
-        return mentionMapper.markAsRead(id) > 0;
+    public boolean markAsRead(Long id, Long userId) {
+        // 通过在SQL中添加userId条件实现归属权验证
+        // 如果userId不匹配，更新将影响0行，返回false
+        return mentionMapper.markAsRead(id, userId) > 0;
     }
 
     @Override

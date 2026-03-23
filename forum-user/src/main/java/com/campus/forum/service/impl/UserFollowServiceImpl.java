@@ -201,8 +201,8 @@ public class UserFollowServiceImpl extends ServiceImpl<UserFollowMapper, UserFol
     }
 
     @Override
-    public PageResult<UserFollowVO> getFollowers(Long userId, UserQueryDTO queryDTO) {
-        log.info("获取粉丝列表，用户ID：{}", userId);
+    public PageResult<UserFollowVO> getFollowers(Long userId, UserQueryDTO queryDTO, Long currentUserId) {
+        log.info("获取粉丝列表，用户ID：{}，当前登录用户ID：{}", userId, currentUserId);
         
         // 构建分页对象
         Page<UserFollow> page = queryDTO.toPage();
@@ -231,8 +231,13 @@ public class UserFollowServiceImpl extends ServiceImpl<UserFollowMapper, UserFol
                     if (user != null) {
                         UserFollowVO vo = convertToVO(user);
                         vo.setFollowTime(follow.getCreateTime());
-                        // 判断当前用户是否关注了粉丝
-                        vo.setFollowed(isFollowing(userId, follow.getFollowerId()));
+                        // 判断当前登录用户是否关注了粉丝
+                        // 使用currentUserId而非userId，修复了原来使用被查看用户ID判断关注关系的错误
+                        if (currentUserId != null) {
+                            vo.setFollowed(isFollowing(currentUserId, follow.getFollowerId()));
+                        } else {
+                            vo.setFollowed(false);
+                        }
                         return vo;
                     }
                     return null;
