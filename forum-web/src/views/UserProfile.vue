@@ -58,7 +58,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getUserById, followUser, unfollowUser, getUserCollections } from '@/api/user'
 import { getPostList } from '@/api/post'
@@ -75,8 +75,18 @@ interface CollectionItem {
 }
 
 const route = useRoute()
+const router = useRouter()
 const userStore = useUserStore()
-const userId = Number(route.params.id)
+
+// 参数验证
+const userIdParam = route.params.id
+const userId = Number(userIdParam)
+
+// 检查userId是否有效
+if (isNaN(userId) || userId <= 0) {
+  ElMessage.error('用户ID无效')
+  router.push('/')
+}
 
 const user = ref<UserDetailVO | null>(null)
 const posts = ref<PostVO[]>([])
@@ -93,8 +103,9 @@ async function fetchUser() {
     user.value = res
     // 初始化关注状态 - 后端返回的字段名可能是 isFollowing 或 followed
     isFollowing.value = res.isFollowing || res.followed || false
-  } catch (e) {
+  } catch (e: any) {
     console.error('获取用户信息失败:', e)
+    ElMessage.error(e?.message || '获取用户信息失败')
   }
 }
 
@@ -102,14 +113,20 @@ async function fetchPosts() {
   try {
     const res = await getPostList({ page: 1, size: 10, userId })
     posts.value = res.records
-  } catch (e) {
+  } catch (e: any) {
     console.error('获取帖子失败:', e)
+    ElMessage.error(e?.message || '获取帖子列表失败')
   }
 }
 
 async function fetchCollections() {
-  // 只有查看自己的收藏时才加载
+  // 只有查看自己的收藏时才加载，且需要登录
   if (!isOwnProfile.value) {
+    collections.value = []
+    return
+  }
+  // 检查登录状态
+  if (!userStore.isLoggedIn) {
     collections.value = []
     return
   }
@@ -124,8 +141,9 @@ async function fetchCollections() {
       postSummary: item.postSummary || item.summary || '',
       createTime: item.createTime
     }))
-  } catch (e) {
+  } catch (e: any) {
     console.error('获取收藏失败:', e)
+    ElMessage.error(e?.message || '获取收藏列表失败')
     collections.value = []
   }
 }
@@ -139,6 +157,7 @@ function handleTabChange(tab: string) {
 async function handleFollow() {
   if (!userStore.isLoggedIn) {
     ElMessage.warning('请先登录')
+    router.push('/login')
     return
   }
   
@@ -160,8 +179,9 @@ async function handleFollow() {
     if (user.value) {
       user.value.followerCount = (user.value.followerCount || 0) + (wasFollowing ? -1 : 1)
     }
-  } catch (e) {
+  } catch (e: any) {
     console.error('操作失败:', e)
+    ElMessage.error(e?.message || '操作失败，请稍后重试')
   } finally {
     followLoading.value = false
   }

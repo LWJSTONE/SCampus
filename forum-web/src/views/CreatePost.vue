@@ -64,9 +64,11 @@ import { useRouter } from 'vue-router'
 import { ElMessage, FormInstance, FormRules } from 'element-plus'
 import { createPost } from '@/api/post'
 import { getForumList } from '@/api/category'
+import { useUserStore } from '@/stores/user'
 import type { ForumVO } from '@/types'
 
 const router = useRouter()
+const userStore = useUserStore()
 const formRef = ref<FormInstance>()
 const submitting = ref(false)
 const forums = ref<ForumVO[]>([])
@@ -97,8 +99,9 @@ async function fetchForums() {
   try {
     const res = await getForumList()
     forums.value = res
-  } catch (e) {
+  } catch (e: any) {
     console.error('获取版块失败:', e)
+    ElMessage.error(e?.message || '获取版块列表失败，请刷新页面重试')
   }
 }
 
@@ -119,14 +122,21 @@ async function handleSubmit() {
     })
     ElMessage.success('发布成功')
     router.push(`/post/${postId}`)
-  } catch (e) {
+  } catch (e: any) {
     console.error('发布失败:', e)
+    ElMessage.error(e?.message || '发布失败，请稍后重试')
   } finally {
     submitting.value = false
   }
 }
 
 onMounted(() => {
+  // 检查登录状态
+  if (!userStore.isLoggedIn) {
+    ElMessage.warning('请先登录')
+    router.push('/login')
+    return
+  }
   fetchForums()
 })
 </script>

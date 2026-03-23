@@ -99,7 +99,10 @@ function highlightKeyword(text: string) {
 }
 
 async function handleSearch() {
-  if (!keyword.value.trim()) return
+  if (!keyword.value.trim()) {
+    ElMessage.warning('请输入搜索关键词')
+    return
+  }
   
   page.value = 1
   posts.value = []
@@ -115,8 +118,9 @@ async function fetchPosts() {
     posts.value = [...posts.value, ...res.records]
     total.value = res.total
     hasMore.value = res.current < res.pages
-  } catch (e) {
+  } catch (e: any) {
     console.error('搜索失败:', e)
+    ElMessage.error(e?.message || '搜索失败，请稍后重试')
   } finally {
     loading.value = false
   }

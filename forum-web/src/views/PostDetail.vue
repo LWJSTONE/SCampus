@@ -163,11 +163,6 @@ const userStore = useUserStore()
 const postId = Number(route.params.id)
 const isValidPostId = computed(() => !isNaN(postId) && postId > 0)
 
-// 如果postId无效，跳转到404
-if (!isValidPostId.value) {
-  router.push('/404')
-}
-
 // 加载状态
 const loading = ref(false)
 const submitting = ref(false)
@@ -287,7 +282,13 @@ function formatRelativeTime(time: string) {
 /**
  * 获取帖子详情
  */
-const fetchPostDetail = async () => {
+async function fetchPostDetail() {
+  // 在函数内验证postId
+  if (!isValidPostId.value) {
+    ElMessage.error('帖子ID无效')
+    router.push('/')
+    return
+  }
   loading.value = true
   try {
     const res = await getPostById(postId)
@@ -304,8 +305,9 @@ const fetchPostDetail = async () => {
     res.isTop = res.isTop === 1 || res.isTop === true
     res.isEssence = res.isEssence === 1 || res.isEssence === true
     postDetail.value = res
-  } catch (error) {
+  } catch (error: any) {
     console.error('获取帖子详情失败：', error)
+    ElMessage.error(error?.message || '获取帖子详情失败')
   } finally {
     loading.value = false
   }
@@ -314,7 +316,11 @@ const fetchPostDetail = async () => {
 /**
  * 获取评论列表
  */
-const fetchComments = async () => {
+async function fetchComments() {
+  // 在函数内验证postId
+  if (!isValidPostId.value) {
+    return
+  }
   try {
     const res = await getPostComments(postId, queryParams)
     // 兼容后端返回的字段名
@@ -326,15 +332,16 @@ const fetchComments = async () => {
     }))
     commentList.value = records
     commentTotal.value = res.total
-  } catch (error) {
+  } catch (error: any) {
     console.error('获取评论失败：', error)
+    ElMessage.error(error?.message || '获取评论失败')
   }
 }
 
 /**
  * 处理点赞（toggle模式）
  */
-const handleLike = async () => {
+async function handleLike() {
   if (!userStore.isLoggedIn) {
     ElMessage.warning('请先登录')
     router.push('/login')
@@ -355,15 +362,16 @@ const handleLike = async () => {
       }
       ElMessage.success(result.message || (isLiked ? '点赞成功' : '已取消点赞'))
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('操作失败：', error)
+    ElMessage.error(error?.message || '操作失败，请稍后重试')
   }
 }
 
 /**
  * 处理收藏（toggle模式）
  */
-const handleCollect = async () => {
+async function handleCollect() {
   if (!userStore.isLoggedIn) {
     ElMessage.warning('请先登录')
     router.push('/login')
@@ -384,15 +392,16 @@ const handleCollect = async () => {
       }
       ElMessage.success(result.message || (isCollected ? '收藏成功' : '已取消收藏'))
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('操作失败：', error)
+    ElMessage.error(error?.message || '操作失败，请稍后重试')
   }
 }
 
 /**
  * 处理分享
  */
-const handleShare = async () => {
+async function handleShare() {
   // 复制链接到剪贴板
   const url = window.location.href
   try {
@@ -410,7 +419,7 @@ const handleShare = async () => {
       document.body.removeChild(textarea)
     }
     ElMessage.success('链接已复制到剪贴板')
-  } catch (error) {
+  } catch (error: any) {
     console.error('复制失败:', error)
     ElMessage.error('复制失败，请手动复制链接')
   }
@@ -419,7 +428,7 @@ const handleShare = async () => {
 /**
  * 处理发表评论
  */
-const handleComment = async () => {
+async function handleComment() {
   if (!userStore.isLoggedIn) {
     ElMessage.warning('请先登录')
     router.push('/login')
@@ -444,8 +453,9 @@ const handleComment = async () => {
     replyTo.value = null
     queryParams.page = 1
     fetchComments()
-  } catch (error) {
+  } catch (error: any) {
     console.error('评论失败：', error)
+    ElMessage.error(error?.message || '评论失败，请稍后重试')
   } finally {
     submitting.value = false
   }
@@ -454,7 +464,7 @@ const handleComment = async () => {
 /**
  * 处理回复
  */
-const handleReply = (comment: CommentVO) => {
+function handleReply(comment: CommentVO) {
   replyTo.value = comment
   commentContent.value = `@${comment.username} `
 }
@@ -462,7 +472,7 @@ const handleReply = (comment: CommentVO) => {
 /**
  * 处理删除评论
  */
-const handleDeleteComment = async (commentId: number) => {
+async function handleDeleteComment(commentId: number) {
   try {
     await ElMessageBox.confirm('确定要删除这条评论吗？', '提示', {
       confirmButtonText: '确定',
@@ -473,8 +483,12 @@ const handleDeleteComment = async (commentId: number) => {
     await deleteComment(commentId)
     ElMessage.success('删除成功')
     fetchComments()
-  } catch (error) {
+  } catch (error: any) {
     // 用户取消或删除失败
+    if (error !== 'cancel') {
+      console.error('删除评论失败:', error)
+      ElMessage.error(error?.message || '删除失败')
+    }
   }
 }
 

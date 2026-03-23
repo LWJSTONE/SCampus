@@ -8,7 +8,7 @@
         </div>
       </template>
 
-      <el-tabs v-model="activeTab">
+      <el-tabs v-model="activeTab" v-loading="loading">
         <el-tab-pane label="全部" name="all">
           <NotificationList :notifications="notifications" @read="markRead" />
         </el-tab-pane>
@@ -78,8 +78,9 @@ async function fetchNotifications() {
   try {
     const res = await getNoticeList({ current: 1, size: 100 })
     notifications.value = res.records || res.list || []
-  } catch (e) {
+  } catch (e: any) {
     console.error('获取通知失败:', e)
+    ElMessage.error(e?.message || '获取通知失败')
     // 如果API调用失败，显示空列表而不是模拟数据
     notifications.value = []
   } finally {

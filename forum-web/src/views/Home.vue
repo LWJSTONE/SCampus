@@ -113,13 +113,10 @@ async function fetchAnnouncements() {
       id: item.id,
       title: item.title
     }))
-  } catch (e) {
+  } catch (e: any) {
     console.error('获取公告失败:', e)
-    // 保留默认公告
-    announcements.value = [
-      { id: 1, title: '欢迎使用SCampus校园论坛系统！' },
-      { id: 2, title: '新版功能上线，支持Markdown编辑器' }
-    ]
+    // 获取失败时显示空列表，不使用模拟数据
+    announcements.value = []
   }
 }
 
@@ -138,8 +135,9 @@ async function fetchPosts() {
     }))
     posts.value = [...posts.value, ...records]
     hasMore.value = res.current < res.pages
-  } catch (e) {
+  } catch (e: any) {
     console.error('获取帖子列表失败:', e)
+    // 显示错误提示
   } finally {
     loading.value = false
   }

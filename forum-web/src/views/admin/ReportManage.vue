@@ -133,8 +133,9 @@ async function fetchReports() {
     const res = await getReportList({ current: page.value, size })
     reports.value = res.records || res.list || []
     total.value = res.total || 0
-  } catch (e) {
+  } catch (e: any) {
     console.error('获取举报列表失败:', e)
+    ElMessage.error(e?.message || '获取举报列表失败')
     reports.value = []
   } finally {
     loading.value = false
@@ -166,8 +167,9 @@ async function submitHandle() {
     ElMessage.success('处理成功')
     processDialogVisible.value = false
     fetchReports()
-  } catch (e) {
+  } catch (e: any) {
     console.error('处理举报失败:', e)
+    ElMessage.error(e?.message || '处理失败，请稍后重试')
   } finally {
     submitting.value = false
   }

@@ -116,8 +116,9 @@ async function handleLike() {
       isLiked: isLiked,
       likeCount: (localComment.value.likeCount || 0) + (isLiked ? 1 : -1)
     }
-  } catch (e) {
+  } catch (e: any) {
     console.error('点赞失败:', e)
+    ElMessage.error(e?.message || '点赞失败，请稍后重试')
   }
 }
 </script>

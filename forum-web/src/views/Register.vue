@@ -126,7 +126,7 @@ import { ref, reactive, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, FormInstance, FormRules } from 'element-plus'
 import { School } from '@element-plus/icons-vue'
-import { register, sendEmailCode, getCaptcha } from '@/api/auth'
+import { register, sendEmailCode } from '@/api/auth'
 
 // ==================== 状态定义 ====================
 
@@ -237,8 +237,9 @@ const handleSendCode = async () => {
         }
       }
     }, 1000)
-  } catch (error) {
+  } catch (error: any) {
     console.error('发送验证码失败：', error)
+    ElMessage.error(error?.message || '发送验证码失败，请稍后重试')
   } finally {
     sendingCode.value = false
   }
@@ -268,6 +269,7 @@ const handleRegister = async () => {
     router.push('/login')
   } catch (error: any) {
     console.error('注册失败：', error)
+    ElMessage.error(error?.message || '注册失败，请稍后重试')
   } finally {
     loading.value = false
   }

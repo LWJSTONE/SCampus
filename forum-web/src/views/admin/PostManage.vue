@@ -90,8 +90,9 @@ async function fetchPosts() {
     const res = await getPostList(queryParams)
     posts.value = res.records
     total.value = res.total
-  } catch (e) {
+  } catch (e: any) {
     console.error('获取帖子列表失败:', e)
+    ElMessage.error(e?.message || '获取帖子列表失败')
   } finally {
     loading.value = false
   }
@@ -108,8 +109,9 @@ async function handleTop(row: PostVO) {
     await topPost(row.id, isTop)
     row.isTop = isTop === 1
     ElMessage.success(isTop === 1 ? '置顶成功' : '取消置顶成功')
-  } catch (e) {
+  } catch (e: any) {
     console.error('操作失败:', e)
+    ElMessage.error(e?.message || '操作失败，请稍后重试')
   }
 }
 
@@ -119,8 +121,12 @@ async function handleDelete(row: PostVO) {
     await deletePost(row.id)
     ElMessage.success('删除成功')
     fetchPosts()
-  } catch (e) {
+  } catch (e: any) {
     // 用户取消
+    if (e !== 'cancel') {
+      console.error('删除失败:', e)
+      ElMessage.error(e?.message || '删除失败')
+    }
   }
 }
 

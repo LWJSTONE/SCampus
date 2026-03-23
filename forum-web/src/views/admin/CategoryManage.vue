@@ -191,8 +191,9 @@ async function fetchCategories() {
   try {
     const data = await getCategoryList()
     categories.value = data || []
-  } catch (e) {
+  } catch (e: any) {
     console.error('获取分类失败:', e)
+    ElMessage.error(e?.message || '获取分类列表失败')
     categories.value = []
   } finally {
     loading.value = false
@@ -239,9 +240,9 @@ async function handleSubmit() {
     }
     dialogVisible.value = false
     fetchCategories()
-  } catch (e) {
+  } catch (e: any) {
     console.error('操作失败:', e)
-    ElMessage.error('操作失败')
+    ElMessage.error(e?.message || '操作失败，请稍后重试')
   } finally {
     submitting.value = false
   }
@@ -295,9 +296,9 @@ async function submitForum() {
     }
     forumDialogVisible.value = false
     fetchCategories()
-  } catch (e) {
+  } catch (e: any) {
     console.error('操作版块失败:', e)
-    ElMessage.error('操作失败')
+    ElMessage.error(e?.message || '操作失败，请稍后重试')
   } finally {
     submitting.value = false
   }
@@ -313,8 +314,11 @@ async function handleDelete(row: CategoryTreeVO) {
     await deleteCategory(row.id)
     ElMessage.success('删除成功')
     fetchCategories()
-  } catch (e) {
-    // 用户取消
+  } catch (e: any) {
+    if (e !== 'cancel') {
+      console.error('删除失败:', e)
+      ElMessage.error(e?.message || '删除失败')
+    }
   }
 }
 
@@ -328,8 +332,11 @@ async function handleDeleteForum(row: CategoryTreeVO) {
     await deleteForum(row.id)
     ElMessage.success('删除成功')
     fetchCategories()
-  } catch (e) {
-    // 用户取消
+  } catch (e: any) {
+    if (e !== 'cancel') {
+      console.error('删除版块失败:', e)
+      ElMessage.error(e?.message || '删除失败')
+    }
   }
 }
 

@@ -38,7 +38,8 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { getForumDetail } from '@/api/category'
 import { getPostsByForum } from '@/api/post'
 import type { ForumVO, PostVO } from '@/types'
@@ -50,7 +51,17 @@ dayjs.extend(relativeTime)
 dayjs.locale('zh-cn')
 
 const route = useRoute()
-const forumId = Number(route.params.id)
+const router = useRouter()
+
+// 参数验证
+const forumIdParam = route.params.id
+const forumId = Number(forumIdParam)
+
+// 检查forumId是否有效
+if (isNaN(forumId) || forumId <= 0) {
+  ElMessage.error('版块ID无效')
+  router.push('/')
+}
 
 const forum = ref<ForumVO | null>(null)
 const posts = ref<PostVO[]>([])
@@ -65,8 +76,9 @@ function formatTime(time: string) {
 async function fetchForum() {
   try {
     forum.value = await getForumDetail(forumId)
-  } catch (e) {
+  } catch (e: any) {
     console.error('获取版块信息失败:', e)
+    ElMessage.error(e?.message || '获取版块信息失败')
   }
 }
 
@@ -79,8 +91,9 @@ async function fetchPosts() {
     const current = res.current || page.value
     const pages = res.pages || Math.ceil(res.total / res.size)
     hasMore.value = current < pages
-  } catch (e) {
+  } catch (e: any) {
     console.error('获取帖子失败:', e)
+    ElMessage.error(e?.message || '获取帖子列表失败')
   } finally {
     loading.value = false
   }

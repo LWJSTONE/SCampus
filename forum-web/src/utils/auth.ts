@@ -3,8 +3,9 @@
  * 处理 Token 的存储和获取
  */
 
-const TOKEN_KEY = 'access_token'
-const REFRESH_TOKEN_KEY = 'refresh_token'
+// 与 stores/user.ts 保持一致的 token key
+const TOKEN_KEY = 'token'
+const REFRESH_TOKEN_KEY = 'refreshToken'
 
 /**
  * 获取 Token

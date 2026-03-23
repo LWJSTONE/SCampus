@@ -198,8 +198,9 @@ async function sendForgotCode() {
         }
       }
     }, 1000)
-  } catch (e) {
+  } catch (e: any) {
     console.error('发送验证码失败:', e)
+    ElMessage.error(e?.message || '发送验证码失败，请稍后重试')
   } finally {
     sendingCode.value = false
   }
@@ -243,12 +244,14 @@ async function handleResetPassword() {
     await resetPassword({
       email: forgotForm.email,
       code: forgotForm.code,
-      password: forgotForm.newPassword
+      password: forgotForm.newPassword,
+      username: forgotForm.username
     })
     ElMessage.success('密码重置成功，请登录')
     forgotPasswordVisible.value = false
-  } catch (e) {
+  } catch (e: any) {
     console.error('重置密码失败:', e)
+    ElMessage.error(e?.message || '重置密码失败，请检查信息是否正确')
   } finally {
     resettingPassword.value = false
   }
@@ -287,9 +290,10 @@ async function handleLogin() {
     // 跳转到之前的页面或首页
     const redirect = route.query.redirect as string
     router.push(redirect || '/')
-  } catch (e) {
+  } catch (e: any) {
     refreshCaptcha()
     console.error('登录失败:', e)
+    ElMessage.error(e?.message || '登录失败，请检查用户名和密码')
   } finally {
     loading.value = false
   }

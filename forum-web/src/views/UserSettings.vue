@@ -17,7 +17,7 @@
             :http-request="handleAvatarUpload"
             accept="image/*"
           >
-            <el-button link type="primary" style="margin-left: 12px">更换头像</el-button>
+            <el-button link type="primary" style="margin-left: 12px" :loading="uploadingAvatar">更换头像</el-button>
           </el-upload>
         </el-form-item>
 
@@ -73,7 +73,7 @@
           <el-input v-model="pwdForm.confirmPassword" type="password" show-password />
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" :loading="saving" @click="handleChangePwd">
+          <el-button type="primary" :loading="savingPwd" @click="handleChangePwd">
             修改密码
           </el-button>
         </el-form-item>
@@ -94,6 +94,7 @@ const userStore = useUserStore()
 const formRef = ref<FormInstance>()
 const pwdFormRef = ref<FormInstance>()
 const saving = ref(false)
+const savingPwd = ref(false)
 const uploadingAvatar = ref(false)
 
 const form = reactive<UserUpdateDTO & { avatar?: string }>({
@@ -142,8 +143,9 @@ async function fetchUserInfo() {
   try {
     const user = await getCurrentUserInfo()
     Object.assign(form, user)
-  } catch (e) {
+  } catch (e: any) {
     console.error('获取用户信息失败:', e)
+    ElMessage.error(e?.message || '获取用户信息失败')
   }
 }
 
@@ -194,9 +196,9 @@ async function handleAvatarUpload(options: UploadRequestOptions) {
     userStore.updateUserInfo({ avatar: avatarUrl })
 
     ElMessage.success('头像更新成功')
-  } catch (e) {
+  } catch (e: any) {
     console.error('上传头像失败:', e)
-    ElMessage.error('上传头像失败')
+    ElMessage.error(e?.message || '上传头像失败')
   } finally {
     uploadingAvatar.value = false
   }
@@ -218,8 +220,9 @@ async function handleSave() {
     // 更新 store 中的用户信息
     userStore.updateUserInfo(form)
     ElMessage.success('保存成功')
-  } catch (e) {
+  } catch (e: any) {
     console.error('保存失败:', e)
+    ElMessage.error(e?.message || '保存失败，请稍后重试')
   } finally {
     saving.value = false
   }
@@ -235,7 +238,7 @@ async function handleChangePwd() {
     return
   }
 
-  saving.value = true
+  savingPwd.value = true
   try {
     await updatePassword(userStore.userInfo.id, {
       oldPassword: pwdForm.oldPassword,
@@ -244,10 +247,11 @@ async function handleChangePwd() {
     })
     ElMessage.success('密码修改成功')
     pwdFormRef.value?.resetFields()
-  } catch (e) {
+  } catch (e: any) {
     console.error('修改密码失败:', e)
+    ElMessage.error(e?.message || '修改密码失败，请检查当前密码是否正确')
   } finally {
-    saving.value = false
+    savingPwd.value = false
   }
 }
 

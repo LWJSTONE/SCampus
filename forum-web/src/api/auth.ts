@@ -36,6 +36,7 @@ export function resetPassword(data: {
   email: string
   code: string
   password: string
+  username?: string
 }): Promise<void> {
   return request.post('/auth/password/reset', data)
 }

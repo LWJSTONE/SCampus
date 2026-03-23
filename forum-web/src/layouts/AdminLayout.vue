@@ -110,8 +110,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 
 const router = useRouter()
@@ -133,6 +134,20 @@ function handleCommand(command: string) {
     router.push('/login')
   }
 }
+
+// 检查管理员权限
+onMounted(() => {
+  if (!userStore.isLoggedIn) {
+    ElMessage.warning('请先登录')
+    router.push('/login')
+    return
+  }
+  if (!userStore.isAdmin) {
+    ElMessage.error('您没有访问管理后台的权限')
+    router.push('/')
+    return
+  }
+})
 </script>
 
 <style scoped lang="scss">
