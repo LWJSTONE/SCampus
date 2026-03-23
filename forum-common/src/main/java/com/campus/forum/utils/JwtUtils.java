@@ -62,20 +62,57 @@ public class JwtUtils {
      * @return JWT令牌
      */
     public static String generateToken(Long userId, String username, String secret, long expiration) {
+        return generateToken(userId, username, null, secret, expiration);
+    }
+
+    /**
+     * 生成访问令牌（包含角色信息）
+     *
+     * @param userId     用户ID
+     * @param username   用户名
+     * @param role       用户角色
+     * @param secret     密钥
+     * @param expiration 过期时间（毫秒）
+     * @return JWT令牌
+     */
+    public static String generateToken(Long userId, String username, String role, String secret, long expiration) {
         try {
             Algorithm algorithm = Algorithm.HMAC256(secret);
-            return JWT.create()
+            com.auth0.jwt.JWTCreator.Builder builder = JWT.create()
                     .withIssuer(ISSUER)
                     .withSubject(username)
                     .withClaim("userId", userId)
                     .withClaim("username", username)
                     .withIssuedAt(new Date())
-                    .withExpiresAt(new Date(System.currentTimeMillis() + expiration))
-                    .sign(algorithm);
+                    .withExpiresAt(new Date(System.currentTimeMillis() + expiration));
+            
+            // 添加角色信息（如果提供）
+            if (role != null && !role.isEmpty()) {
+                builder.withClaim("role", role);
+            } else {
+                // 默认角色为普通用户
+                builder.withClaim("role", "USER");
+            }
+            
+            return builder.sign(algorithm);
         } catch (Exception e) {
             log.error("生成JWT令牌失败", e);
             return null;
         }
+    }
+
+    /**
+     * 从令牌中获取角色
+     *
+     * @param token JWT令牌
+     * @return 角色
+     */
+    public static String getRole(String token) {
+        DecodedJWT jwt = decodeToken(token);
+        if (jwt != null) {
+            return jwt.getClaim("role").asString();
+        }
+        return null;
     }
 
     /**

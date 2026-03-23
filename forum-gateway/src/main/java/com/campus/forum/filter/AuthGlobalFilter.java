@@ -173,7 +173,11 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
             Long userIdLong = jwt.getClaim("userId").asLong();
             String userId = String.valueOf(userIdLong);
             String username = jwt.getClaim("username").asString();
+            // 获取角色信息，如果不存在则默认为USER
             String role = jwt.getClaim("role").asString();
+            if (role == null || role.isEmpty()) {
+                role = "USER";
+            }
             
             log.debug("Token验证成功, userId: {}, username: {}", userId, username);
             

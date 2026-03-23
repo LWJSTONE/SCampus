@@ -16,12 +16,15 @@ import com.campus.forum.service.UserFollowService;
 import com.campus.forum.vo.UserFollowVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -43,6 +46,34 @@ public class UserFollowServiceImpl extends ServiceImpl<UserFollowMapper, UserFol
 
     private final UserFollowMapper userFollowMapper;
     private final UserMapper userMapper;
+    private final StringRedisTemplate redisTemplate;
+
+    private static final String FOLLOW_LOCK_PREFIX = "follow:lock:";
+    private static final long LOCK_WAIT_TIME = 3; // 锁等待时间（秒）
+
+    /**
+     * 获取分布式锁
+     */
+    private boolean tryLock(String key) {
+        try {
+            Boolean result = redisTemplate.opsForValue().setIfAbsent(key, "1", LOCK_WAIT_TIME, TimeUnit.SECONDS);
+            return Boolean.TRUE.equals(result);
+        } catch (Exception e) {
+            log.warn("获取分布式锁失败: {}", key, e);
+            return false;
+        }
+    }
+
+    /**
+     * 释放分布式锁
+     */
+    private void unlock(String key) {
+        try {
+            redisTemplate.delete(key);
+        } catch (Exception e) {
+            log.warn("释放分布式锁失败: {}", key, e);
+        }
+    }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -60,30 +91,52 @@ public class UserFollowServiceImpl extends ServiceImpl<UserFollowMapper, UserFol
             throw new BusinessException(ResultCode.USER_NOT_FOUND);
         }
         
-        // 检查是否已关注（包括已取消的记录）
-        UserFollow existFollow = userFollowMapper.selectByFollowerAndFollowing(followerId, followingId);
-        
-        if (existFollow != null) {
-            if (existFollow.getStatus() == 1) {
-                throw new BusinessException(ResultCode.BUSINESS_ERROR, "已经关注了该用户");
-            }
-            // 之前关注过但取消了，更新状态为关注
-            existFollow.setStatus(1);
-            updateById(existFollow);
-        } else {
-            // 新建关注关系
-            UserFollow userFollow = new UserFollow();
-            userFollow.setFollowerId(followerId);
-            userFollow.setFollowingId(followingId);
-            userFollow.setStatus(1);
-            save(userFollow);
+        // 使用分布式锁防止并发问题
+        String lockKey = FOLLOW_LOCK_PREFIX + followerId + ":" + followingId;
+        if (!tryLock(lockKey)) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR, "操作过于频繁，请稍后再试");
         }
         
-        // 更新用户的关注数和粉丝数
-        userMapper.incrementFollowingCount(followerId);
-        userMapper.incrementFollowerCount(followingId);
-        
-        return true;
+        try {
+            // 检查是否已关注（包括已取消的记录）
+            UserFollow existFollow = userFollowMapper.selectByFollowerAndFollowing(followerId, followingId);
+            
+            if (existFollow != null) {
+                if (existFollow.getStatus() == 1) {
+                    throw new BusinessException(ResultCode.BUSINESS_ERROR, "已经关注了该用户");
+                }
+                // 之前关注过但取消了，更新状态为关注
+                existFollow.setStatus(1);
+                updateById(existFollow);
+            } else {
+                // 新建关注关系
+                UserFollow userFollow = new UserFollow();
+                userFollow.setFollowerId(followerId);
+                userFollow.setFollowingId(followingId);
+                userFollow.setStatus(1);
+                try {
+                    save(userFollow);
+                } catch (DuplicateKeyException e) {
+                    // 并发场景：其他线程已插入，检查是否需要更新状态
+                    log.info("并发关注检测到重复记录: followerId={}, followingId={}", followerId, followingId);
+                    existFollow = userFollowMapper.selectByFollowerAndFollowing(followerId, followingId);
+                    if (existFollow != null && existFollow.getStatus() != 1) {
+                        existFollow.setStatus(1);
+                        updateById(existFollow);
+                    } else {
+                        throw new BusinessException(ResultCode.BUSINESS_ERROR, "已经关注了该用户");
+                    }
+                }
+            }
+            
+            // 更新用户的关注数和粉丝数
+            userMapper.incrementFollowingCount(followerId);
+            userMapper.incrementFollowerCount(followingId);
+            
+            return true;
+        } finally {
+            unlock(lockKey);
+        }
     }
 
     @Override
@@ -91,21 +144,31 @@ public class UserFollowServiceImpl extends ServiceImpl<UserFollowMapper, UserFol
     public boolean unfollow(Long followerId, Long followingId) {
         log.info("取消关注，关注者ID：{}，被关注者ID：{}", followerId, followingId);
         
-        // 检查关注关系是否存在
-        UserFollow existFollow = userFollowMapper.selectByFollowerAndFollowing(followerId, followingId);
-        if (existFollow == null || existFollow.getStatus() != 1) {
-            throw new BusinessException(ResultCode.BUSINESS_ERROR, "未关注该用户");
+        // 使用分布式锁防止并发问题
+        String lockKey = FOLLOW_LOCK_PREFIX + followerId + ":" + followingId;
+        if (!tryLock(lockKey)) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR, "操作过于频繁，请稍后再试");
         }
         
-        // 更新关注状态为取消
-        existFollow.setStatus(0);
-        updateById(existFollow);
-        
-        // 更新用户的关注数和粉丝数
-        userMapper.decrementFollowingCount(followerId);
-        userMapper.decrementFollowerCount(followingId);
-        
-        return true;
+        try {
+            // 检查关注关系是否存在
+            UserFollow existFollow = userFollowMapper.selectByFollowerAndFollowing(followerId, followingId);
+            if (existFollow == null || existFollow.getStatus() != 1) {
+                throw new BusinessException(ResultCode.BUSINESS_ERROR, "未关注该用户");
+            }
+            
+            // 更新关注状态为取消
+            existFollow.setStatus(0);
+            updateById(existFollow);
+            
+            // 更新用户的关注数和粉丝数
+            userMapper.decrementFollowingCount(followerId);
+            userMapper.decrementFollowerCount(followingId);
+            
+            return true;
+        } finally {
+            unlock(lockKey);
+        }
     }
 
     @Override

@@ -55,6 +55,9 @@ public class PostServiceImpl implements PostService {
     private static final String REDIS_KEY_POST_COLLECT = "post:collect:";
     private static final String REDIS_KEY_HOT_POSTS = "post:hot:list";
     private static final String REDIS_KEY_POST_COUNT = "post:count:user:";
+    private static final String REDIS_KEY_POST_LIKE_LOCK = "post:like:lock:";
+    private static final String REDIS_KEY_POST_COLLECT_LOCK = "post:collect:lock:";
+    private static final long LOCK_EXPIRE_TIME = 3; // 锁过期时间（秒）
 
     // 敏感词列表（实际项目应从配置中心获取）
     private static final Set<String> SENSITIVE_WORDS = new HashSet<>(Arrays.asList(
@@ -430,25 +433,44 @@ public class PostServiceImpl implements PostService {
             throw new BusinessException(ResultCode.POST_NOT_FOUND);
         }
 
-        // 2. 检查是否已点赞（使用Redis Set）
-        String likeKey = REDIS_KEY_POST_LIKE + id;
-        Boolean isMember = redisTemplate.opsForSet().isMember(likeKey, userId.toString());
+        // 2. 使用分布式锁防止并发问题
+        String lockKey = REDIS_KEY_POST_LIKE_LOCK + id + ":" + userId;
+        String lockValue = String.valueOf(System.currentTimeMillis());
+        
+        try {
+            // 尝试获取锁
+            Boolean locked = redisTemplate.opsForValue().setIfAbsent(lockKey, lockValue, LOCK_EXPIRE_TIME, java.util.concurrent.TimeUnit.SECONDS);
+            if (!Boolean.TRUE.equals(locked)) {
+                throw new BusinessException(ResultCode.BUSINESS_ERROR, "操作过于频繁，请稍后再试");
+            }
+            
+            // 3. 检查是否已点赞（使用Redis Set）
+            String likeKey = REDIS_KEY_POST_LIKE + id;
+            Boolean isMember = redisTemplate.opsForSet().isMember(likeKey, userId.toString());
 
-        boolean isLike;
-        if (Boolean.TRUE.equals(isMember)) {
-            // 已点赞，取消点赞
-            redisTemplate.opsForSet().remove(likeKey, userId.toString());
-            postMapper.incrementLikeCount(id, -1);
-            isLike = false;
-        } else {
-            // 未点赞，添加点赞
-            redisTemplate.opsForSet().add(likeKey, userId.toString());
-            postMapper.incrementLikeCount(id, 1);
-            isLike = true;
+            boolean isLike;
+            if (Boolean.TRUE.equals(isMember)) {
+                // 已点赞，取消点赞
+                redisTemplate.opsForSet().remove(likeKey, userId.toString());
+                postMapper.incrementLikeCount(id, -1);
+                isLike = false;
+            } else {
+                // 未点赞，添加点赞
+                redisTemplate.opsForSet().add(likeKey, userId.toString());
+                postMapper.incrementLikeCount(id, 1);
+                isLike = true;
+            }
+
+            log.info("帖子{}成功, postId: {}, userId: {}", isLike ? "点赞" : "取消点赞", id, userId);
+            return isLike;
+        } finally {
+            // 释放锁
+            try {
+                redisTemplate.delete(lockKey);
+            } catch (Exception e) {
+                log.warn("释放锁失败: {}", lockKey, e);
+            }
         }
-
-        log.info("帖子{}成功, postId: {}, userId: {}", isLike ? "点赞" : "取消点赞", id, userId);
-        return isLike;
     }
 
     @Override
@@ -462,25 +484,44 @@ public class PostServiceImpl implements PostService {
             throw new BusinessException(ResultCode.POST_NOT_FOUND);
         }
 
-        // 2. 检查是否已收藏（使用Redis Set）
-        String collectKey = REDIS_KEY_POST_COLLECT + userId;
-        Boolean isMember = redisTemplate.opsForSet().isMember(collectKey, id.toString());
+        // 2. 使用分布式锁防止并发问题
+        String lockKey = REDIS_KEY_POST_COLLECT_LOCK + id + ":" + userId;
+        String lockValue = String.valueOf(System.currentTimeMillis());
+        
+        try {
+            // 尝试获取锁
+            Boolean locked = redisTemplate.opsForValue().setIfAbsent(lockKey, lockValue, LOCK_EXPIRE_TIME, java.util.concurrent.TimeUnit.SECONDS);
+            if (!Boolean.TRUE.equals(locked)) {
+                throw new BusinessException(ResultCode.BUSINESS_ERROR, "操作过于频繁，请稍后再试");
+            }
+            
+            // 3. 检查是否已收藏（使用Redis Set）
+            String collectKey = REDIS_KEY_POST_COLLECT + userId;
+            Boolean isMember = redisTemplate.opsForSet().isMember(collectKey, id.toString());
 
-        boolean isCollect;
-        if (Boolean.TRUE.equals(isMember)) {
-            // 已收藏，取消收藏
-            redisTemplate.opsForSet().remove(collectKey, id.toString());
-            postMapper.incrementCollectCount(id, -1);
-            isCollect = false;
-        } else {
-            // 未收藏，添加收藏
-            redisTemplate.opsForSet().add(collectKey, id.toString());
-            postMapper.incrementCollectCount(id, 1);
-            isCollect = true;
+            boolean isCollect;
+            if (Boolean.TRUE.equals(isMember)) {
+                // 已收藏，取消收藏
+                redisTemplate.opsForSet().remove(collectKey, id.toString());
+                postMapper.incrementCollectCount(id, -1);
+                isCollect = false;
+            } else {
+                // 未收藏，添加收藏
+                redisTemplate.opsForSet().add(collectKey, id.toString());
+                postMapper.incrementCollectCount(id, 1);
+                isCollect = true;
+            }
+
+            log.info("帖子{}成功, postId: {}, userId: {}", isCollect ? "收藏" : "取消收藏", id, userId);
+            return isCollect;
+        } finally {
+            // 释放锁
+            try {
+                redisTemplate.delete(lockKey);
+            } catch (Exception e) {
+                log.warn("释放锁失败: {}", lockKey, e);
+            }
         }
-
-        log.info("帖子{}成功, postId: {}, userId: {}", isCollect ? "收藏" : "取消收藏", id, userId);
-        return isCollect;
     }
 
     @Override

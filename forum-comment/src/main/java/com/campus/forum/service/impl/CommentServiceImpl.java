@@ -61,6 +61,8 @@ public class CommentServiceImpl implements CommentService {
     private static final String REDIS_KEY_COMMENT_COUNT = "comment:count:";
     private static final String REDIS_KEY_COMMENT_LIKE = "comment:like:";
     private static final String REDIS_KEY_USER_COMMENTS = "comment:user:";
+    private static final String REDIS_KEY_COMMENT_LIKE_LOCK = "comment:like:lock:";
+    private static final long LOCK_EXPIRE_TIME = 3; // 锁过期时间（秒）
     
     // 敏感词列表（实际项目中应从数据库或配置中心获取）
     private static final Set<String> SENSITIVE_WORDS = new HashSet<>(Arrays.asList(
@@ -228,52 +230,70 @@ public class CommentServiceImpl implements CommentService {
             throw new BusinessException(ResultCode.COMMENT_NOT_FOUND);
         }
         
-        // 2. 查询是否已点赞
-        CommentLike existingLike = commentLikeMapper.selectByCommentIdAndUserId(commentId, userId);
+        // 2. 使用分布式锁防止并发问题
+        String lockKey = REDIS_KEY_COMMENT_LIKE_LOCK + commentId + ":" + userId;
         
-        boolean isLike;
-        if (existingLike != null) {
-            // 已点赞，执行取消点赞
-            existingLike.setDeleteFlag(1);
-            commentLikeMapper.updateById(existingLike);
-            commentMapper.decrementLikeCount(commentId);
-            isLike = false;
-        } else {
-            // 查询是否存在已取消的点赞记录
-            CommentLike existRecord = commentLikeMapper.selectExistsRecord(commentId, userId);
-            if (existRecord != null) {
-                // 恢复点赞记录
-                existRecord.setDeleteFlag(0);
-                commentLikeMapper.updateById(existRecord);
-            } else {
-                // 创建新的点赞记录
-                CommentLike newLike = new CommentLike();
-                newLike.setCommentId(commentId);
-                newLike.setUserId(userId);
-                commentLikeMapper.insert(newLike);
+        try {
+            // 尝试获取锁
+            Boolean locked = redisTemplate.opsForValue().setIfAbsent(lockKey, "1", LOCK_EXPIRE_TIME, TimeUnit.SECONDS);
+            if (!Boolean.TRUE.equals(locked)) {
+                throw new BusinessException(ResultCode.BUSINESS_ERROR, "操作过于频繁，请稍后再试");
             }
-            commentMapper.incrementLikeCount(commentId);
-            isLike = true;
+            
+            // 3. 查询是否已点赞
+            CommentLike existingLike = commentLikeMapper.selectByCommentIdAndUserId(commentId, userId);
+            
+            boolean isLike;
+            if (existingLike != null) {
+                // 已点赞，执行取消点赞
+                existingLike.setDeleteFlag(1);
+                commentLikeMapper.updateById(existingLike);
+                commentMapper.decrementLikeCount(commentId);
+                isLike = false;
+            } else {
+                // 查询是否存在已取消的点赞记录
+                CommentLike existRecord = commentLikeMapper.selectExistsRecord(commentId, userId);
+                if (existRecord != null) {
+                    // 恢复点赞记录
+                    existRecord.setDeleteFlag(0);
+                    commentLikeMapper.updateById(existRecord);
+                } else {
+                    // 创建新的点赞记录
+                    CommentLike newLike = new CommentLike();
+                    newLike.setCommentId(commentId);
+                    newLike.setUserId(userId);
+                    commentLikeMapper.insert(newLike);
+                }
+                commentMapper.incrementLikeCount(commentId);
+                isLike = true;
+            }
+            
+            // 4. 更新热门状态
+            Comment updatedComment = commentMapper.selectById(commentId);
+            if (updatedComment.getLikeCount() >= commentConfig.getHotCommentThreshold()) {
+                commentMapper.updateHotStatus(commentId, 1);
+            } else {
+                commentMapper.updateHotStatus(commentId, 0);
+            }
+            
+            // 5. 更新缓存
+            String cacheKey = REDIS_KEY_COMMENT_LIKE + commentId + ":" + userId;
+            if (isLike) {
+                redisTemplate.opsForValue().set(cacheKey, "1", Duration.ofDays(30));
+            } else {
+                redisTemplate.delete(cacheKey);
+            }
+            
+            log.info("评论{}成功, commentId: {}, userId: {}", isLike ? "点赞" : "取消点赞", commentId, userId);
+            return isLike;
+        } finally {
+            // 释放锁
+            try {
+                redisTemplate.delete(lockKey);
+            } catch (Exception e) {
+                log.warn("释放锁失败: {}", lockKey, e);
+            }
         }
-        
-        // 3. 更新热门状态
-        Comment updatedComment = commentMapper.selectById(commentId);
-        if (updatedComment.getLikeCount() >= commentConfig.getHotCommentThreshold()) {
-            commentMapper.updateHotStatus(commentId, 1);
-        } else {
-            commentMapper.updateHotStatus(commentId, 0);
-        }
-        
-        // 4. 更新缓存
-        String cacheKey = REDIS_KEY_COMMENT_LIKE + commentId + ":" + userId;
-        if (isLike) {
-            redisTemplate.opsForValue().set(cacheKey, "1", Duration.ofDays(30));
-        } else {
-            redisTemplate.delete(cacheKey);
-        }
-        
-        log.info("评论{}成功, commentId: {}, userId: {}", isLike ? "点赞" : "取消点赞", commentId, userId);
-        return isLike;
     }
 
     /**

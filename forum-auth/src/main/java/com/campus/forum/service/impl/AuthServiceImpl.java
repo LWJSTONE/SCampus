@@ -110,8 +110,12 @@ public class AuthServiceImpl implements AuthService {
             return Result.fail(401, "用户名或密码错误");
         }
 
-        // 6. 生成Token
-        String accessToken = JwtUtils.generateToken(user.getId(), user.getUsername(), jwtSecret,
+        // 6. 查询用户角色
+        List<String> roleCodes = authUserMapper.selectRoleCodesByUserId(user.getId());
+        String role = (roleCodes != null && !roleCodes.isEmpty()) ? roleCodes.get(0) : "USER";
+        
+        // 7. 生成Token（包含角色信息）
+        String accessToken = JwtUtils.generateToken(user.getId(), user.getUsername(), role, jwtSecret,
                 accessTokenExpiration * 1000);
         String refreshToken = JwtUtils.generateRefreshToken(user.getId(), user.getUsername(), jwtSecret);
         
@@ -121,18 +125,19 @@ public class AuthServiceImpl implements AuthService {
             return Result.fail(500, "登录失败，请稍后重试");
         }
 
-        // 7. 将Token存入Redis
+
+        // 8. 将Token存入Redis
         String tokenKey = Constants.TOKEN_PREFIX + user.getId();
         long expireSeconds = loginDTO.getRememberMe() != null && loginDTO.getRememberMe() 
                 ? Constants.REFRESH_TOKEN_EXPIRE_TIME 
                 : Constants.TOKEN_EXPIRE_TIME;
         redisUtils.set(tokenKey, accessToken, expireSeconds);
 
-        // 8. 更新登录信息
+        // 9. 更新登录信息
         String loginIp = IpUtils.getIpAddr(request);
         authUserMapper.updateLoginInfo(user.getId(), LocalDateTime.now(), loginIp);
 
-        // 9. 构建返回结果
+        // 10. 构建返回结果
         LoginVO loginVO = buildLoginVO(user, accessToken, refreshToken);
 
         log.info("用户登录成功：userId={}, username={}", user.getId(), user.getUsername());
@@ -281,15 +286,19 @@ public class AuthServiceImpl implements AuthService {
             return Result.fail(401, "用户状态异常");
         }
 
-        // 5. 生成新的访问令牌
-        String newAccessToken = JwtUtils.generateToken(userId, username, jwtSecret,
+        // 5. 查询用户角色
+        List<String> roleCodes = authUserMapper.selectRoleCodesByUserId(userId);
+        String role = (roleCodes != null && !roleCodes.isEmpty()) ? roleCodes.get(0) : "USER";
+
+        // 6. 生成新的访问令牌（包含角色信息）
+        String newAccessToken = JwtUtils.generateToken(userId, username, role, jwtSecret,
                 accessTokenExpiration * 1000);
 
-        // 6. 更新Redis中的Token
+        // 7. 更新Redis中的Token
         String tokenKey = Constants.TOKEN_PREFIX + userId;
         redisUtils.set(tokenKey, newAccessToken, Constants.TOKEN_EXPIRE_TIME);
 
-        // 7. 构建返回结果
+        // 8. 构建返回结果
         TokenVO tokenVO = new TokenVO();
         tokenVO.setAccessToken(newAccessToken);
         tokenVO.setRefreshToken(refreshToken);

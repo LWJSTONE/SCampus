@@ -114,12 +114,16 @@ public class ReportServiceImpl extends ServiceImpl<ReportMapper, Report> impleme
             throw new BusinessException("该举报已处理，无法重复操作");
         }
 
-        int result = reportMapper.updateHandleStatus(id, 2, handlerId, 
+        // 根据处理结果确定状态：无违规(0)设为驳回(3)，其他设为已处理(2)
+        int newStatus = (handleDTO.getResult() != null && handleDTO.getResult() == 0) ? 3 : 2;
+        
+        int result = reportMapper.updateHandleStatus(id, newStatus, handlerId, 
                 handleDTO.getResult(), handleDTO.getRemark());
         
         if (result > 0) {
             // 如果处理结果为禁言，则禁言用户
-            if (handleDTO.getResult() == 3 && handleDTO.getBanDays() != null && handleDTO.getBanDays() > 0) {
+            if (handleDTO.getResult() != null && handleDTO.getResult() == 3 
+                    && handleDTO.getBanDays() != null && handleDTO.getBanDays() > 0) {
                 UserBanDTO banDTO = new UserBanDTO();
                 banDTO.setUserId(report.getReportedUserId());
                 banDTO.setReportId(report.getId());
@@ -128,7 +132,7 @@ public class ReportServiceImpl extends ServiceImpl<ReportMapper, Report> impleme
                 userBanService.banUser(banDTO, handlerId);
             }
             
-            log.info("举报 {} 处理完成，处理结果: {}", id, handleDTO.getResult());
+            log.info("举报 {} 处理完成，处理结果: {}, 状态: {}", id, handleDTO.getResult(), newStatus == 3 ? "已驳回" : "已处理");
             return true;
         }
         
