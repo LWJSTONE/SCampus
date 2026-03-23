@@ -40,6 +40,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { searchPosts } from '@/api/post'
 import type { PostVO } from '@/types'
 import dayjs from 'dayjs'

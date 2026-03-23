@@ -270,8 +270,8 @@ public class PostServiceImpl implements PostService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean deletePost(Long id, Long userId) {
-        log.info("删除帖子, postId: {}, userId: {}", id, userId);
+    public boolean deletePost(Long id, Long userId, boolean isAdmin) {
+        log.info("删除帖子, postId: {}, userId: {}, isAdmin: {}", id, userId, isAdmin);
 
         // 1. 查询帖子
         Post post = postMapper.selectById(id);
@@ -279,8 +279,8 @@ public class PostServiceImpl implements PostService {
             throw new BusinessException(ResultCode.POST_NOT_FOUND);
         }
 
-        // 2. 权限校验（只能删除自己的帖子）
-        if (!post.getUserId().equals(userId)) {
+        // 2. 权限校验（管理员或帖子作者可以删除）
+        if (!isAdmin && !post.getUserId().equals(userId)) {
             throw new BusinessException(ResultCode.POST_NO_PERMISSION);
         }
 
@@ -296,7 +296,7 @@ public class PostServiceImpl implements PostService {
         postAttachmentMapper.deleteByPostId(id);
 
         // 6. 更新用户帖子数缓存
-        String countKey = REDIS_KEY_POST_COUNT + userId;
+        String countKey = REDIS_KEY_POST_COUNT + post.getUserId();
         redisTemplate.opsForValue().decrement(countKey);
 
         log.info("帖子删除成功, postId: {}", id);

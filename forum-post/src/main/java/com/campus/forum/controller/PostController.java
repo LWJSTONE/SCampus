@@ -44,6 +44,7 @@ public class PostController {
      * @param current  当前页
      * @param size     每页大小
      * @param forumId  板块ID
+     * @param userId   用户ID（查询指定用户的帖子）
      * @param type     帖子类型
      * @param sortType 排序类型
      * @param status   帖子状态
@@ -57,6 +58,7 @@ public class PostController {
             @Parameter(description = "当前页") @RequestParam(defaultValue = "1") Integer current,
             @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") Integer size,
             @Parameter(description = "板块ID") @RequestParam(required = false) Long forumId,
+            @Parameter(description = "用户ID（查询指定用户的帖子）") @RequestParam(required = false) Long userId,
             @Parameter(description = "帖子类型") @RequestParam(required = false) Integer type,
             @Parameter(description = "排序类型(1-最新发布 2-最新回复 3-热度排序)") @RequestParam(required = false) Integer sortType,
             @Parameter(description = "是否置顶") @RequestParam(required = false) Integer isTop,
@@ -65,13 +67,14 @@ public class PostController {
             @Parameter(description = "搜索关键词") @RequestParam(required = false) String keyword,
             HttpServletRequest request) {
 
-        log.info("获取帖子列表, current: {}, size: {}, forumId: {}, status: {}", current, size, forumId, status);
+        log.info("获取帖子列表, current: {}, size: {}, forumId: {}, userId: {}, status: {}", current, size, forumId, userId, status);
 
         // 构建查询参数
         PostQueryDTO queryDTO = new PostQueryDTO();
         queryDTO.setCurrent(current);
         queryDTO.setSize(size);
         queryDTO.setForumId(forumId);
+        queryDTO.setUserId(userId);
         queryDTO.setType(type);
         queryDTO.setSortType(sortType);
         queryDTO.setIsTop(isTop);
@@ -188,7 +191,7 @@ public class PostController {
      * @return 操作结果
      */
     @DeleteMapping("/{id}")
-    @Operation(summary = "删除帖子", description = "删除指定帖子（只能删除自己的帖子）")
+    @Operation(summary = "删除帖子", description = "删除指定帖子（帖子作者或管理员可删除）")
     public Result<Boolean> deletePost(
             @Parameter(description = "帖子ID") @PathVariable Long id,
             HttpServletRequest request) {
@@ -201,8 +204,11 @@ public class PostController {
             return Result.fail(401, "请先登录");
         }
 
+        // 检查是否为管理员
+        boolean isAdmin = isAdmin(request);
+
         // 删除帖子
-        boolean result = postService.deletePost(id, userId);
+        boolean result = postService.deletePost(id, userId, isAdmin);
 
         return Result.success("删除成功", result);
     }

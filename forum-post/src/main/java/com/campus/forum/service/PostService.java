@@ -62,9 +62,10 @@ public interface PostService {
      *
      * @param id 帖子ID
      * @param userId 用户ID
+     * @param isAdmin 是否为管理员
      * @return 是否成功
      */
-    boolean deletePost(Long id, Long userId);
+    boolean deletePost(Long id, Long userId, boolean isAdmin);
 
     /**
      * 置顶/取消置顶帖子
