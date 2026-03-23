@@ -23,7 +23,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -96,12 +98,46 @@ public class NoticeServiceImpl implements NoticeService {
         
         // 转换为VO
         Page<NoticeVO> voPage = new Page<>(noticePage.getCurrent(), noticePage.getSize(), noticePage.getTotal());
+        
+        // 优化：批量查询已读状态，避免 N+1 问题
+        Map<Long, UserNotice> userNoticeMap = batchGetUserNoticeStatus(userId, noticePage.getRecords());
+        
         List<NoticeVO> voList = noticePage.getRecords().stream()
-                .map(notice -> convertToVO(notice, userId))
+                .map(notice -> convertToVO(notice, userId, userNoticeMap))
                 .collect(Collectors.toList());
         voPage.setRecords(voList);
         
         return voPage;
+    }
+    
+    /**
+     * 批量获取用户通知已读状态
+     * 优化 N+1 查询问题
+     *
+     * @param userId 用户ID
+     * @param notices 通知列表
+     * @return 通知ID -> 用户通知记录映射
+     */
+    private Map<Long, UserNotice> batchGetUserNoticeStatus(Long userId, List<Notice> notices) {
+        if (userId == null || notices == null || notices.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        
+        // 提取通知ID列表
+        List<Long> noticeIds = notices.stream()
+                .map(Notice::getId)
+                .collect(Collectors.toList());
+        
+        // 批量查询用户通知记录
+        List<UserNotice> userNotices = userNoticeMapper.selectList(
+                new LambdaQueryWrapper<UserNotice>()
+                        .eq(UserNotice::getUserId, userId)
+                        .in(UserNotice::getNoticeId, noticeIds)
+        );
+        
+        // 转换为Map
+        return userNotices.stream()
+                .collect(Collectors.toMap(UserNotice::getNoticeId, un -> un, (a, b) -> a));
     }
 
     @Override
@@ -301,14 +337,47 @@ public class NoticeServiceImpl implements NoticeService {
     // ==================== 私有方法 ====================
 
     /**
-     * 转换为VO
+     * 转换为VO（使用预加载的用户通知状态，避免 N+1 问题）
+     *
+     * @param notice 通知实体
+     * @param userId 用户ID
+     * @param userNoticeMap 用户通知状态映射（由批量查询预加载）
+     * @return 通知VO
+     */
+    private NoticeVO convertToVO(Notice notice, Long userId, Map<Long, UserNotice> userNoticeMap) {
+        NoticeVO vo = new NoticeVO();
+        BeanUtils.copyProperties(notice, vo);
+        vo.setIsTop(notice.getIsTop() != null && notice.getIsTop() == 1);
+        
+        // 使用预加载的用户通知状态
+        if (userId != null && userNoticeMap != null) {
+            UserNotice userNotice = userNoticeMap.get(notice.getId());
+            if (userNotice != null && userNotice.getIsRead() == 1) {
+                vo.setIsRead(true);
+                vo.setReadTime(userNotice.getReadTime());
+            } else {
+                vo.setIsRead(false);
+            }
+        } else {
+            vo.setIsRead(false);
+        }
+        
+        return vo;
+    }
+    
+    /**
+     * 转换为VO（单条查询使用，用于详情等场景）
+     *
+     * @param notice 通知实体
+     * @param userId 用户ID
+     * @return 通知VO
      */
     private NoticeVO convertToVO(Notice notice, Long userId) {
         NoticeVO vo = new NoticeVO();
         BeanUtils.copyProperties(notice, vo);
         vo.setIsTop(notice.getIsTop() != null && notice.getIsTop() == 1);
         
-        // 查询用户是否已读
+        // 查询用户是否已读（单条查询场景）
         if (userId != null) {
             UserNotice userNotice = userNoticeMapper.selectOne(
                     new LambdaQueryWrapper<UserNotice>()

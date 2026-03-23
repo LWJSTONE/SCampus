@@ -708,18 +708,68 @@ public class PostServiceImpl implements PostService {
 
     /**
      * 检查是否已点赞
+     * 
+     * 优先从Redis缓存获取点赞状态，缓存不存在时不返回默认值
+     * 因为帖子服务和交互服务是独立微服务，这里仅依赖Redis缓存
+     * 实际点赞状态由forum-interaction服务维护并同步到Redis
+     * 
+     * @param postId 帖子ID
+     * @param userId 用户ID
+     * @return 是否已点赞，缓存不存在时返回false（保守策略）
      */
     private boolean isLiked(Long postId, Long userId) {
-        String likeKey = REDIS_KEY_POST_LIKE + postId;
-        return Boolean.TRUE.equals(redisTemplate.opsForSet().isMember(likeKey, userId.toString()));
+        if (postId == null || userId == null) {
+            return false;
+        }
+        try {
+            String likeKey = REDIS_KEY_POST_LIKE + postId;
+            Boolean isMember = redisTemplate.opsForSet().isMember(likeKey, userId.toString());
+            if (Boolean.TRUE.equals(isMember)) {
+                return true;
+            }
+            // 缓存中不存在，可能是：
+            // 1. 用户确实没有点赞
+            // 2. 缓存过期或尚未初始化
+            // 由于是独立微服务架构，这里采用保守策略返回false
+            // 实际应用中可以考虑通过Feign调用interaction服务获取真实状态
+            return false;
+        } catch (Exception e) {
+            log.warn("检查点赞状态失败, postId: {}, userId: {}", postId, userId, e);
+            return false;
+        }
     }
 
     /**
      * 检查是否已收藏
+     * 
+     * 优先从Redis缓存获取收藏状态，缓存不存在时不返回默认值
+     * 因为帖子服务和交互服务是独立微服务，这里仅依赖Redis缓存
+     * 实际收藏状态由forum-interaction服务维护并同步到Redis
+     * 
+     * @param postId 帖子ID
+     * @param userId 用户ID
+     * @return 是否已收藏，缓存不存在时返回false（保守策略）
      */
     private boolean isCollected(Long postId, Long userId) {
-        String collectKey = REDIS_KEY_POST_COLLECT + userId;
-        return Boolean.TRUE.equals(redisTemplate.opsForSet().isMember(collectKey, postId.toString()));
+        if (postId == null || userId == null) {
+            return false;
+        }
+        try {
+            String collectKey = REDIS_KEY_POST_COLLECT + userId;
+            Boolean isMember = redisTemplate.opsForSet().isMember(collectKey, postId.toString());
+            if (Boolean.TRUE.equals(isMember)) {
+                return true;
+            }
+            // 缓存中不存在，可能是：
+            // 1. 用户确实没有收藏
+            // 2. 缓存过期或尚未初始化
+            // 由于是独立微服务架构，这里采用保守策略返回false
+            // 实际应用中可以考虑通过Feign调用interaction服务获取真实状态
+            return false;
+        } catch (Exception e) {
+            log.warn("检查收藏状态失败, postId: {}, userId: {}", postId, userId, e);
+            return false;
+        }
     }
 
     /**

@@ -228,6 +228,9 @@ public class ReportServiceImpl extends ServiceImpl<ReportMapper, Report> impleme
     
     /**
      * 删除被举报的内容
+     * 
+     * 根据举报类型调用相应的服务删除内容
+     * 帖子和评论执行逻辑删除，用户类型则记录警告日志
      *
      * @param report 举报记录
      */
@@ -235,21 +238,35 @@ public class ReportServiceImpl extends ServiceImpl<ReportMapper, Report> impleme
         try {
             switch (report.getReportType()) {
                 case 1: // 帖子
-                    // postApi.deletePost(report.getTargetId());
-                    log.info("删除帖子: {}", report.getTargetId());
+                    // 调用帖子服务删除帖子
+                    Result<?> deletePostResult = postApi.deletePost(report.getTargetId());
+                    if (deletePostResult != null && deletePostResult.getCode() == 200) {
+                        log.info("删除被举报帖子成功: postId={}", report.getTargetId());
+                    } else {
+                        log.warn("删除被举报帖子失败: postId={}, result={}", report.getTargetId(), deletePostResult);
+                    }
                     break;
                 case 2: // 评论
-                    // commentApi.deleteComment(report.getTargetId());
-                    log.info("删除评论: {}", report.getTargetId());
+                    // 调用评论服务删除评论
+                    Result<?> deleteCommentResult = commentApi.deleteComment(report.getTargetId());
+                    if (deleteCommentResult != null && deleteCommentResult.getCode() == 200) {
+                        log.info("删除被举报评论成功: commentId={}", report.getTargetId());
+                    } else {
+                        log.warn("删除被举报评论失败: commentId={}, result={}", report.getTargetId(), deleteCommentResult);
+                    }
                     break;
                 case 3: // 用户
                     // 用户类型不应该删除内容，而是应该封号
-                    log.warn("举报类型为用户，不应删除内容，应考虑封号处理");
+                    // 这里记录警告日志，实际封号操作应该在 handleReport 的 case 4 中处理
+                    log.warn("举报类型为用户，不应删除内容，应考虑封号处理。reportId={}, reportedUserId={}", 
+                            report.getId(), report.getReportedUserId());
                     break;
+                default:
+                    log.warn("未知的举报类型: reportId={}, reportType={}", report.getId(), report.getReportType());
             }
         } catch (Exception e) {
             log.error("删除被举报内容失败, reportId: {}, targetId: {}", report.getId(), report.getTargetId(), e);
-            // 不影响举报处理结果
+            // 删除内容失败不影响举报处理结果，但需要记录日志便于后续人工处理
         }
     }
 

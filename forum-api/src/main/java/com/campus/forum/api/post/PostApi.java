@@ -3,6 +3,7 @@ package com.campus.forum.api.post;
 import com.campus.forum.entity.Result;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -24,6 +25,15 @@ public interface PostApi {
      */
     @GetMapping("/api/internal/post/{id}")
     Result<PostDTO> getPostById(@PathVariable("id") Long id);
+
+    /**
+     * Delete post by ID (logical delete)
+     * 
+     * @param id Post ID
+     * @return Result
+     */
+    @DeleteMapping("/api/internal/post/{id}")
+    Result<Boolean> deletePost(@PathVariable("id") Long id);
 
     /**
      * Update post stats

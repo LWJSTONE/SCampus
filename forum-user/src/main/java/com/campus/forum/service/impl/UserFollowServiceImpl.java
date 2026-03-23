@@ -101,13 +101,19 @@ public class UserFollowServiceImpl extends ServiceImpl<UserFollowMapper, UserFol
             // 检查是否已关注（包括已取消的记录）
             UserFollow existFollow = userFollowMapper.selectByFollowerAndFollowing(followerId, followingId);
             
+            // 标记是否需要更新计数器
+            boolean needUpdateCount = false;
+            
             if (existFollow != null) {
                 if (existFollow.getStatus() == 1) {
-                    throw new BusinessException(ResultCode.BUSINESS_ERROR, "已经关注了该用户");
+                    // 已经关注了该用户，幂等操作：直接返回成功，不抛出异常，也不更新计数器
+                    log.info("用户已关注过该用户，幂等返回成功：followerId={}, followingId={}", followerId, followingId);
+                    return true;
                 }
                 // 之前关注过但取消了，更新状态为关注
                 existFollow.setStatus(1);
                 updateById(existFollow);
+                needUpdateCount = true;
             } else {
                 // 新建关注关系
                 UserFollow userFollow = new UserFollow();
@@ -116,6 +122,7 @@ public class UserFollowServiceImpl extends ServiceImpl<UserFollowMapper, UserFol
                 userFollow.setStatus(1);
                 try {
                     save(userFollow);
+                    needUpdateCount = true;
                 } catch (DuplicateKeyException e) {
                     // 并发场景：其他线程已插入，检查是否需要更新状态
                     log.info("并发关注检测到重复记录: followerId={}, followingId={}", followerId, followingId);
@@ -123,15 +130,17 @@ public class UserFollowServiceImpl extends ServiceImpl<UserFollowMapper, UserFol
                     if (existFollow != null && existFollow.getStatus() != 1) {
                         existFollow.setStatus(1);
                         updateById(existFollow);
-                    } else {
-                        throw new BusinessException(ResultCode.BUSINESS_ERROR, "已经关注了该用户");
+                        needUpdateCount = true;
                     }
+                    // 无论是已关注还是刚被其他线程关注，都视为成功（幂等）
                 }
             }
             
-            // 更新用户的关注数和粉丝数
-            userMapper.incrementFollowingCount(followerId);
-            userMapper.incrementFollowerCount(followingId);
+            // 只有在真正关注成功时才更新用户的关注数和粉丝数
+            if (needUpdateCount) {
+                userMapper.incrementFollowingCount(followerId);
+                userMapper.incrementFollowerCount(followingId);
+            }
             
             return true;
         } finally {

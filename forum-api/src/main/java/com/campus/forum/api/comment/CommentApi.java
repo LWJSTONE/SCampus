@@ -3,6 +3,7 @@ package com.campus.forum.api.comment;
 import com.campus.forum.entity.Result;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -23,6 +24,15 @@ public interface CommentApi {
      */
     @GetMapping("/api/internal/comment/{id}")
     Result<CommentDTO> getCommentById(@PathVariable("id") Long id);
+
+    /**
+     * Delete comment by ID (logical delete)
+     * 
+     * @param id Comment ID
+     * @return Result
+     */
+    @DeleteMapping("/api/internal/comment/{id}")
+    Result<Boolean> deleteComment(@PathVariable("id") Long id);
 
     /**
      * Get comments by post ID

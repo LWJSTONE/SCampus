@@ -433,8 +433,14 @@ public class FileServiceImpl extends ServiceImpl<FileMapper, File> implements Fi
     
     /**
      * 通过魔数检测文件实际类型
+     * 支持常见图片、文档、压缩文件类型检测
+     * 同时检测危险的可执行文件和脚本文件
      */
     private String detectFileTypeByMagicNumber(byte[] header) {
+        if (header == null || header.length < 2) {
+            return null;
+        }
+        
         // 图片类型
         if (header.length >= 2) {
             // JPEG: FF D8
@@ -462,21 +468,26 @@ public class FileServiceImpl extends ServiceImpl<FileMapper, File> implements Fi
                 header[10] == 0x42 && header[11] == 0x50) {
                 return "image/webp";
             }
+            // ICO: 00 00 01 00
+            if (header.length >= 4 && header[0] == 0x00 && header[1] == 0x00 &&
+                header[2] == 0x01 && header[3] == 0x00) {
+                return "image/x-icon";
+            }
         }
         
         // 文档类型
         if (header.length >= 4) {
-            // PDF: 25 50 44 46
+            // PDF: 25 50 44 46 (%PDF)
             if (header[0] == 0x25 && header[1] == 0x50 && 
                 header[2] == 0x44 && header[3] == 0x46) {
                 return "application/pdf";
             }
-            // ZIP (包括DOCX, XLSX等): 50 4B 03 04
+            // ZIP (包括DOCX, XLSX, PPTX等): 50 4B 03 04 (PK..)
             if (header[0] == 0x50 && header[1] == 0x4B && 
                 header[2] == 0x03 && header[3] == 0x04) {
                 return "application/zip";
             }
-            // RAR: 52 61 72 21
+            // RAR: 52 61 72 21 (Rar!)
             if (header[0] == 0x52 && header[1] == 0x61 && 
                 header[2] == 0x72 && header[3] == 0x21) {
                 return "application/x-rar-compressed";
@@ -487,31 +498,64 @@ public class FileServiceImpl extends ServiceImpl<FileMapper, File> implements Fi
                 header[4] == 0x27 && header[5] == 0x1C) {
                 return "application/x-7z-compressed";
             }
+            // Old Office formats (DOC, XLS, PPT): D0 CF 11 E0
+            if (header[0] == (byte)0xD0 && header[1] == (byte)0xCF && 
+                header[2] == 0x11 && header[3] == (byte)0xE0) {
+                return "application/msword";
+            }
         }
         
         // 可执行文件类型（危险）
-        if (header.length >= 2) {
-            // EXE/DLL: 4D 5A (MZ)
+        if (header.length >= 4) {
+            // Windows EXE/DLL: 4D 5A (MZ)
             if (header[0] == 0x4D && header[1] == 0x5A) {
                 return "application/x-dosexec";
             }
-            // ELF: 7F 45 4C 46
-            if (header.length >= 4 && header[0] == 0x7F && header[1] == 0x45 && 
+            // Linux ELF: 7F 45 4C 46 (.ELF)
+            if (header[0] == 0x7F && header[1] == 0x45 && 
                 header[2] == 0x4C && header[3] == 0x46) {
                 return "application/x-elf";
             }
+            // Mach-O (macOS): FE ED FA CE or FE ED FA CF
+            if (header[0] == (byte)0xFE && header[1] == (byte)0xED && 
+                header[2] == (byte)0xFA && (header[3] == (byte)0xCE || header[3] == (byte)0xCF)) {
+                return "application/x-mach-binary";
+            }
         }
         
-        // 脚本文件（可能危险）
+        // 脚本文件类型检测（危险）
         if (header.length >= 5) {
             // PHP: 3C 3F 70 68 70 (<?php)
             if (header[0] == 0x3C && header[1] == 0x3F && 
                 header[2] == 0x70 && header[3] == 0x68 && header[4] == 0x70) {
                 return "application/x-php";
             }
-            // JSP: 3C 25 40 (or <%@)
+            // PHP short tag: 3C 3F (< ?)
+            if (header[0] == 0x3C && header[1] == 0x3F) {
+                return "application/x-php";
+            }
+            // JSP: 3C 25 40 ( <%@ ) or 3C 25 ( <% )
             if (header[0] == 0x3C && header[1] == 0x25) {
                 return "application/x-jsp";
+            }
+            // ASP: 3C 25 ( <% )
+            if (header.length >= 2 && header[0] == 0x3C && header[1] == 0x25) {
+                return "application/x-asp";
+            }
+        }
+        
+        // Shell 脚本检测: 23 21 (#!)
+        if (header.length >= 2 && header[0] == 0x23 && header[1] == 0x21) {
+            return "application/x-sh";
+        }
+        
+        // 批处理文件检测 (尝试检测 @echo off 或其他常见开头)
+        if (header.length >= 6) {
+            String headerStr = new String(header, 0, Math.min(header.length, 32), java.nio.charset.StandardCharsets.US_ASCII).toLowerCase();
+            if (headerStr.startsWith("@echo") || headerStr.startsWith("@echo off") || 
+                headerStr.startsWith("rem ") || headerStr.contains("goto ") ||
+                headerStr.startsWith("set ") || headerStr.startsWith("call ")) {
+                return "application/x-bat";
             }
         }
         
@@ -569,19 +613,33 @@ public class FileServiceImpl extends ServiceImpl<FileMapper, File> implements Fi
     
     /**
      * 判断是否为危险文件类型
+     * 可执行文件、脚本文件和服务器端脚本都被认为是危险的
+     * 
+     * @param detectedType 检测到的文件类型
+     * @return true-危险文件，禁止上传；false-安全文件
      */
     private boolean isDangerousType(String detectedType) {
         if (detectedType == null) {
             return false;
         }
         
-        // 可执行文件和脚本文件被认为是危险的
-        return detectedType.equals("application/x-dosexec") ||    // EXE
-               detectedType.equals("application/x-elf") ||         // Linux ELF
-               detectedType.equals("application/x-php") ||         // PHP
-               detectedType.equals("application/x-jsp") ||         // JSP
-               detectedType.equals("application/x-sh") ||          // Shell脚本
-               detectedType.equals("application/x-bat");           // Bat脚本
+        // 可执行文件类型（Windows/Linux/macOS）
+        if (detectedType.equals("application/x-dosexec") ||      // Windows EXE/DLL
+            detectedType.equals("application/x-elf") ||           // Linux ELF
+            detectedType.equals("application/x-mach-binary")) {   // macOS Mach-O
+            return true;
+        }
+        
+        // 服务器端脚本文件（可能导致远程代码执行）
+        if (detectedType.equals("application/x-php") ||           // PHP
+            detectedType.equals("application/x-jsp") ||           // JSP
+            detectedType.equals("application/x-asp") ||           // ASP
+            detectedType.equals("application/x-sh") ||            // Shell 脚本
+            detectedType.equals("application/x-bat")) {           // Windows 批处理
+            return true;
+        }
+        
+        return false;
     }
 
     /**
