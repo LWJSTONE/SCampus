@@ -50,7 +50,7 @@
         </el-form-item>
 
         <el-form-item>
-          <el-button type="primary" :loading="submitting" @click="handleSubmit">
+          <el-button type="primary" :loading="submitting" :disabled="forums.length === 0" @click="handleSubmit">
             发布
           </el-button>
           <el-button @click="handleCancel">取消</el-button>

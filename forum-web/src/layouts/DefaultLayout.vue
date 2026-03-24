@@ -192,13 +192,21 @@ function handleSearch() {
 function handleCommand(command: string) {
   switch (command) {
     case 'profile':
-      router.push(`/user/${userStore.userInfo?.id}`).catch(() => {})
+      if (userStore.userInfo?.id) {
+        router.push(`/user/${userStore.userInfo.id}`).catch(() => {})
+      } else {
+        ElMessage.warning('用户信息获取失败，请刷新页面')
+      }
       break
     case 'settings':
       router.push('/user/settings').catch(() => {})
       break
     case 'myPosts':
-      router.push(`/user/${userStore.userInfo?.id}?tab=posts`).catch(() => {})
+      if (userStore.userInfo?.id) {
+        router.push(`/user/${userStore.userInfo.id}?tab=posts`).catch(() => {})
+      } else {
+        ElMessage.warning('用户信息获取失败，请刷新页面')
+      }
       break
     case 'admin':
       router.push('/admin').catch(() => {})

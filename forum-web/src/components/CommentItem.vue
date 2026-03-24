@@ -100,7 +100,8 @@ function formatTime(time: string) {
 }
 
 function handleReply() {
-  emit('reply', props.comment)
+  // 使用 localComment.value 而非 props.comment，确保数据一致性
+  emit('reply', localComment.value)
 }
 
 function handleDelete() {

@@ -49,12 +49,12 @@
         <div class="post-tags" v-if="postDetail.tags?.length">
           <el-tag
             v-for="tag in postDetail.tags"
-            :key="tag"
+            :key="typeof tag === 'object' ? (tag as any).id : tag"
             type="info"
             size="small"
             class="tag-item"
           >
-            {{ tag }}
+            {{ typeof tag === 'object' ? (tag as any).name : tag }}
           </el-tag>
         </div>
 
@@ -130,7 +130,7 @@
             :total="commentTotal"
             :page-sizes="[10, 20, 50]"
             layout="prev, pager, next, sizes"
-            @current-change="fetchComments"
+            @current-change="handlePageChange"
             @size-change="handleSizeChange"
           />
         </div>
@@ -309,6 +309,14 @@ function formatRelativeTime(time: string) {
  */
 function handleSizeChange() {
   queryParams.page = 1
+  fetchComments()
+}
+
+/**
+ * 处理页码变化
+ */
+function handlePageChange(page: number) {
+  queryParams.page = page
   fetchComments()
 }
 

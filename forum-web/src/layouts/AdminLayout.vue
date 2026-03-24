@@ -155,7 +155,8 @@ async function handleLogout() {
     })
     
     userStore.logout()
-    router.push('/login')
+    // 统一退出后跳转到首页，与 DefaultLayout 保持一致
+    router.push('/')
     ElMessage.success('已退出登录')
   } catch {
     // 用户取消操作，不需要处理

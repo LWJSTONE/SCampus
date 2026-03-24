@@ -62,6 +62,11 @@ export function closePost(id: number): Promise<void> {
   return request.put(`/posts/${id}/close`)
 }
 
+// 审核帖子（通过/拒绝）
+export function auditPost(id: number, status: number, reason?: string): Promise<void> {
+  return request.put(`/posts/${id}/audit`, { status, reason })
+}
+
 // 获取热门帖子
 export function getHotPosts(limit: number = 10): Promise<PostVO[]> {
   return request.get('/posts/hot', { limit })

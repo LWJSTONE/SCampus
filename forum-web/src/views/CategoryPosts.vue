@@ -37,7 +37,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getForumDetail } from '@/api/category'
@@ -57,12 +57,8 @@ const router = useRouter()
 const forumIdParam = route.params.id
 const forumId = Number(forumIdParam)
 
-// 检查forumId是否有效，设置标志位阻止后续API调用
-const isValidForumId = !isNaN(forumId) && forumId > 0
-if (!isValidForumId) {
-  ElMessage.error('版块ID无效')
-  router.push('/')
-}
+// 使用computed进行有效性检查
+const isValidForumId = computed(() => !isNaN(forumId) && forumId > 0)
 
 const forum = ref<ForumVO | null>(null)
 const posts = ref<PostVO[]>([])
@@ -77,7 +73,7 @@ function formatTime(time: string) {
 
 async function fetchForum() {
   // 如果forumId无效，不执行API请求
-  if (!isValidForumId) return
+  if (!isValidForumId.value) return
   
   try {
     forum.value = await getForumDetail(forumId)
@@ -89,12 +85,18 @@ async function fetchForum() {
 
 async function fetchPosts() {
   // 如果forumId无效，不执行API请求
-  if (!isValidForumId) return
+  if (!isValidForumId.value) return
   
   loading.value = true
   try {
     const res = await getPostsByForum(forumId, { page: page.value, size: 10 })
-    posts.value = [...posts.value, ...res.records]
+    // 兼容后端返回字段名 userName -> username
+    const records = (res.records || []).map((post: any) => ({
+      ...post,
+      username: post.username || post.userName,
+      userAvatar: post.userAvatar || post.avatar
+    }))
+    posts.value = [...posts.value, ...records]
     // 兼容后端返回的分页字段
     const current = res.current || page.value
     const pages = res.pages || Math.ceil(res.total / res.size)
@@ -118,6 +120,12 @@ async function loadMore() {
 }
 
 onMounted(() => {
+  // 在 onMounted 中进行错误提示和跳转
+  if (!isValidForumId.value) {
+    ElMessage.error('版块ID无效')
+    router.push('/')
+    return
+  }
   fetchForum()
   fetchPosts()
 })

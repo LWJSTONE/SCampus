@@ -207,11 +207,14 @@ const validateConfirmPassword = (_rule: any, value: string, callback: any) => {
 }
 
 // 表单验证规则
+// 用户名验证：与登录页面保持一致，支持字母、数字、下划线、中文
+const usernamePattern = /^[a-zA-Z0-9_\u4e00-\u9fa5]+$/
+
 const registerRules: FormRules = {
   username: [
     { required: true, message: '请输入用户名', trigger: 'blur' },
     { min: 3, max: 20, message: '用户名长度为 3 到 20 个字符', trigger: 'blur' },
-    { pattern: /^[a-zA-Z0-9_]+$/, message: '用户名只能包含字母、数字和下划线', trigger: 'blur' },
+    { pattern: usernamePattern, message: '用户名只能包含字母、数字、下划线和中文', trigger: 'blur' },
   ],
   email: [
     { required: true, message: '请输入邮箱', trigger: 'blur' },

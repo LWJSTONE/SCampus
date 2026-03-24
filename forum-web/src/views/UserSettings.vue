@@ -174,6 +174,7 @@ async function handleAvatarUpload(options: UploadRequestOptions) {
   // 验证用户是否已登录
   if (!userStore.userInfo?.id) {
     ElMessage.error('用户信息获取失败，请重新登录')
+    uploadingAvatar.value = false
     return
   }
 

@@ -101,14 +101,18 @@ function highlightKeyword(text: string) {
 }
 
 async function handleSearch() {
-  if (!keyword.value.trim()) {
+  // trim关键词
+  const trimmedKeyword = keyword.value.trim()
+  if (!trimmedKeyword) {
     ElMessage.warning('请输入搜索关键词')
     return
   }
   
+  // 使用trim后的关键词
+  keyword.value = trimmedKeyword
   page.value = 1
   posts.value = []
-  router.push({ query: { q: keyword.value } })
+  router.push({ query: { q: trimmedKeyword } })
   await fetchPosts()
   searched.value = true
 }
@@ -117,7 +121,12 @@ async function fetchPosts() {
   loading.value = true
   try {
     const res = await searchPosts({ keyword: keyword.value, page: page.value, size: 10 })
-    posts.value = [...posts.value, ...res.records]
+    // 兼容后端返回字段名
+    const records = (res.records || []).map((post: any) => ({
+      ...post,
+      username: post.username || post.userName
+    }))
+    posts.value = [...posts.value, ...records]
     total.value = res.total
     hasMore.value = res.current < res.pages
   } catch (e: any) {

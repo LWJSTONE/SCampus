@@ -37,13 +37,17 @@
           </template>
         </el-table-column>
         <el-table-column prop="createTime" label="发布时间" width="180" />
-        <el-table-column label="操作" width="200">
+        <el-table-column label="操作" width="250">
           <template #default="{ row }">
             <el-button link type="primary" @click="handleView(row)">查看</el-button>
-            <el-button link type="warning" @click="handleTop(row)">
-              {{ row.isTop ? '取消置顶' : '置顶' }}
-            </el-button>
-            <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
+            <el-button v-if="row.status === 0" link type="success" @click="handleApprove(row)">审核通过</el-button>
+            <el-button v-if="row.status === 0" link type="danger" @click="handleReject(row)">拒绝</el-button>
+            <template v-else>
+              <el-button link type="warning" @click="handleTop(row)">
+                {{ row.isTop ? '取消置顶' : '置顶' }}
+              </el-button>
+              <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
+            </template>
           </template>
         </el-table-column>
       </el-table>
@@ -63,7 +67,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getPostList, deletePost, topPost } from '@/api/post'
+import { getPostList, deletePost, topPost, auditPost } from '@/api/post'
 import type { PostVO } from '@/types'
 
 const router = useRouter()
@@ -147,6 +151,41 @@ async function handleDelete(row: PostVO) {
     if (e !== 'cancel') {
       console.error('删除失败:', e)
       ElMessage.error(e?.message || '删除失败')
+    }
+  }
+}
+
+// 审核通过
+async function handleApprove(row: PostVO) {
+  try {
+    await ElMessageBox.confirm('确定审核通过该帖子吗？', '审核确认')
+    await auditPost(row.id, 1) // status=1 表示已发布
+    ElMessage.success('审核通过')
+    fetchPosts()
+  } catch (e: any) {
+    if (e !== 'cancel') {
+      console.error('审核失败:', e)
+      ElMessage.error(e?.message || '审核失败')
+    }
+  }
+}
+
+// 审核拒绝
+async function handleReject(row: PostVO) {
+  try {
+    const { value: reason } = await ElMessageBox.prompt('请输入拒绝原因', '审核拒绝', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      inputPattern: /^.{1,100}$/,
+      inputErrorMessage: '拒绝原因长度为1-100个字符'
+    })
+    await auditPost(row.id, 3, reason) // status=3 表示已删除/拒绝
+    ElMessage.success('已拒绝该帖子')
+    fetchPosts()
+  } catch (e: any) {
+    if (e !== 'cancel') {
+      console.error('操作失败:', e)
+      ElMessage.error(e?.message || '操作失败')
     }
   }
 }

@@ -47,7 +47,7 @@ export function deleteComment(id: number): Promise<boolean> {
  * 点赞评论（toggle模式）
  * @param id 评论ID
  */
-export function likeComment(id: number): Promise<{ isLike: boolean; message: string }> {
+export function likeComment(id: number): Promise<{ isLike: boolean; message: string; likeCount?: number }> {
   return request.post(`/comments/${id}/like`)
 }
 

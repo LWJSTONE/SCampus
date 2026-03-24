@@ -6,7 +6,7 @@
         <el-carousel-item v-for="item in announcements" :key="item.id">
           <div class="announcement-item">
             <el-tag type="danger" size="small">公告</el-tag>
-            <span class="title">{{ item.title }}</span>
+            <span class="title" @click="viewAnnouncement(item)">{{ item.title }}</span>
           </div>
         </el-carousel-item>
       </el-carousel>
@@ -63,7 +63,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { getPostList } from '@/api/post'
 import { getNoticeList } from '@/api/notify'
 import dayjs from 'dayjs'
@@ -96,6 +96,7 @@ interface Post {
 interface Announcement {
   id: number
   title: string
+  content?: string
 }
 
 const posts = ref<Post[]>([])
@@ -117,7 +118,8 @@ async function fetchAnnouncements() {
     const records = res.records || res.list || []
     announcements.value = records.map((item: any) => ({
       id: item.id,
-      title: item.title
+      title: item.title,
+      content: item.content || ''
     }))
   } catch (e: any) {
     console.error('获取公告失败:', e)
@@ -173,6 +175,14 @@ async function loadMore() {
 
 function viewPost(id: number) {
   router.push(`/post/${id}`)
+}
+
+// 查看公告详情
+function viewAnnouncement(item: Announcement) {
+  ElMessageBox.alert(item.content || item.title, '公告详情', {
+    confirmButtonText: '确定',
+    dangerouslyUseHTMLString: false
+  })
 }
 
 onMounted(() => {
