@@ -160,7 +160,7 @@
  */
 import { ref, reactive, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, FormInstance, FormRules } from 'element-plus'
+import { ElMessage, FormInstance, FormRules, type FormItemRule } from 'element-plus'
 import { School } from '@element-plus/icons-vue'
 import { register, sendEmailCode } from '@/api/auth'
 
@@ -231,15 +231,11 @@ const registerRules: FormRules = {
   ],
   agreement: [
     {
-      validator: (_rule, value, callback) => {
-        if (!value) {
-          callback(new Error('请同意用户协议和隐私政策'))
-        } else {
-          callback()
-        }
-      },
+      type: 'enum',
+      enum: [true] as boolean[],
+      message: '请同意用户协议和隐私政策',
       trigger: 'change',
-    },
+    } as FormItemRule,
   ],
 }
 

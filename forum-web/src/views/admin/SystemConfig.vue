@@ -124,14 +124,13 @@ async function handleSave() {
 
   saving.value = true
   try {
-    // 模拟保存延迟
-    await new Promise(resolve => setTimeout(resolve, 300))
-
+    // 注意：当前配置仅保存在浏览器本地存储中
+    // 后端配置服务未启用，如需持久化到服务器，需后端实现配置API
     // 保存到本地存储
     if (saveConfig()) {
-      ElMessage.success('配置已保存到本地存储')
+      ElMessage.success('配置已保存到本地存储（刷新页面后生效）')
     } else {
-      ElMessage.error('保存配置失败')
+      ElMessage.error('保存配置失败，请检查浏览器存储权限')
     }
   } finally {
     saving.value = false

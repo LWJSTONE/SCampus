@@ -224,3 +224,13 @@ comment:
   sensitive-replacement: "***"
   # 热门评论点赞阈值
   hot-comment-threshold: 10
+  # 【修复】敏感词配置 - 从配置文件读取敏感词列表
+  sensitive:
+    # 是否启用敏感词过滤
+    enabled: true
+    # 敏感词列表（逗号分隔，可通过配置中心动态更新）
+    words: 色情,暴力,赌博,毒品,诈骗,广告,违禁词
+  # 【修复】分布式锁配置
+  lock:
+    # 分布式锁过期时间（秒）- 高并发场景下增加过期时间
+    expire-time: 30

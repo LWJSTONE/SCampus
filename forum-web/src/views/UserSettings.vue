@@ -258,8 +258,7 @@ async function handleChangePwd() {
   try {
     await updatePassword(userStore.userInfo.id, {
       oldPassword: pwdForm.oldPassword,
-      newPassword: pwdForm.newPassword,
-      confirmPassword: pwdForm.confirmPassword
+      newPassword: pwdForm.newPassword
     })
     ElMessage.success('密码修改成功，请重新登录')
     pwdFormRef.value?.resetFields()

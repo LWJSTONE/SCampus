@@ -55,19 +55,29 @@ public class UserController {
 
     /**
      * 内部服务调用密钥
+     * 
+     * 【安全修复】移除硬编码默认值，强制要求在配置文件中设置
+     * 如果未配置密钥，内部服务接口将被拒绝访问
      */
-    @Value("${app.internal-service-key:campus-internal-service-key-2024}")
+    @Value("${app.internal-service-key:}")
     private String internalServiceKey;
 
     /**
      * 安全比较内部服务密钥（防止时序攻击）
      * 使用MessageDigest.isEqual进行常量时间比较，避免通过响应时间推断密钥信息
+     * 
+     * 【安全修复】增加空值检查，防止密钥未配置时被绕过
      *
      * @param providedKey 请求提供的密钥
      * @return 是否匹配
      */
     private boolean isValidServiceKey(String providedKey) {
-        if (internalServiceKey == null || providedKey == null) {
+        // 【安全修复】检查密钥是否已配置
+        if (internalServiceKey == null || internalServiceKey.isEmpty()) {
+            log.error("【安全警告】内部服务密钥未配置！请在配置文件中设置 app.internal-service-key");
+            return false;
+        }
+        if (providedKey == null) {
             return false;
         }
         // 使用常量时间比较，防止时序攻击

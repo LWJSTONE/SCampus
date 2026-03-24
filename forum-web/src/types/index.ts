@@ -1,3 +1,14 @@
+// 角色类型定义
+export interface RoleVO {
+  id?: number
+  roleCode?: string
+  roleName?: string
+  description?: string
+}
+
+// 角色字段可以是字符串数组或角色对象数组
+export type RoleType = string | RoleVO
+
 // 用户相关类型
 export interface UserVO {
   id: number
@@ -23,7 +34,7 @@ export interface UserDetailVO extends UserVO {
   commentCount: number
   followerCount: number
   followingCount: number
-  roles: string[]
+  roles: RoleType[]
   permissions: string[]
   // 关注状态
   isFollowing?: boolean
@@ -103,7 +114,7 @@ export interface UserInfoVO {
   avatar: string
   email: string
   phone: string
-  roles: string[]
+  roles: RoleType[]
   permissions: string[]
 }
 

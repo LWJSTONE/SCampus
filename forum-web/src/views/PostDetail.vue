@@ -157,15 +157,6 @@ import 'dayjs/locale/zh-cn'
 import { useUserStore } from '@/stores/user'
 import CommentItem from '@/components/CommentItem.vue'
 
-// 防抖函数
-function debounce<T extends (...args: any[]) => any>(fn: T, delay: number): T {
-  let timer: ReturnType<typeof setTimeout> | null = null
-  return ((...args: any[]) => {
-    if (timer) clearTimeout(timer)
-    timer = setTimeout(() => fn(...args), delay)
-  }) as T
-}
-
 dayjs.extend(relativeTime)
 dayjs.locale('zh-cn')
 
@@ -526,7 +517,12 @@ async function handleComment() {
  */
 function handleReply(comment: CommentVO) {
   replyTo.value = comment
-  commentContent.value = `@${comment.username} `
+  // 处理用户名中的特殊字符，确保@用户名格式正确
+  // 如果用户名包含空格或特殊字符，用方括号包裹
+  const username = comment.username || ''
+  const needsBrackets = /[\s\t\n]/.test(username)
+  const formattedUsername = needsBrackets ? `[@${username}]` : `@${username}`
+  commentContent.value = `${formattedUsername} `
   // 滚动到评论输入框
   const commentForm = document.querySelector('.comment-form')
   if (commentForm) {

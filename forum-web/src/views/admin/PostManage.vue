@@ -112,6 +112,8 @@ function handleView(row: PostVO) {
 async function handleTop(row: PostVO) {
   const isTop = row.isTop ? 0 : 1
   const action = isTop === 1 ? '置顶' : '取消置顶'
+  // 保存原始状态以便回滚
+  const originalIsTop = row.isTop
 
   try {
     await ElMessageBox.confirm(`确定要${action}该帖子吗？`, '提示')
@@ -121,12 +123,15 @@ async function handleTop(row: PostVO) {
   }
 
   try {
+    // 先更新UI（乐观更新）
+    row.isTop = isTop === 1
     // 后端期望 isTop 为 0 或 1，而不是布尔值
     await topPost(row.id, isTop)
-    row.isTop = isTop === 1
     ElMessage.success(`${action}成功`)
   } catch (e: any) {
     console.error('操作失败:', e)
+    // API调用失败时回滚状态
+    row.isTop = originalIsTop
     ElMessage.error(e?.message || '操作失败，请稍后重试')
   }
 }

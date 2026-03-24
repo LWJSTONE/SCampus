@@ -1,6 +1,30 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
+// 安全的localStorage读取函数
+function safeGetTheme(): 'light' | 'dark' {
+  try {
+    const theme = localStorage.getItem('theme')
+    if (theme === 'light' || theme === 'dark') {
+      return theme
+    }
+  } catch (e) {
+    console.warn('localStorage访问失败:', e)
+  }
+  return 'light'
+}
+
+// 安全的localStorage写入函数
+function safeSetTheme(theme: 'light' | 'dark'): boolean {
+  try {
+    localStorage.setItem('theme', theme)
+    return true
+  } catch (e) {
+    console.warn('localStorage写入失败:', e)
+    return false
+  }
+}
+
 export const useAppStore = defineStore('app', () => {
   // 侧边栏状态
   const sidebarCollapsed = ref(false)
@@ -8,10 +32,8 @@ export const useAppStore = defineStore('app', () => {
   // 设备类型
   const device = ref<'desktop' | 'mobile'>('desktop')
 
-  // 主题 - 从localStorage读取持久化的值
-  const theme = ref<'light' | 'dark'>(
-    (localStorage.getItem('theme') as 'light' | 'dark') || 'light'
-  )
+  // 主题 - 使用安全的localStorage读取方法
+  const theme = ref<'light' | 'dark'>(safeGetTheme())
 
   // 初始化时应用主题
   if (typeof window !== 'undefined') {
@@ -31,10 +53,10 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
-  // 切换主题 - 同时持久化到localStorage
+  // 切换主题 - 使用安全的localStorage写入方法
   function toggleTheme() {
     theme.value = theme.value === 'light' ? 'dark' : 'light'
-    localStorage.setItem('theme', theme.value)
+    safeSetTheme(theme.value)
     document.documentElement.setAttribute('data-theme', theme.value)
   }
 

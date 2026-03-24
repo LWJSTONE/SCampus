@@ -263,8 +263,9 @@ public class PostController {
             return Result.fail(401, "请先登录");
         }
 
-        // 检查是否为管理员
-        boolean isAdmin = isAdmin(request);
+        // 【安全修复】检查是否为管理员 - 使用二次验证防止HTTP Header伪造
+        // 对于删除操作，管理员需要二次验证，普通用户删除自己的帖子则不需要
+        boolean isAdmin = verifyAdminWithSecondCheck(request);
 
         // 删除帖子
         boolean result = postService.deletePost(id, userId, isAdmin);

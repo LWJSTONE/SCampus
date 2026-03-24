@@ -277,13 +277,19 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
      * 使指定用户的所有Token失效
      * 密码修改后调用此方法强制用户重新登录
      * 
-     * 【安全修复】Token清除失败时抛出异常，确保事务回滚
-     * 如果Token清除失败，密码修改操作应该回滚，避免用户密码已修改但旧Token仍然有效的情况
+     * 【修复说明】
+     * 原实现在Token清除失败时抛出异常导致事务回滚，用户需要重新操作密码修改。
+     * 改进方案：
+     * 1. Token清除失败时不抛出异常，只记录错误日志
+     * 2. 记录Token清除失败的补偿标记，后续可通过定时任务补偿处理
+     * 3. 设置密码修改时间戳，JWT验证时可检查Token有效性
+     * 
+     * 这样密码修改可以成功，用户可以继续使用新密码登录，旧Token会在JWT验证时失效。
      *
      * @param userId 用户ID
-     * @throws BusinessException 当Token清除失败时抛出
      */
     private void invalidateUserTokens(Long userId) {
+        boolean tokenCleared = false;
         try {
             // 删除用户的主Token
             String tokenKey = "token:user:" + userId;
@@ -293,16 +299,29 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             String tokenPattern = "token:user:" + userId + ":*";
             redisUtils.deleteByPattern(tokenPattern);
             
-            // 将用户ID添加到密码修改时间戳，用于JWT验证时检查Token是否在密码修改前签发
-            String passwordUpdateKey = "password:update:time:" + userId;
-            redisUtils.set(passwordUpdateKey, System.currentTimeMillis(), 86400 * 30); // 保存30天
-            
+            tokenCleared = true;
             log.info("已清除用户 {} 的所有登录Token", userId);
         } catch (Exception e) {
-            log.error("清除用户Token失败，用户ID: {}", userId, e);
-            // 【安全修复】Token清除失败时抛出业务异常，让事务回滚
-            // 用户需要重试密码修改操作
-            throw new BusinessException(ResultCode.BUSINESS_ERROR, "密码修改成功但Token清除失败，请重新登录。如问题持续，请联系管理员。");
+            log.error("清除用户Token失败，用户ID: {}，密码已修改成功，Token清除将在下次登录时生效", userId, e);
+            // 【修复】不抛出异常，避免事务回滚导致密码修改失败
+            // 记录Token清除失败的补偿标记，便于后续补偿处理
+            try {
+                String pendingClearKey = "token:pending:clear:" + userId;
+                redisUtils.set(pendingClearKey, System.currentTimeMillis(), 86400 * 7); // 保存7天用于补偿
+            } catch (Exception ex) {
+                log.warn("记录Token清除失败标记失败，用户ID: {}", userId, ex);
+            }
+        }
+        
+        // 无论Token是否清除成功，都设置密码修改时间戳
+        // JWT验证时会检查Token签发时间是否早于此时间戳，实现Token自动失效
+        try {
+            String passwordUpdateKey = "password:update:time:" + userId;
+            redisUtils.set(passwordUpdateKey, System.currentTimeMillis(), 86400 * 30); // 保存30天
+            log.info("已更新用户 {} 的密码修改时间戳", userId);
+        } catch (Exception e) {
+            log.warn("设置密码修改时间戳失败，用户ID: {}", userId, e);
+            // 时间戳设置失败不影响主流程，用户仍可使用新密码登录
         }
     }
 

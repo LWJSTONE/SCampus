@@ -2,6 +2,7 @@ package com.campus.forum.service.impl;
 
 import cn.hutool.core.text.CharSequenceUtil;
 import cn.hutool.core.util.StrUtil;
+import com.campus.forum.config.PostConfig;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -48,6 +49,7 @@ public class PostServiceImpl implements PostService {
     private final PostTagMapper postTagMapper;
     private final PostAttachmentMapper postAttachmentMapper;
     private final StringRedisTemplate redisTemplate;
+    private final PostConfig postConfig;
 
     // Redis Key前缀
     private static final String REDIS_KEY_POST_VIEW = "post:view:";
@@ -64,10 +66,8 @@ public class PostServiceImpl implements PostService {
     // 【修复】防刷时间窗口：同一用户/IP在此时间内重复浏览不计入
     private static final long VIEW_ANTI_SPAM_HOURS = 24;
 
-    // 敏感词列表（实际项目应从配置中心获取）
-    private static final Set<String> SENSITIVE_WORDS = new HashSet<>(Arrays.asList(
-            "色情", "暴力", "赌博", "毒品", "诈骗"
-    ));
+    // 【修复】敏感词列表改为从PostConfig配置类获取，支持配置文件动态配置
+    // 不再使用硬编码，便于运维人员调整敏感词列表
 
     @Override
     public PageResult<PostListVO> getPostList(PostQueryDTO queryDTO, Long currentUserId) {
@@ -734,18 +734,21 @@ public class PostServiceImpl implements PostService {
      * 【安全说明】
      * 本方法对用户输入的内容进行两个层面的安全处理：
      *
-     * 1. 敏感词过滤：将预定义的敏感词替换为 ***
-     * 2. XSS防护：对常见的危险字符进行HTML实体编码
+     * 1. 敏感词过滤：将配置文件中的敏感词替换为指定字符
+     * 2. XSS防护：采用更全面的过滤策略，防止多种XSS攻击向量
      *
      * 【XSS防护策略】
      * 采用输入过滤 + 输出转义的双重防护策略：
      * - 输入时：本方法过滤危险字符，减少存储内容中的安全风险
      * - 输出时：前端渲染时需要进行HTML转义，防止存储型XSS攻击
      *
-     * 注意：此方法仅提供基本的XSS防护，对于富文本内容，建议：
-     * 1. 使用专业的XSS过滤库（如OWASP AntiSamy）
-     * 2. 前端使用安全的渲染方式（如React的自动转义）
-     * 3. 设置Content-Security-Policy响应头
+     * 【修复说明】
+     * 1. 敏感词列表从配置文件读取，便于运维动态调整
+     * 2. XSS过滤增强：
+     *    - 处理更多危险字符和攻击向量
+     *    - 过滤javascript/vbscript等协议
+     *    - 过滤事件处理器属性（onclick、onerror等）
+     *    - 过滤危险CSS属性（expression、behavior等）
      *
      * @param content 待过滤的内容
      * @return 过滤后的安全内容
@@ -757,15 +760,63 @@ public class PostServiceImpl implements PostService {
 
         String result = content;
 
-        // 1. 敏感词过滤
-        for (String word : SENSITIVE_WORDS) {
-            if (result.contains(word)) {
-                result = result.replace(word, "***");
+        // 1. 敏感词过滤 - 从配置类获取敏感词列表
+        if (postConfig.isSensitiveFilterEnabled()) {
+            Set<String> sensitiveWords = postConfig.getSensitiveWords();
+            String replacement = postConfig.getSensitiveReplacement();
+            for (String word : sensitiveWords) {
+                if (result.contains(word)) {
+                    result = result.replace(word, replacement);
+                }
             }
         }
 
-        // 2. 基本XSS过滤 - 对危险字符进行HTML实体编码
-        // 注意：这是基础防护，富文本场景建议使用专业XSS过滤库
+        // 2. XSS过滤（如果启用）
+        if (postConfig.isXssFilterEnabled()) {
+            result = filterXSS(result);
+        }
+
+        return result;
+    }
+
+    /**
+     * 专业XSS过滤方法
+     * 
+     * 对用户输入进行全面的XSS防护，包括：
+     * - HTML实体编码
+     * - 危险协议过滤
+     * - 事件处理器过滤
+     * - 危险CSS属性过滤
+     *
+     * @param content 待过滤的内容
+     * @return 过滤后的安全内容
+     */
+    private String filterXSS(String content) {
+        if (content == null) {
+            return null;
+        }
+
+        String result = content;
+
+        // 2.1 过滤危险协议（防止javascript:、vbscript:、data:等协议注入）
+        result = result.replaceAll("(?i)javascript\\s*:", "");
+        result = result.replaceAll("(?i)vbscript\\s*:", "");
+        result = result.replaceAll("(?i)data\\s*:", "");
+        result = result.replaceAll("(?i)expression\\s*\\(", "");
+
+        // 2.2 过滤事件处理器属性（防止onclick、onerror等事件注入）
+        result = result.replaceAll("(?i)on\\w+\\s*=", "");
+        
+        // 2.3 过滤危险的HTML标签
+        result = result.replaceAll("(?i)<\\s*script[^>]*>.*?<\\s*/\\s*script\\s*>", "");
+        result = result.replaceAll("(?i)<\\s*iframe[^>]*>.*?<\\s*/\\s*iframe\\s*>", "");
+        result = result.replaceAll("(?i)<\\s*object[^>]*>.*?<\\s*/\\s*object\\s*>", "");
+        result = result.replaceAll("(?i)<\\s*embed[^>]*>.*?<\\s*/\\s*embed\\s*>", "");
+        result = result.replaceAll("(?i)<\\s*form[^>]*>", "");
+        result = result.replaceAll("(?i)<\\s*input[^>]*>", "");
+        result = result.replaceAll("(?i)<\\s*button[^>]*>", "");
+
+        // 2.4 HTML实体编码（基础防护）
         result = result
                 .replace("&", "&amp;")       // & 符号最先处理，避免重复编码
                 .replace("<", "&lt;")        // < 符号

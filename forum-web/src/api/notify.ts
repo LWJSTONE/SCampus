@@ -1,18 +1,5 @@
 import { request, PageResult } from './request'
-
-export interface NoticeVO {
-  id: number
-  title: string
-  content: string
-  type: number
-  status: number
-  publisherId: number
-  publisherName: string
-  isRead: boolean
-  readTime: string
-  createTime: string
-  updateTime: string
-}
+import type { NoticeVO } from '@/types'
 
 export interface NoticeCreateDTO {
   title: string

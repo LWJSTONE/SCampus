@@ -189,18 +189,13 @@ function updateChart(data: any) {
   let postData: number[] = []
   let commentData: number[] = []
 
-  if (data && data.dates) {
+  if (data && data.dates && data.dates.length > 0) {
     xData = data.dates
     userData = data.userData || []
     postData = data.postData || []
     commentData = data.commentData || []
-  } else {
-    // 默认数据
-    xData = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
-    userData = [120, 132, 101, 134, 90, 230, 210]
-    postData = [220, 182, 191, 234, 290, 330, 310]
-    commentData = [150, 232, 201, 154, 190, 330, 410]
   }
+  // 当没有数据时，显示空图表而不是虚假数据
 
   const option = {
     tooltip: { trigger: 'axis' },
@@ -212,6 +207,17 @@ function updateChart(data: any) {
       data: xData
     },
     yAxis: { type: 'value' },
+    // 当没有数据时显示提示
+    graphic: xData.length === 0 ? [{
+      type: 'text',
+      left: 'center',
+      top: 'middle',
+      style: {
+        text: '暂无数据',
+        fontSize: 14,
+        fill: '#999'
+      }
+    }] : [],
     series: [
       { name: '新增用户', type: 'line', smooth: true, data: userData },
       { name: '新增帖子', type: 'line', smooth: true, data: postData },

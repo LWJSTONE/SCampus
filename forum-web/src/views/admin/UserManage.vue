@@ -184,6 +184,8 @@ async function handleToggleStatus(row: UserVO) {
   // 后端状态定义：0-禁用，1-正常
   const newStatus = row.status === 1 ? 0 : 1
   const action = newStatus === 1 ? '启用' : '禁用'
+  // 保存原始状态以便回滚
+  const originalStatus = row.status
 
   try {
     await ElMessageBox.confirm(`确定要${action}该用户吗？`, '提示')
@@ -193,11 +195,14 @@ async function handleToggleStatus(row: UserVO) {
   }
 
   try {
-    await updateUserStatus(row.id, newStatus)
+    // 先更新UI（乐观更新）
     row.status = newStatus
+    await updateUserStatus(row.id, newStatus)
     ElMessage.success(`${action}成功`)
   } catch (e) {
     console.error(`${action}用户失败:`, e)
+    // API调用失败时回滚状态
+    row.status = originalStatus
     ElMessage.error(`${action}用户失败`)
   }
 }

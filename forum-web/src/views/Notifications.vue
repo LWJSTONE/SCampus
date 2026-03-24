@@ -33,17 +33,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, h, defineComponent } from 'vue'
+import { ref, computed, onMounted, h, defineComponent, type PropType } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import type { NoticeVO } from '@/types'
 import { getNoticeList, markAsRead, markAllAsRead } from '@/api/notify'
 import { useUserStore } from '@/stores/user'
 
-// 简单的通知列表组件
+// 简单的通知列表组件（带TypeScript类型支持）
 const NotificationList = defineComponent({
+  name: 'NotificationList',
   props: {
-    notifications: { type: Array as () => NoticeVO[], default: () => [] }
+    notifications: { 
+      type: Array as PropType<NoticeVO[]>, 
+      default: () => [] 
+    }
   },
   emits: ['read'],
   setup(props, { emit }) {
@@ -52,7 +56,7 @@ const NotificationList = defineComponent({
         return h('div', { class: 'empty' }, '暂无通知')
       }
       return h('div', { class: 'notification-list' },
-        props.notifications.map(item =>
+        props.notifications.map((item: NoticeVO) =>
           h('div', {
             class: ['notification-item', item.isRead ? 'read' : 'unread'],
             onClick: () => emit('read', item.id)

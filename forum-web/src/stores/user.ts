@@ -3,6 +3,15 @@ import { ref, computed } from 'vue'
 import { login as loginApi, logout as logoutApi, getCurrentUser } from '@/api/auth'
 import type { LoginDTO, UserInfoVO } from '@/types'
 
+// 角色类型定义
+interface RoleObject {
+  roleCode?: string
+  roleName?: string
+  id?: number
+}
+
+type RoleType = string | RoleObject
+
 // 安全的localStorage操作辅助函数
 function safeGetStorage(key: string): string {
   try {
@@ -31,6 +40,34 @@ function safeRemoveStorage(key: string): void {
   }
 }
 
+/**
+ * 从角色对象中提取角色代码
+ * 支持字符串格式和对象格式的角色
+ */
+function getRoleCode(role: RoleType): string | null {
+  if (typeof role === 'string') {
+    return role.toUpperCase()
+  }
+  if (role && typeof role === 'object') {
+    const roleCode = (role as RoleObject).roleCode
+    return roleCode ? roleCode.toUpperCase() : null
+  }
+  return null
+}
+
+/**
+ * 检查是否拥有指定角色
+ */
+function hasRole(roles: RoleType[] | undefined, targetRoles: string[]): boolean {
+  if (!roles || !Array.isArray(roles)) {
+    return false
+  }
+  return roles.some(r => {
+    const roleCode = getRoleCode(r)
+    return roleCode !== null && (targetRoles.includes(roleCode) || targetRoles.includes(`ROLE_${roleCode}`))
+  })
+}
+
 export const useUserStore = defineStore('user', () => {
   // 状态
   const token = ref<string>(safeGetStorage('token'))
@@ -40,14 +77,9 @@ export const useUserStore = defineStore('user', () => {
   // 计算属性
   const isLoggedIn = computed(() => !!token.value)
   // 修复：角色判断统一使用大写比较，与后端返回的角色格式一致
-  const isAdmin = computed(() => userInfo.value?.roles?.some(r => {
-    const role = typeof r === 'string' ? r.toUpperCase() : (r as any).roleCode?.toUpperCase()
-    return role === 'ADMIN' || role === 'ROLE_ADMIN'
-  }) || false)
-  const isModerator = computed(() => userInfo.value?.roles?.some(r => {
-    const role = typeof r === 'string' ? r.toUpperCase() : (r as any).roleCode?.toUpperCase()
-    return role === 'MODERATOR' || role === 'ROLE_MODERATOR'
-  }) || false)
+  // 使用类型守卫确保角色类型安全
+  const isAdmin = computed(() => hasRole(userInfo.value?.roles, ['ADMIN']))
+  const isModerator = computed(() => hasRole(userInfo.value?.roles, ['MODERATOR']))
   const username = computed(() => userInfo.value?.nickname || userInfo.value?.username || '')
 
   // 登录

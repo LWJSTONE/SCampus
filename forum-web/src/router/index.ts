@@ -165,8 +165,11 @@ router.beforeEach(async (to, _from, next) => {
       await userStore.fetchUserInfo()
     } catch (e) {
       console.error('获取用户信息失败:', e)
-      // 获取用户信息失败时，fetchUserInfo已经处理了清除逻辑
-      // 如果需要登录的页面，会跳转到登录页
+      // 获取用户信息失败时，清理用户状态以避免不一致状态
+      // fetchUserInfo内部只对401错误做了清理，这里需要确保状态一致
+      if (!userStore.userInfo) {
+        userStore.clearAuth()
+      }
     }
   }
 
@@ -191,6 +194,10 @@ router.beforeEach(async (to, _from, next) => {
         await userStore.fetchUserInfo()
       } catch (e) {
         console.error('获取用户信息失败:', e)
+        // 获取失败时清理用户状态，避免权限判断错误
+        if (!userStore.userInfo) {
+          userStore.clearAuth()
+        }
       }
     }
     

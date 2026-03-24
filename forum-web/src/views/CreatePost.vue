@@ -46,7 +46,7 @@
         </el-form-item>
 
         <el-form-item label="匿名">
-          <el-switch v-model="form.isAnonymous" />
+          <el-switch v-model="form.isAnonymous" @change="watchFormChanges" />
         </el-form-item>
 
         <el-form-item>
@@ -159,7 +159,7 @@ async function handleCancel() {
 
 // 监听表单变化
 function watchFormChanges() {
-  if (form.title || form.content || form.tags.length > 0) {
+  if (form.title || form.content || form.tags.length > 0 || form.isAnonymous) {
     hasUnsavedChanges.value = true
   }
 }

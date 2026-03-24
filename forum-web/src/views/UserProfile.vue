@@ -188,7 +188,8 @@ function handleTabChange(tab: string) {
 
 // 导航到帖子详情页
 function navigateToPost(postId: number) {
-  if (!postId) {
+  // 验证postId是否有效（必须为正整数）
+  if (!postId || isNaN(postId) || postId <= 0) {
     ElMessage.error('帖子ID无效')
     return
   }

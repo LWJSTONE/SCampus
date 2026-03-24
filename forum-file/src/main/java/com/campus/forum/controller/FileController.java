@@ -216,21 +216,50 @@ public class FileController {
 
     /**
      * 从请求中获取用户ID
+     * 修复：同时检查Header中的X-User-Id（网关传递）和request.getAttribute
      */
     private Long getUserIdFromRequest(HttpServletRequest request) {
+        // 优先从Header获取（网关传递）
+        String userIdHeader = request.getHeader("X-User-Id");
+        if (userIdHeader != null && !userIdHeader.isEmpty()) {
+            try {
+                return Long.parseLong(userIdHeader);
+            } catch (NumberFormatException e) {
+                log.warn("解析X-User-Id Header失败: {}", userIdHeader);
+            }
+        }
+        
+        // 回退到request.getAttribute获取
         Object userId = request.getAttribute("userId");
-        return userId != null ? Long.parseLong(userId.toString()) : null;
+        if (userId != null) {
+            try {
+                return Long.parseLong(userId.toString());
+            } catch (NumberFormatException e) {
+                log.warn("解析userId Attribute失败: {}", userId);
+            }
+        }
+        
+        return null;
     }
 
     /**
      * 检查用户是否为管理员
+     * 修复：同时检查Header中的X-User-Role（网关传递）和request.getAttribute
      */
     private boolean isAdmin(HttpServletRequest request) {
-        Object userRole = request.getAttribute("userRole");
-        if (userRole == null) {
-            return false;
+        // 优先从Header获取（网关传递）
+        String roleHeader = request.getHeader("X-User-Role");
+        if (roleHeader != null && !roleHeader.isEmpty()) {
+            return "ADMIN".equalsIgnoreCase(roleHeader) || "ROLE_ADMIN".equalsIgnoreCase(roleHeader);
         }
-        String role = userRole.toString();
-        return "ADMIN".equalsIgnoreCase(role) || "admin".equals(role);
+        
+        // 回退到request.getAttribute获取
+        Object userRole = request.getAttribute("userRole");
+        if (userRole != null) {
+            String role = userRole.toString();
+            return "ADMIN".equalsIgnoreCase(role) || "ROLE_ADMIN".equalsIgnoreCase(role);
+        }
+        
+        return false;
     }
 }

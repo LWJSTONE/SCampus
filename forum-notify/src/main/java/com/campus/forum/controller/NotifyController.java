@@ -326,12 +326,22 @@ public class NotifyController {
 
     /**
      * 检查当前用户是否为管理员
+     * 修复：添加二次验证，同时检查Header和request.getAttribute
      */
     private boolean isAdmin(HttpServletRequest request) {
+        // 优先从Header获取（网关传递）
         String role = request.getHeader("X-User-Role");
-        if (role != null) {
+        if (role != null && !role.isEmpty()) {
             return "ADMIN".equalsIgnoreCase(role) || "ROLE_ADMIN".equalsIgnoreCase(role);
         }
+        
+        // 二次验证：从request.getAttribute获取（可能由过滤器/拦截器设置）
+        Object userRole = request.getAttribute("userRole");
+        if (userRole != null) {
+            String roleStr = userRole.toString();
+            return "ADMIN".equalsIgnoreCase(roleStr) || "ROLE_ADMIN".equalsIgnoreCase(roleStr);
+        }
+        
         return false;
     }
 }

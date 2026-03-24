@@ -319,21 +319,13 @@ function updateTrendChart(data: any) {
   let postData: number[] = []
   let commentData: number[] = []
 
-  if (data && data.dates) {
+  if (data && data.dates && data.dates.length > 0) {
     xData = data.dates.map((d: string) => formatDateLabel(d, trendType.value))
     userData = data.userData || []
     postData = data.postData || []
     commentData = data.commentData || []
-  } else {
-    // 默认数据
-    const now = dayjs()
-    for (let i = 6; i >= 0; i--) {
-      xData.push(now.subtract(i, 'day').format('MM-DD'))
-      userData.push(Math.floor(Math.random() * 200) + 50)
-      postData.push(Math.floor(Math.random() * 300) + 100)
-      commentData.push(Math.floor(Math.random() * 400) + 150)
-    }
   }
+  // 当没有数据时，显示空图表而不是虚假数据
 
   const option = {
     tooltip: { trigger: 'axis' },
@@ -345,6 +337,17 @@ function updateTrendChart(data: any) {
       data: xData
     },
     yAxis: { type: 'value' },
+    // 当没有数据时显示提示
+    graphic: xData.length === 0 ? [{
+      type: 'text',
+      left: 'center',
+      top: 'middle',
+      style: {
+        text: '暂无数据',
+        fontSize: 14,
+        fill: '#999'
+      }
+    }] : [],
     series: [
       { name: '新用户', type: 'line', smooth: true, data: userData },
       { name: '新帖子', type: 'line', smooth: true, data: postData },
@@ -362,23 +365,29 @@ function updatePieChart(data: any) {
     pieChart = echarts.init(pieChartRef.value)
   }
 
-  const defaultData = [
-    { value: 1048, name: '校园生活' },
-    { value: 735, name: '学术讨论' },
-    { value: 580, name: '技术交流' },
-    { value: 484, name: '二手交易' },
-    { value: 300, name: '其他' }
-  ]
+  // 当没有数据时，显示空图表而不是虚假数据
+  const chartData = data && data.length > 0 ? data : []
 
   const option = {
     tooltip: { trigger: 'item' },
     legend: { orient: 'vertical', left: 'left' },
+    // 当没有数据时显示提示
+    graphic: chartData.length === 0 ? [{
+      type: 'text',
+      left: 'center',
+      top: 'middle',
+      style: {
+        text: '暂无数据',
+        fontSize: 14,
+        fill: '#999'
+      }
+    }] : [],
     series: [
       {
         name: '帖子分布',
         type: 'pie',
         radius: '50%',
-        data: data || defaultData
+        data: chartData
       }
     ]
   }

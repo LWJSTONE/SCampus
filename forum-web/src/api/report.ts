@@ -32,7 +32,11 @@ export interface ReportHandleDTO {
 }
 
 export interface ReportQueryDTO {
-  current: number
+  /** 当前页码 (兼容后端分页参数) */
+  current?: number
+  /** 页码 (前端统一使用page) */
+  page?: number
+  /** 每页大小 */
   size: number
   status?: number
   reportType?: number
@@ -44,7 +48,12 @@ export function submitReport(data: ReportCreateDTO): Promise<number> {
 }
 
 export function getReportList(params: ReportQueryDTO): Promise<PageResult<ReportVO>> {
-  return request.get('/reports', params)
+  // 兼容后端分页参数：将 page 转换为 current
+  const queryParams = {
+    ...params,
+    current: params.current || params.page || 1,
+  }
+  return request.get('/reports', queryParams)
 }
 
 export function getReportDetail(id: number): Promise<ReportVO> {

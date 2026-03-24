@@ -64,16 +64,15 @@ public class CommentServiceImpl implements CommentService {
     private static final String REDIS_KEY_COMMENT_LIKE = "comment:like:";
     private static final String REDIS_KEY_USER_COMMENTS = "comment:user:";
     private static final String REDIS_KEY_COMMENT_LIKE_LOCK = "comment:like:lock:";
-    /**
-     * 分布式锁过期时间（秒）
-     * 【修复】从3秒增加到10秒，防止高并发下业务执行时间超过锁过期时间
-     */
-    private static final long LOCK_EXPIRE_TIME = 10;
     
-    // 敏感词列表（实际项目中应从数据库或配置中心获取）
-    private static final Set<String> SENSITIVE_WORDS = new HashSet<>(Arrays.asList(
-            "敏感词1", "敏感词2", "违禁词", "广告"
-    ));
+    /**
+     * 【修复】分布式锁过期时间现在从配置类获取
+     * 原硬编码10秒在高并发场景可能不够，改为配置文件控制，默认30秒
+     * 通过 comment.lock.expire-time 配置
+     */
+    
+    // 【修复】敏感词列表从CommentConfig配置类获取
+    // 通过 comment.sensitive.words 配置，支持动态更新
 
     /**
      * 获取帖子的评论列表
@@ -275,8 +274,8 @@ public class CommentServiceImpl implements CommentService {
         String lockValue = java.util.UUID.randomUUID().toString();
         
         try {
-            // 尝试获取锁，使用较长的过期时间防止业务执行超时
-            Boolean locked = redisTemplate.opsForValue().setIfAbsent(lockKey, lockValue, LOCK_EXPIRE_TIME, TimeUnit.SECONDS);
+            // 尝试获取锁，使用配置的过期时间防止业务执行超时
+            Boolean locked = redisTemplate.opsForValue().setIfAbsent(lockKey, lockValue, commentConfig.getLockExpireTime(), TimeUnit.SECONDS);
             if (!Boolean.TRUE.equals(locked)) {
                 throw new BusinessException(ResultCode.BUSINESS_ERROR, "操作过于频繁，请稍后再试");
             }
@@ -585,12 +584,23 @@ public class CommentServiceImpl implements CommentService {
 
     /**
      * 敏感词过滤
+     * 
+     * 【修复】从配置文件读取敏感词列表，支持动态配置
      */
     private String filterSensitiveWords(String content) {
+        if (content == null) {
+            return null;
+        }
+        
         String result = content;
-        for (String word : SENSITIVE_WORDS) {
-            if (result.contains(word)) {
-                result = result.replace(word, commentConfig.getSensitiveReplacement());
+        
+        // 从配置类获取敏感词列表
+        if (commentConfig.isSensitiveFilterEnabled()) {
+            Set<String> sensitiveWords = commentConfig.getSensitiveWords();
+            for (String word : sensitiveWords) {
+                if (result.contains(word)) {
+                    result = result.replace(word, commentConfig.getSensitiveReplacement());
+                }
             }
         }
         

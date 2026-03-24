@@ -123,7 +123,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { Loading, WarningFilled } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 
@@ -142,8 +142,23 @@ const currentTitle = computed(() => {
 
 function handleCommand(command: string) {
   if (command === 'logout') {
+    handleLogout()
+  }
+}
+
+async function handleLogout() {
+  try {
+    await ElMessageBox.confirm('确定要退出登录吗？', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    
     userStore.logout()
     router.push('/login')
+    ElMessage.success('已退出登录')
+  } catch {
+    // 用户取消操作，不需要处理
   }
 }
 

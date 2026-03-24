@@ -197,13 +197,14 @@ const forgotRules: FormRules = {
 
 function showForgotPassword() {
   forgotPasswordVisible.value = true
-  Object.assign(forgotForm, {
-    username: '',
-    email: '',
-    code: '',
-    newPassword: '',
-    confirmPassword: ''
-  })
+  // 使用直接属性赋值重置表单，确保所有字段正确重置
+  forgotForm.username = ''
+  forgotForm.email = ''
+  forgotForm.code = ''
+  forgotForm.newPassword = ''
+  forgotForm.confirmPassword = ''
+  // 清除表单验证状态
+  forgotFormRef.value?.clearValidate()
 }
 
 async function sendForgotCode() {
@@ -315,9 +316,16 @@ async function handleLogin() {
 
     ElMessage.success('登录成功')
 
-    // 跳转到之前的页面或首页
+    // 跳转到之前的页面或首页，验证redirect是否为有效路由
     const redirect = route.query.redirect as string
-    router.push(redirect || '/')
+    // 验证redirect路径：必须以'/'开头且不包含危险的URL注入
+    const isValidRedirect = redirect && 
+      redirect.startsWith('/') && 
+      !redirect.includes('//') && 
+      !redirect.includes('javascript:') &&
+      redirect.length < 200
+    
+    router.push(isValidRedirect ? redirect : '/')
   } catch (e: any) {
     // 登录失败后清空密码和验证码，防止密码泄露
     loginForm.password = ''

@@ -19,7 +19,7 @@
       </template>
 
       <div v-if="posts.length" class="post-list">
-        <div v-for="post in posts" :key="post.id" class="post-item" @click="$router.push(`/post/${post.id}`)">
+        <div v-for="post in posts" :key="post.id" class="post-item" @click="navigateToPost(post.id)">
           <h3 v-html="highlightKeyword(post.title)"></h3>
           <p v-html="highlightKeyword(post.summary || '')"></p>
           <div class="meta">
@@ -60,6 +60,7 @@ const loading = ref(false)
 const hasMore = ref(true)
 const searched = ref(false)
 const page = ref(1)
+const loadMoreTriggered = ref(false)
 
 function formatTime(time: string) {
   return dayjs(time).fromNow()
@@ -124,12 +125,25 @@ async function fetchPosts() {
     ElMessage.error(e?.message || '搜索失败，请稍后重试')
   } finally {
     loading.value = false
+    loadMoreTriggered.value = false
   }
 }
 
 async function loadMore() {
+  // 防止重复触发加载
+  if (loadMoreTriggered.value || loading.value || !hasMore.value) return
+  
+  loadMoreTriggered.value = true
   page.value++
   await fetchPosts()
+}
+
+// 导航到帖子详情页（带错误处理）
+function navigateToPost(postId: number) {
+  router.push(`/post/${postId}`).catch((err) => {
+    console.error('路由跳转失败:', err)
+    ElMessage.error('跳转失败，请稍后重试')
+  })
 }
 
 onMounted(() => {

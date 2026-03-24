@@ -57,8 +57,9 @@ const router = useRouter()
 const forumIdParam = route.params.id
 const forumId = Number(forumIdParam)
 
-// 检查forumId是否有效
-if (isNaN(forumId) || forumId <= 0) {
+// 检查forumId是否有效，设置标志位阻止后续API调用
+const isValidForumId = !isNaN(forumId) && forumId > 0
+if (!isValidForumId) {
   ElMessage.error('版块ID无效')
   router.push('/')
 }
@@ -68,12 +69,16 @@ const posts = ref<PostVO[]>([])
 const loading = ref(false)
 const hasMore = ref(true)
 const page = ref(1)
+const loadMoreTriggered = ref(false)
 
 function formatTime(time: string) {
   return dayjs(time).fromNow()
 }
 
 async function fetchForum() {
+  // 如果forumId无效，不执行API请求
+  if (!isValidForumId) return
+  
   try {
     forum.value = await getForumDetail(forumId)
   } catch (e: any) {
@@ -83,6 +88,9 @@ async function fetchForum() {
 }
 
 async function fetchPosts() {
+  // 如果forumId无效，不执行API请求
+  if (!isValidForumId) return
+  
   loading.value = true
   try {
     const res = await getPostsByForum(forumId, { page: page.value, size: 10 })
@@ -96,10 +104,15 @@ async function fetchPosts() {
     ElMessage.error(e?.message || '获取帖子列表失败')
   } finally {
     loading.value = false
+    loadMoreTriggered.value = false
   }
 }
 
 async function loadMore() {
+  // 防止重复触发加载
+  if (loadMoreTriggered.value || loading.value || !hasMore.value) return
+  
+  loadMoreTriggered.value = true
   page.value++
   await fetchPosts()
 }

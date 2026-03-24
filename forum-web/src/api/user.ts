@@ -1,6 +1,7 @@
 import { request } from './request'
 import type { PageResult } from './request'
 import type { UserVO, UserDetailVO, UserQueryDTO, UserUpdateDTO } from '@/types'
+import { VALID_USER_STATUSES, USER_STATUS_TEXT } from '@/constants'
 
 // 参数验证辅助函数
 function validateId(id: number, paramName: string = 'id'): void {
@@ -132,10 +133,9 @@ export function getUserCollections(id: number, params: { page: number; size: num
 // 更新用户状态（管理员）
 export function updateUserStatus(id: number, status: number): Promise<boolean> {
   validateId(id)
-  // 验证status值
-  const validStatuses = [0, 1, 2] // 假设: 0-禁用, 1-正常, 2-其他状态
-  if (!validStatuses.includes(status)) {
-    throw new Error(`无效的状态值: ${status}`)
+  // 验证status值 - 使用常量定义
+  if (!VALID_USER_STATUSES.includes(status)) {
+    throw new Error(`无效的状态值: ${status}，有效值为: ${VALID_USER_STATUSES.map(s => `${s}(${USER_STATUS_TEXT[s]})`).join(', ')}`)
   }
   return request.put(`/users/${id}/status`, null, { params: { status } })
 }

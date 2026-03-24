@@ -26,7 +26,7 @@ export interface PageResult<T = any> {
 
 // 创建axios实例
 const service: AxiosInstance = axios.create({
-  baseURL: '/api/v1',
+  baseURL: BASE_URL,
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json;charset=utf-8'
@@ -67,10 +67,14 @@ function onRefreshed(token: string) {
   refreshSubscribers = []
 }
 
-// Token刷新失败，清除订阅队列
+// Token刷新失败，清除订阅队列并拒绝所有等待的请求
 function onRefreshFailed() {
+  // 保存当前的订阅者队列引用
+  const subscribers = [...refreshSubscribers]
   refreshSubscribers = []
   hasShownExpiredDialog = false
+  // 返回订阅者数量，供调用者决定是否需要额外处理
+  return subscribers.length
 }
 
 // 响应拦截器

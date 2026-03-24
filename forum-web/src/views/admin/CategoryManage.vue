@@ -232,6 +232,13 @@ async function handleSubmit() {
   submitting.value = true
   try {
     if (editingId.value) {
+      // 检查editingId是否存在对应的分类
+      const categoryExists = flattenedCategories.value.some(c => c.id === editingId.value && !c._isForum)
+      if (!categoryExists) {
+        ElMessage.error('分类不存在或已被删除')
+        dialogVisible.value = false
+        return
+      }
       await updateCategory(editingId.value, categoryForm)
       ElMessage.success('更新成功')
     } else {
@@ -276,32 +283,44 @@ async function submitForum() {
   const valid = await forumFormRef.value?.validate().catch(() => false)
   if (!valid) return
 
-  if (!currentCategory.value && !editingForumId.value) return
-
-  submitting.value = true
-  try {
-    if (editingForumId.value) {
+  // 明确区分编辑模式和添加模式
+  if (editingForumId.value) {
+    // 编辑模式：直接更新版块
+    submitting.value = true
+    try {
       await updateForum(editingForumId.value, {
         name: forumForm.name,
         description: forumForm.description
       })
       ElMessage.success('更新成功')
-    } else {
+      forumDialogVisible.value = false
+      fetchCategories()
+    } catch (e: any) {
+      console.error('操作版块失败:', e)
+      ElMessage.error(e?.message || '操作失败，请稍后重试')
+    } finally {
+      submitting.value = false
+    }
+  } else if (currentCategory.value) {
+    // 添加模式：需要currentCategory存在
+    submitting.value = true
+    try {
       await createForum({
-        categoryId: currentCategory.value!.id,
+        categoryId: currentCategory.value.id,
         name: forumForm.name,
         description: forumForm.description
       })
       ElMessage.success('创建成功')
+      forumDialogVisible.value = false
+      fetchCategories()
+    } catch (e: any) {
+      console.error('操作版块失败:', e)
+      ElMessage.error(e?.message || '操作失败，请稍后重试')
+    } finally {
+      submitting.value = false
     }
-    forumDialogVisible.value = false
-    fetchCategories()
-  } catch (e: any) {
-    console.error('操作版块失败:', e)
-    ElMessage.error(e?.message || '操作失败，请稍后重试')
-  } finally {
-    submitting.value = false
   }
+  // 如果既不是编辑模式也没有currentCategory，则不执行任何操作
 }
 
 async function handleDelete(row: CategoryTreeVO) {

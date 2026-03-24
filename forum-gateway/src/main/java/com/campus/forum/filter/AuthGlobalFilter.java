@@ -97,17 +97,35 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
 
     /**
      * 允许的CORS域名列表
-     * 【安全修复】用于动态设置 Access-Control-Allow-Origin，避免与 allowCredentials: true 冲突
+     * 【安全修复】从配置文件读取，避免硬编码
+     * 
+     * 配置示例：
+     * app.allowed-origins=http://localhost:3000,http://localhost:8080
      */
-    private static final List<String> ALLOWED_ORIGINS = Arrays.asList(
-            "http://localhost:3000",
-            "http://localhost:8080",
-            "http://localhost:8081",
-            "http://127.0.0.1:3000",
-            "http://127.0.0.1:8080",
-            "http://127.0.0.1:8081"
-            // 生产环境需要添加实际的域名
-    );
+    @Value("${app.allowed-origins:http://localhost:3000,http://localhost:8080,http://localhost:8081}")
+    private String allowedOriginsConfig;
+    
+    /**
+     * 缓存的允许域名列表
+     */
+    private List<String> allowedOriginsCache;
+    
+    /**
+     * 获取允许的域名列表（懒加载）
+     * 
+     * @return 允许的域名列表
+     */
+    private List<String> getAllowedOrigins() {
+        if (allowedOriginsCache == null) {
+            synchronized (this) {
+                if (allowedOriginsCache == null) {
+                    allowedOriginsCache = Arrays.asList(allowedOriginsConfig.split(","));
+                    log.info("CORS允许的域名列表: {}", allowedOriginsCache);
+                }
+            }
+        }
+        return allowedOriginsCache;
+    }
 
     /**
      * 应用启动时的配置检查
@@ -143,13 +161,27 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
      *     <li>Swagger文档接口</li>
      * </ul>
      * 
+     * <p>【安全说明 - logout不在白名单中的原因】</p>
+     * <p>logout接口需要验证Token才能使Token失效，这是出于以下安全考虑：</p>
+     * <ol>
+     *     <li>防止Token被恶意注销：如果logout在白名单中，攻击者可以在不知晓Token内容的情况下
+     *         调用logout接口，导致用户的Token失效</li>
+     *     <li>支持Token黑名单机制：logout时需要解析Token获取用户ID，然后将Token加入黑名单，
+     *         如果没有Token验证，无法实现此功能</li>
+     *     <li>审计日志记录：logout操作需要记录操作者信息，这需要Token中的用户ID</li>
+     * </ol>
+     * 
      * <p>注意：内部服务调用接口不在白名单中，需要通过{@link #INTERNAL_PATHS}单独处理</p>
      */
     private static final List<String> WHITE_LIST = Arrays.asList(
             // 认证相关 - 白名单
+            // 注意：/api/v1/auth/logout 不在白名单中，因为需要验证Token才能使Token失效
+            // 【安全说明】logout需要Token验证的原因：
+            // 1. 防止恶意注销他人Token
+            // 2. 支持Token黑名单机制
+            // 3. 记录审计日志
             "/api/v1/auth/login",
             "/api/v1/auth/register",
-            // 注意：logout不应该在白名单中，因为需要验证Token才能使Token失效
             "/api/v1/auth/captcha/**",
             "/api/v1/auth/code/**",
             "/api/v1/auth/email/code",
@@ -459,7 +491,7 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
      * @return true-允许，false-不允许
      */
     private boolean isAllowedOrigin(String origin) {
-        return ALLOWED_ORIGINS.contains(origin);
+        return getAllowedOrigins().contains(origin);
     }
 
     /**

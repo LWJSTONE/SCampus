@@ -323,16 +323,41 @@ public class JwtUtils {
     /**
      * 从令牌中获取用户ID（仅解码，不验证签名）
      * 
-     * ⚠️ 安全警告：此方法仅解码Token不验证签名，存在安全风险！
-     * 用于身份验证时请使用 getUserId(String token, String secret) 方法
-     * 此方法仅适用于：日志记录、前端展示等非安全敏感场景
+     * ⚠️⚠️⚠️ 【严重安全警告】⚠️⚠️⚠️
+     * 
+     * 此方法仅解码Token不验证签名，存在以下安全风险：
+     * 1. 攻击者可以伪造Token内容，绕过身份验证
+     * 2. 无法检测Token是否被篡改
+     * 3. 无法验证Token的有效性和过期时间
+     * 
+     * 此方法【严格禁止】用于以下场景：
+     * - 身份验证
+     * - 权限检查
+     * - 敏感操作
+     * - 密码重置
+     * - 用户信息修改
+     * 
+     * 此方法仅适用于以下非安全敏感场景：
+     * - 日志记录（不涉及安全决策）
+     * - 前端展示（显示Token中的非敏感信息）
+     * - 调试目的（开发环境）
+     * 
+     * 用于身份验证时，请务必使用：
+     * - getUserId(String token, String secret) 方法
+     * - getUserIdSecure(String token) 方法
      *
      * @param token JWT令牌
      * @return 用户ID
-     * @deprecated 请使用 {@link #getUserId(String, String)} 方法进行安全的Token验证
+     * @deprecated 此方法存在严重安全风险，请使用 {@link #getUserId(String, String)} 方法进行安全的Token验证。
+     *             如确需使用此方法，请确保仅用于非安全敏感场景。
      */
-    @Deprecated
+    @Deprecated(since = "2024", forRemoval = false)
     public static Long getUserId(String token) {
+        // 【安全修复】记录警告日志，追踪不当使用
+        StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
+        String caller = stackTrace.length > 2 ? stackTrace[2].toString() : "unknown";
+        log.warn("【安全警告】调用了不验证签名的getUserId方法，请确保此调用不用于身份验证！调用位置: {}", caller);
+        
         DecodedJWT jwt = decodeToken(token);
         if (jwt != null) {
             return jwt.getClaim("userId").asLong();
@@ -373,16 +398,41 @@ public class JwtUtils {
     /**
      * 从令牌中获取用户名（仅解码，不验证签名）
      * 
-     * ⚠️ 安全警告：此方法仅解码Token不验证签名，存在安全风险！
-     * 用于身份验证时请使用 getUsername(String token, String secret) 方法
-     * 此方法仅适用于：日志记录、前端展示等非安全敏感场景
+     * ⚠️⚠️⚠️ 【严重安全警告】⚠️⚠️⚠️
+     * 
+     * 此方法仅解码Token不验证签名，存在以下安全风险：
+     * 1. 攻击者可以伪造Token内容，绕过身份验证
+     * 2. 无法检测Token是否被篡改
+     * 3. 无法验证Token的有效性和过期时间
+     * 
+     * 此方法【严格禁止】用于以下场景：
+     * - 身份验证
+     * - 权限检查
+     * - 敏感操作
+     * - 密码重置
+     * - 用户信息修改
+     * 
+     * 此方法仅适用于以下非安全敏感场景：
+     * - 日志记录（不涉及安全决策）
+     * - 前端展示（显示Token中的非敏感信息）
+     * - 调试目的（开发环境）
+     * 
+     * 用于身份验证时，请务必使用：
+     * - getUsername(String token, String secret) 方法
+     * - getUsernameSecure(String token) 方法
      *
      * @param token JWT令牌
      * @return 用户名
-     * @deprecated 请使用 {@link #getUsername(String, String)} 方法进行安全的Token验证
+     * @deprecated 此方法存在严重安全风险，请使用 {@link #getUsername(String, String)} 方法进行安全的Token验证。
+     *             如确需使用此方法，请确保仅用于非安全敏感场景。
      */
-    @Deprecated
+    @Deprecated(since = "2024", forRemoval = false)
     public static String getUsername(String token) {
+        // 【安全修复】记录警告日志，追踪不当使用
+        StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
+        String caller = stackTrace.length > 2 ? stackTrace[2].toString() : "unknown";
+        log.warn("【安全警告】调用了不验证签名的getUsername方法，请确保此调用不用于身份验证！调用位置: {}", caller);
+        
         DecodedJWT jwt = decodeToken(token);
         if (jwt != null) {
             return jwt.getSubject();

@@ -123,6 +123,7 @@ import { useUserStore } from '@/stores/user'
 import { getCategoryList } from '@/api/category'
 import { getUnreadCount } from '@/api/notify'
 import type { CategoryVO } from '@/types'
+import DOMPurify from 'dompurify'
 
 const router = useRouter()
 const route = useRoute()
@@ -164,12 +165,19 @@ async function fetchUnreadCount() {
 function handleSearch() {
   const keyword = searchKeyword.value.trim()
   if (keyword) {
-    // 对搜索关键词进行基本的XSS防护（移除特殊字符）
-    const sanitizedKeyword = keyword
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;')
+    // 使用DOMPurify进行完善的XSS防护
+    // 对于搜索关键词，只需要保留纯文本，移除所有HTML标签和危险字符
+    const sanitizedKeyword = DOMPurify.sanitize(keyword, {
+      ALLOWED_TAGS: [], // 不允许任何HTML标签
+      ALLOWED_ATTR: [], // 不允许任何属性
+      KEEP_CONTENT: true // 保留文本内容
+    }).trim()
+    
+    if (!sanitizedKeyword) {
+      // 如果过滤后为空，提示用户
+      ElMessage.warning('请输入有效的搜索关键词')
+      return
+    }
     
     if (sanitizedKeyword !== keyword) {
       // 如果检测到XSS字符，使用净化后的关键词
@@ -231,11 +239,28 @@ watch(
   }
 )
 
+// 页面可见性变化处理
+function handleVisibilityChange() {
+  if (document.hidden) {
+    // 页面不可见时，暂停轮询以节省资源
+    stopUnreadPolling()
+  } else {
+    // 页面可见时，立即刷新一次并恢复轮询
+    fetchUnreadCount()
+    if (userStore.isLoggedIn) {
+      startUnreadPolling()
+    }
+  }
+}
+
 // 定时刷新未读消息数
 function startUnreadPolling() {
   if (unreadTimer) return
   unreadTimer = setInterval(() => {
-    fetchUnreadCount()
+    // 只有在页面可见时才进行请求
+    if (!document.hidden) {
+      fetchUnreadCount()
+    }
   }, 60000) // 每分钟刷新一次
 }
 
@@ -264,10 +289,14 @@ onMounted(() => {
     fetchUnreadCount()
     startUnreadPolling()
   }
+  // 监听页面可见性变化
+  document.addEventListener('visibilitychange', handleVisibilityChange)
 })
 
 onUnmounted(() => {
   stopUnreadPolling()
+  // 移除页面可见性监听
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
 })
 </script>
 

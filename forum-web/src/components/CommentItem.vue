@@ -120,18 +120,38 @@ async function handleLike() {
   }
 
   liking.value = true
+  
+  // 保存当前状态用于失败时回滚
+  const previousState = {
+    isLiked: localComment.value.isLiked,
+    likeCount: localComment.value.likeCount || 0
+  }
+  
+  // 乐观更新：先更新本地状态
+  const newIsLiked = !localComment.value.isLiked
+  localComment.value = {
+    ...localComment.value,
+    isLiked: newIsLiked,
+    likeCount: Math.max(0, (localComment.value.likeCount || 0) + (newIsLiked ? 1 : -1))
+  }
+  
   try {
     const result = await likeComment(localComment.value.id)
-    // 更新本地状态和计数（不直接修改props）
-    const isLiked = result.isLike
+    // 使用后端返回的真实状态更新（确保与后端一致）
     localComment.value = {
       ...localComment.value,
-      isLiked: isLiked,
-      // 防止计数器变为负数
-      likeCount: Math.max(0, (localComment.value.likeCount || 0) + (isLiked ? 1 : -1))
+      isLiked: result.isLike,
+      // 使用后端返回的计数，如果没有则使用乐观更新的值
+      likeCount: typeof result.likeCount === 'number' ? result.likeCount : localComment.value.likeCount
     }
-    ElMessage.success(result.message || (isLiked ? '点赞成功' : '已取消点赞'))
+    ElMessage.success(result.message || (result.isLike ? '点赞成功' : '已取消点赞'))
   } catch (e: any) {
+    // 点赞失败，回滚本地状态
+    localComment.value = {
+      ...localComment.value,
+      isLiked: previousState.isLiked,
+      likeCount: previousState.likeCount
+    }
     console.error('点赞失败:', e)
     ElMessage.error(e?.message || '点赞失败，请稍后重试')
   } finally {

@@ -103,7 +103,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, nextTick } from 'vue'
+import { ref, reactive, onMounted, nextTick, computed } from 'vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { getReportList, handleReport, type ReportVO, type ReportHandleDTO } from '@/api/report'
 
@@ -140,8 +140,8 @@ const handleForm = reactive<ReportHandleDTO>({
   handleRemark: ''
 })
 
-// 表单验证规则
-const handleFormRules: FormRules = {
+// 表单验证规则 - 使用computed确保验证规则与表单状态同步
+const handleFormRules = computed<FormRules>(() => ({
   result: [
     { required: true, message: '请选择处理结果', trigger: 'change' }
   ],
@@ -151,6 +151,7 @@ const handleFormRules: FormRules = {
       message: '请选择处罚措施', 
       trigger: 'change',
       validator: (rule, value, callback) => {
+        // 在validator中获取当前表单状态
         if (handleForm.result === 1 && !value) {
           callback(new Error('请选择处罚措施'))
         } else {
@@ -159,7 +160,7 @@ const handleFormRules: FormRules = {
       }
     }
   ]
-}
+}))
 
 // 查看详情对话框
 const viewDialogVisible = ref(false)

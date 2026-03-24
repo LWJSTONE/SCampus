@@ -120,12 +120,12 @@ public class ReportServiceImpl extends ServiceImpl<ReportMapper, Report> impleme
             // 业务异常直接抛出，阻断举报流程
             throw e;
         } catch (Exception e) {
-            // 服务调用异常，记录详细日志
+            // 【修复】服务调用异常时，阻止举报提交
+            // 原逻辑跳过验证允许举报提交，存在安全隐患
+            // 修复后：服务不可用时拒绝举报，确保举报目标真实存在
             log.error("验证举报目标时发生异常, targetId: {}, reportType: {}", 
                     createDTO.getTargetId(), createDTO.getReportType(), e);
-            // 服务不可用时，为了用户体验，允许举报提交，但记录警告
-            // 后续可以通过定时任务清理无效举报
-            log.warn("服务调用失败，举报目标验证跳过，将在处理时验证: {}", e.getMessage());
+            throw new BusinessException("举报目标验证服务暂时不可用，请稍后重试");
         }
     }
 
