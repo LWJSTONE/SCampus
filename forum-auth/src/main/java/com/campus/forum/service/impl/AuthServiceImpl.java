@@ -74,7 +74,10 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public Result<LoginVO> login(LoginDTO loginDTO, HttpServletRequest request) {
-        log.info("用户登录请求：username={}", loginDTO.getUsername());
+        // 安全修复：日志脱敏处理，不记录完整用户名
+        log.info("用户登录请求：username={}***", 
+                loginDTO.getUsername() != null && loginDTO.getUsername().length() > 2 
+                        ? loginDTO.getUsername().substring(0, 2) : "**");
 
         // 1. 验证码校验（强制要求）
         if (StrUtil.isBlank(loginDTO.getCaptchaKey()) || StrUtil.isBlank(loginDTO.getCaptcha())) {
@@ -174,7 +177,10 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Result<Void> register(RegisterDTO registerDTO) {
-        log.info("用户注册请求：username={}", registerDTO.getUsername());
+        // 安全修复：日志脱敏处理
+        log.info("用户注册请求：username={}***", 
+                registerDTO.getUsername() != null && registerDTO.getUsername().length() > 2 
+                        ? registerDTO.getUsername().substring(0, 2) : "**");
 
         // 1. 验证码校验 - 支持邮箱验证码或图形验证码
         boolean isEmailCodeMode = StrUtil.isNotBlank(registerDTO.getCode());
@@ -353,7 +359,11 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Result<Void> resetPassword(ResetPasswordDTO resetPasswordDTO) {
-        log.info("重置密码请求：email={}, username={}", resetPasswordDTO.getEmail(), resetPasswordDTO.getUsername());
+        // 安全修复：日志脱敏处理
+        String maskedEmail = maskEmail(resetPasswordDTO.getEmail());
+        String maskedUsername = resetPasswordDTO.getUsername() != null && resetPasswordDTO.getUsername().length() > 2 
+                ? resetPasswordDTO.getUsername().substring(0, 2) + "***" : "***";
+        log.info("重置密码请求：email={}, username={}", maskedEmail, maskedUsername);
 
         // 安全修复：只支持邮箱验证码方式，必须提供邮箱+用户名+邮箱验证码三者匹配
         // 1. 校验必填字段
@@ -702,15 +712,41 @@ public class AuthServiceImpl implements AuthService {
             redisUtils.set(dailyCountKey, String.valueOf(dailyCount + 1), secondsUntilMidnight);
         }
 
-        // 8. 发送邮件（这里简化处理，实际项目中应该调用邮件服务）
-        // TODO: 集成邮件服务发送验证码
-        log.info("邮箱验证码已生成：email={}", email);
+        // 8. 发送邮件
+        // 【重要提醒】此处需要集成实际的邮件服务发送验证码
+        // 当前为简化实现，验证码仅存储在Redis中，需要配置SMTP服务才能真正发送邮件
+        // 生产环境部署前必须完成邮件服务集成！
+        log.warn("【配置提醒】邮件验证码服务未完全集成，验证码已生成但未发送至邮箱 {}，请配置SMTP服务", maskEmail(email));
+        log.info("邮箱验证码已生成并存储到Redis：email={}", maskEmail(email));
 
-        // 开发环境下，将验证码打印到日志方便测试
+        // 开发环境下，将验证码打印到日志方便测试（生产环境应禁用）
         if (log.isDebugEnabled()) {
-            log.debug("验证码已发送至邮箱 {}，验证码：{}", email, code);
+            log.debug("验证码已生成：email={}, code={}", maskEmail(email), code);
         }
 
         return Result.success();
+    }
+
+    /**
+     * 邮箱脱敏处理
+     * 保留前缀的前几个字符，中间用*替代，保留@后的域名
+     *
+     * @param email 原始邮箱
+     * @return 脱敏后的邮箱
+     */
+    private String maskEmail(String email) {
+        if (email == null || email.isEmpty()) {
+            return email;
+        }
+        int atIndex = email.indexOf('@');
+        if (atIndex <= 0) {
+            return email;
+        }
+        String prefix = email.substring(0, atIndex);
+        String suffix = email.substring(atIndex);
+        if (prefix.length() <= 2) {
+            return prefix.charAt(0) + "***" + suffix;
+        }
+        return prefix.substring(0, 2) + "***" + suffix;
     }
 }

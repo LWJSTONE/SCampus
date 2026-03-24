@@ -112,6 +112,13 @@ public class CommentServiceImpl implements CommentService {
     public Long publishComment(CommentCreateDTO createDTO, Long userId, String ipAddress) {
         log.info("发布评论, userId: {}, postId: {}", userId, createDTO.getPostId());
         
+        // 0. 防重复提交检查（使用Redis实现幂等性）
+        String duplicateKey = "comment:create:" + userId + ":" + createDTO.getPostId() + ":" + createDTO.getContent().hashCode();
+        Boolean isFirst = redisTemplate.opsForValue().setIfAbsent(duplicateKey, "1", 10, TimeUnit.SECONDS);
+        if (!Boolean.TRUE.equals(isFirst)) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR, "请勿重复提交评论");
+        }
+        
         // 1. 参数校验
         validateComment(createDTO);
         
@@ -622,22 +629,30 @@ public class CommentServiceImpl implements CommentService {
 
     /**
      * 更新帖子评论数
+     * 修复：同步更新数据库中的评论数，确保数据一致性
      */
     private void updatePostCommentCount(Long postId, int delta) {
         try {
-            // 更新缓存
+            // 1. 更新缓存
             String cacheKey = REDIS_KEY_COMMENT_COUNT + postId;
             Boolean hasKey = redisTemplate.hasKey(cacheKey);
             if (Boolean.TRUE.equals(hasKey)) {
                 redisTemplate.opsForValue().increment(cacheKey, delta);
             }
             // 如果缓存不存在，不创建，让下次查询时从数据库加载
+            
+            // 2. 【修复】同步更新帖子数据库中的评论数
+            try {
+                postApi.updatePostStats(postId, "commentCount", delta);
+                log.debug("已同步更新帖子评论数到数据库, postId: {}, delta: {}", postId, delta);
+            } catch (Exception e) {
+                log.error("同步更新帖子评论数失败, postId: {}, delta: {}", postId, delta, e);
+                // 数据库更新失败不影响主流程，但需要记录详细日志以便后续排查
+            }
         } catch (Exception e) {
             log.warn("更新评论数缓存失败, postId: {}", postId, e);
         }
         
-        // 实际项目中应该调用帖子服务更新数据库
-        // postApi.updateCommentCount(postId, delta);
         log.debug("更新帖子评论数, postId: {}, delta: {}", postId, delta);
     }
 

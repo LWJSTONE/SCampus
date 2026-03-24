@@ -68,10 +68,12 @@ public interface ReportMapper extends BaseMapper<Report> {
 
     /**
      * 更新处理状态
+     * 【修复】添加乐观锁机制，只有当前状态为"待处理(0)"时才能更新
+     * 防止并发处理导致的重复操作
      */
     @Update("UPDATE t_report SET status = #{status}, handler_id = #{handlerId}, " +
             "result = #{result}, remark = #{remark}, handle_time = NOW() " +
-            "WHERE id = #{id}")
+            "WHERE id = #{id} AND status = 0")
     int updateHandleStatus(@Param("id") Long id,
                            @Param("status") Integer status,
                            @Param("handlerId") Long handlerId,

@@ -244,11 +244,13 @@ public class LikeServiceImpl implements LikeService {
                 }
             }
         } catch (BusinessException e) {
+            // 业务异常直接抛出，阻止对不存在目标的操作
             throw e;
         } catch (Exception e) {
             log.error("验证点赞目标存在性失败, targetType={}, targetId={}", targetType, targetId, e);
-            // 如果远程服务调用失败，记录日志但不阻止操作（服务降级处理）
-            // 生产环境可以根据实际需求决定是否抛出异常
+            // 【修复】服务不可用时应该抛出异常，而不是静默跳过验证
+            // 防止对不存在的目标进行点赞操作，避免产生脏数据
+            throw new BusinessException(ResultCode.SERVICE_UNAVAILABLE, "服务暂时不可用，请稍后重试");
         }
     }
 }

@@ -209,6 +209,23 @@ public class NoticeServiceImpl implements NoticeService {
     public Long publishNotice(NoticeCreateDTO createDTO, Long userId, String userName) {
         log.info("发布通知, title: {}, userId: {}", createDTO.getTitle(), userId);
         
+        // 【修复】参数前置校验
+        if (StrUtil.isBlank(createDTO.getTitle())) {
+            throw new BusinessException(400, "通知标题不能为空");
+        }
+        if (createDTO.getTitle().length() > 100) {
+            throw new BusinessException(400, "通知标题不能超过100个字符");
+        }
+        if (StrUtil.isBlank(createDTO.getContent())) {
+            throw new BusinessException(400, "通知内容不能为空");
+        }
+        // 校验生效时间范围
+        if (createDTO.getEffectiveStartTime() != null && createDTO.getEffectiveEndTime() != null) {
+            if (createDTO.getEffectiveStartTime().isAfter(createDTO.getEffectiveEndTime())) {
+                throw new BusinessException(400, "生效开始时间不能晚于结束时间");
+            }
+        }
+        
         // 构建通知实体
         Notice notice = new Notice();
         BeanUtils.copyProperties(createDTO, notice);

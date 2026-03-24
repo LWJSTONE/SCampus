@@ -190,11 +190,18 @@ public class ReportServiceImpl extends ServiceImpl<ReportMapper, Report> impleme
         // 根据处理结果确定状态：无违规(0)设为驳回(3)，其他设为已处理(2)
         int newStatus = (handleDTO.getResult() != null && handleDTO.getResult() == 0) ? 3 : 2;
         
+        // 【修复】使用乐观锁更新状态，只有状态为"待处理(0)"时才能更新
+        // SQL已添加 WHERE status = 0 条件，防止并发处理
         int result = reportMapper.updateHandleStatus(id, newStatus, handlerId, 
                 handleDTO.getResult(), handleDTO.getRemark());
         
-        if (result > 0) {
-            // 根据处理结果执行相应操作
+        // 【修复】乐观锁更新失败，说明已被其他线程处理
+        if (result <= 0) {
+            log.warn("举报 {} 处理失败，可能已被其他管理员处理", id);
+            throw new BusinessException("该举报已被处理或状态已变更，请刷新页面后重试");
+        }
+        
+        // 根据处理结果执行相应操作
             Integer handleResult = handleDTO.getResult();
             
             if (handleResult != null) {
@@ -252,11 +259,9 @@ public class ReportServiceImpl extends ServiceImpl<ReportMapper, Report> impleme
                 }
             }
             
-            log.info("举报 {} 处理完成，处理结果: {}, 状态: {}", id, handleResult, newStatus == 3 ? "已驳回" : "已处理");
+            log.info("举报 {} 处理完成，处理结果: {}, 状态: {}", id, handleDTO.getResult(), newStatus == 3 ? "已驳回" : "已处理");
             return true;
         }
-        
-        return false;
     }
     
     /**

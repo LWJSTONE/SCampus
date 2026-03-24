@@ -210,6 +210,11 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             throw new BusinessException(ResultCode.USER_NOT_FOUND);
         }
         
+        // 修复：检查用户状态，被封禁用户不能修改头像
+        if (user.getStatus() == null || user.getStatus() != 1) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR, "账户已被禁用，无法修改头像");
+        }
+        
         return userMapper.updateAvatar(id, avatar) > 0;
     }
 

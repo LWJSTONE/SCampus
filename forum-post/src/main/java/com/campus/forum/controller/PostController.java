@@ -47,8 +47,9 @@ public class PostController {
 
     /**
      * 内部服务调用密钥
+     * 安全警告：生产环境必须在配置文件中设置 app.internal-service-key，不能依赖默认值
      */
-    @Value("${app.internal-service-key:campus-internal-service-key-2024}")
+    @Value("${app.internal-service-key}")
     private String internalServiceKey;
 
     /**
