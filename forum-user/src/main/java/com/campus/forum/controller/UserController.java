@@ -568,6 +568,56 @@ public class UserController {
         boolean result = userService.updateStatus(id, 1); // 1表示正常
         return Result.success(result);
     }
+
+    /**
+     * 内部API：验证用户是否为管理员
+     * 用于跨服务的管理员权限二次验证
+     * 
+     * 【修复】添加缺失的接口，支持PostController中的verifyAdminWithSecondCheck调用
+     *
+     * @param userId 用户ID
+     * @param serviceKey 内部服务密钥
+     * @return 是否为管理员
+     */
+    @GetMapping("/internal/{userId}/verify-admin")
+    @Operation(summary = "内部API-验证管理员", description = "供其他服务调用的内部接口，验证用户是否为管理员")
+    public Result<Boolean> verifyAdmin(
+            @Parameter(description = "用户ID") @PathVariable Long userId,
+            @Parameter(description = "内部服务密钥") @RequestHeader(value = "X-Internal-Service-Key", required = false) String serviceKey) {
+        // 验证内部服务密钥
+        if (!isValidServiceKey(serviceKey)) {
+            log.warn("内部API调用鉴权失败，serviceKey: {}", serviceKey);
+            return Result.fail(403, "无权限访问内部API");
+        }
+        log.info("内部API调用：验证管理员权限，用户ID: {}", userId);
+        boolean isAdmin = userService.verifyAdmin(userId);
+        return Result.success(isAdmin);
+    }
+
+    /**
+     * 内部API：获取用户角色
+     * 用于跨服务的角色查询
+     * 
+     * 【修复】添加缺失的接口，支持跨服务角色查询
+     *
+     * @param userId 用户ID
+     * @param serviceKey 内部服务密钥
+     * @return 用户角色编码
+     */
+    @GetMapping("/internal/{userId}/role")
+    @Operation(summary = "内部API-获取用户角色", description = "供其他服务调用的内部接口，获取用户角色编码")
+    public Result<String> getUserRole(
+            @Parameter(description = "用户ID") @PathVariable Long userId,
+            @Parameter(description = "内部服务密钥") @RequestHeader(value = "X-Internal-Service-Key", required = false) String serviceKey) {
+        // 验证内部服务密钥
+        if (!isValidServiceKey(serviceKey)) {
+            log.warn("内部API调用鉴权失败，serviceKey: {}", serviceKey);
+            return Result.fail(403, "无权限访问内部API");
+        }
+        log.info("内部API调用：获取用户角色，用户ID: {}", userId);
+        String role = userService.getUserRole(userId);
+        return Result.success(role);
+    }
     
     /**
      * 校验头像URL安全性

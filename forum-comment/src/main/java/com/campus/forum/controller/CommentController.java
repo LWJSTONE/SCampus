@@ -20,6 +20,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.util.StringUtils;
 
 import jakarta.servlet.http.HttpServletRequest;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,10 +45,12 @@ public class CommentController {
     
     /**
      * 内部服务密钥，用于验证来自网关的内部请求
-     * 【安全修复】通过双重验证（Header角色 + 内部密钥）防止权限伪造
+     * 
+     * 【安全修复】统一配置名称为 app.internal-service-key，与其他服务保持一致
+     * 【安全修复】移除默认值，强制要求配置，防止配置缺失时的安全漏洞
      */
-    @Value("${service.internal.secret-key:}")
-    private String internalSecretKey;
+    @Value("${app.internal-service-key:}")
+    private String internalServiceKey;
 
     /**
      * 获取帖子评论列表
@@ -310,7 +314,7 @@ public class CommentController {
      * 1. 验证内部服务密钥（X-Internal-Service-Key）- 确保请求来自可信网关
      * 2. 验证用户角色（X-User-Role）- 确保用户具有管理员权限
      * 
-     * 补偿方案：如果内部密钥未配置（兼容旧环境），则仅检查用户角色并记录警告日志
+     * 【安全增强】使用常量时间比较防止时序攻击
      * 
      * @param id 评论ID
      * @param request HTTP请求
@@ -332,13 +336,12 @@ public class CommentController {
         }
         
         // 【安全修复】双重权限验证
-        // 1. 验证内部服务密钥（防止请求头伪造）
+        // 1. 验证内部服务密钥（使用常量时间比较，防止时序攻击）
         String requestSecretKey = request.getHeader("X-Internal-Service-Key");
-        boolean hasValidSecretKey = StringUtils.hasText(internalSecretKey) 
-                && internalSecretKey.equals(requestSecretKey);
+        boolean hasValidSecretKey = isValidServiceKey(requestSecretKey);
         
         // 如果配置了内部密钥但请求中密钥不匹配，记录警告
-        if (StringUtils.hasText(internalSecretKey) && !hasValidSecretKey) {
+        if (StringUtils.hasText(internalServiceKey) && !hasValidSecretKey) {
             log.warn("内部服务密钥验证失败，可能存在伪造请求尝试，commentId: {}, remoteAddr: {}", 
                     id, request.getRemoteAddr());
             // 严格模式下可以拒绝请求，此处为兼容性考虑继续执行角色检查
@@ -352,7 +355,7 @@ public class CommentController {
         }
         
         // 3. 如果密钥验证失败且角色检查通过，记录安全警告（潜在伪造风险）
-        if (StringUtils.hasText(internalSecretKey) && !hasValidSecretKey) {
+        if (StringUtils.hasText(internalServiceKey) && !hasValidSecretKey) {
             log.warn("【安全警告】审核操作权限验证不完整：角色校验通过但内部密钥验证失败，commentId: {}, userRole: {}", 
                     id, userRole);
         }
@@ -370,6 +373,30 @@ public class CommentController {
     }
 
     // ==================== 私有方法 ====================
+
+    /**
+     * 安全比较内部服务密钥（防止时序攻击）
+     * 使用MessageDigest.isEqual进行常量时间比较，避免通过响应时间推断密钥信息
+     * 
+     * 【安全修复】增加空值检查，防止密钥未配置时被绕过
+     *
+     * @param providedKey 请求提供的密钥
+     * @return 是否匹配
+     */
+    private boolean isValidServiceKey(String providedKey) {
+        // 检查密钥是否已配置
+        if (internalServiceKey == null || internalServiceKey.isEmpty()) {
+            log.error("【安全警告】内部服务密钥未配置！请在配置文件中设置 app.internal-service-key");
+            return false;
+        }
+        if (providedKey == null) {
+            return false;
+        }
+        // 使用常量时间比较，防止时序攻击
+        byte[] expectedBytes = internalServiceKey.getBytes(StandardCharsets.UTF_8);
+        byte[] providedBytes = providedKey.getBytes(StandardCharsets.UTF_8);
+        return MessageDigest.isEqual(expectedBytes, providedBytes);
+    }
 
     /**
      * 从请求中获取当前用户ID

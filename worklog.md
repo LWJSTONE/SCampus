@@ -787,4 +787,93 @@ fix: 从前端按钮开始逐级审查修复问题
 **发现新问题**: 无
 **建议**: 保持现有代码质量，后续开发遵循现有规范
 
+---
+
+## Task ID: Feign接口修复 - 2026-03-24
+### Work Task
+修复UserServiceClient调用verify-admin接口缺失问题，统一内部服务密钥配置
+
+### 问题发现
+在代码审查中发现以下问题：
+1. PostController中的`verifyAdminWithSecondCheck`方法调用了`userServiceClient.verifyAdmin()`
+2. 但UserController中没有实现对应的`/api/v1/users/internal/{userId}/verify-admin`接口
+3. 导致管理员二次验证功能无法正常工作，所有管理员操作被拒绝
+
+### Work Summary
+
+#### 1. UserService.java 修复
+**文件路径**: `forum-user/src/main/java/com/campus/forum/service/UserService.java`
+
+**问题: 缺少verifyAdmin和getUserRole方法声明**
+- PostController需要通过Feign调用UserService验证管理员权限
+- 但UserService接口中没有定义这些方法
+- **修复方案**: 
+  - 添加 `verifyAdmin(Long userId)` 方法声明
+  - 添加 `getUserRole(Long userId)` 方法声明
+
+#### 2. UserServiceImpl.java 修复
+**文件路径**: `forum-user/src/main/java/com/campus/forum/service/impl/UserServiceImpl.java`
+
+**问题: 缺少verifyAdmin和getUserRole方法实现**
+- **修复方案**: 
+  - 注入 `RoleMapper` 依赖
+  - 实现 `verifyAdmin` 方法：
+    - 验证用户是否存在且状态正常
+    - 查询用户角色列表
+    - 检查是否包含ADMIN或ROLE_ADMIN角色
+  - 实现 `getUserRole` 方法：
+    - 查询用户角色列表
+    - 优先返回ADMIN角色
+    - 默认返回USER角色
+
+#### 3. UserController.java 修复
+**文件路径**: `forum-user/src/main/java/com/campus/forum/controller/UserController.java`
+
+**问题: 缺少verify-admin和role内部API接口**
+- UserServiceClient定义了调用`/api/v1/users/internal/{userId}/verify-admin`接口
+- 但UserController中没有实现这个接口
+- **修复方案**: 添加两个内部API接口
+  - `GET /internal/{userId}/verify-admin` - 验证用户是否为管理员
+  - `GET /internal/{userId}/role` - 获取用户角色编码
+  - 两个接口都添加了内部服务密钥验证
+  - 使用常量时间比较防止时序攻击
+
+#### 4. CommentController.java 修复
+**文件路径**: `forum-comment/src/main/java/com/campus/forum/controller/CommentController.java`
+
+**问题: 内部服务密钥配置名称不一致**
+- 原代码使用 `service.internal.secret-key`
+- 其他Controller使用 `app.internal-service-key`
+- **修复方案**: 
+  - 统一配置名称为 `app.internal-service-key`
+  - 添加 `isValidServiceKey` 方法使用常量时间比较
+  - 增强安全性，防止时序攻击
+
+### 修改文件清单
+| 文件 | 修改类型 | 修改说明 |
+|------|----------|----------|
+| UserService.java | 接口新增 | 添加verifyAdmin和getUserRole方法声明 |
+| UserServiceImpl.java | 方法实现 | 实现verifyAdmin和getUserRole方法，注入RoleMapper |
+| UserController.java | 接口新增 | 添加verify-admin和role内部API接口 |
+| CommentController.java | 配置修复 | 统一内部服务密钥配置名称，增强安全性 |
+
+### 关键修复点
+1. **Feign接口完整性**: 确保所有FeignClient调用的接口都有对应的后端实现
+2. **配置一致性**: 统一内部服务密钥配置名称为 `app.internal-service-key`
+3. **安全性增强**: 使用常量时间比较防止时序攻击
+
+### 提交信息
+```
+fix: 修复verify-admin接口缺失和内部服务密钥配置不一致问题
+
+问题修复:
+- UserService/UserServiceImpl: 添加verifyAdmin和getUserRole方法
+- UserController: 添加verify-admin和role内部API接口
+- CommentController: 统一内部服务密钥配置名称
+
+安全增强:
+- 使用常量时间比较防止时序攻击
+- 增强内部服务密钥验证
+```
+
 

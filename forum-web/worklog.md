@@ -543,3 +543,118 @@ document.title = pageTitle ? `${pageTitle} - SCampus` : 'SCampus 校园论坛'
 2. **边界值保护**: 分页参数添加上下限检查
 3. **错误处理完善**: 文件下载、API调用添加完整错误处理
 4. **状态管理优化**: 登录状态检查返回明确结果
+
+---
+
+## 前端按钮和交互问题审查修复
+
+### 审查日期
+2025年
+
+### 审查范围
+全面审查前端按钮功能、API调用、前端安全、用户体验
+
+### 审查文件
+1. `/src/views/Login.vue` - 登录页面
+2. `/src/views/Register.vue` - 注册页面
+3. `/src/views/PostDetail.vue` - 帖子详情页面
+4. `/src/views/CreatePost.vue` - 创建帖子页面
+5. `/src/views/admin/*.vue` - 管理员页面
+6. `/src/api/*.ts` - API调用
+
+---
+
+### 发现问题及修复
+
+#### 问题1: Dashboard.vue 待审核帖子状态参数错误 (高优先级)
+- **问题描述**: 待审核帖子的状态码应该是 `0`，但代码中使用的是 `status=1`（已发布状态）
+- **影响**: 点击"待审核帖子"按钮会跳转到显示"已发布"帖子的列表，而非待审核帖子
+- **修复方案**: 将 `path: '/admin/posts?status=1'` 改为 `path: '/admin/posts?status=0'`
+
+```javascript
+// 修复前
+{ title: '待审核帖子', count: 0, icon: 'Document', color: '#E6A23C', type: 'warning', path: '/admin/posts?status=1' }
+
+// 修复后  
+{ title: '待审核帖子', count: 0, icon: 'Document', color: '#E6A23C', type: 'warning', path: '/admin/posts?status=0' }
+```
+
+#### 问题2: router/index.ts 缺少 ElMessage 导入 (高优先级)
+- **问题描述**: 路由守卫中使用了 `ElMessage.warning()` 但没有导入 `ElMessage`
+- **影响**: 非管理员访问管理员页面时会抛出 `ElMessage is not defined` 错误
+- **修复方案**: 添加 `ElMessage` 的导入
+
+```javascript
+// 修复前
+import { useUserStore } from '@/stores/user'
+
+// 修复后
+import { ElMessage } from 'element-plus'
+import { useUserStore } from '@/stores/user'
+```
+
+#### 问题3: PostManage.vue 未读取URL查询参数 (中优先级)
+- **问题描述**: PostManage.vue 没有从URL查询参数中读取 `status` 参数来初始化筛选条件
+- **影响**: 从Dashboard点击"待审核帖子"跳转后，帖子管理页面不会自动筛选待审核帖子
+- **修复方案**: 
+  1. 在 `onMounted` 中读取URL查询参数并设置 `queryParams.status`
+  2. 添加 `watch` 监听路由变化，实现动态更新筛选条件
+
+```javascript
+// 新增代码
+import { useRoute } from 'vue-router'
+
+const route = useRoute()
+
+onMounted(() => {
+  // 从URL查询参数中读取status
+  const statusParam = route.query.status
+  if (statusParam !== undefined && statusParam !== null) {
+    const status = Number(statusParam)
+    if (!isNaN(status) && [0, 1, 2, 3].includes(status)) {
+      queryParams.status = status
+    }
+  }
+  fetchPosts()
+})
+
+// 监听路由变化
+watch(() => route.query.status, (newStatus) => {
+  if (newStatus !== undefined && newStatus !== null) {
+    const status = Number(newStatus)
+    if (!isNaN(status) && [0, 1, 2, 3].includes(status) && status !== queryParams.status) {
+      queryParams.status = status
+      queryParams.page = 1
+      fetchPosts()
+    }
+  }
+})
+```
+
+---
+
+### 审查结论
+
+经过全面审查，大部分代码已经具备良好的安全防护和错误处理机制：
+
+#### ✅ 已具备的安全措施
+1. **XSS防护**: PostDetail.vue 实现了完善的HTML内容净化，过滤危险标签和属性
+2. **开放重定向防护**: Login.vue 验证redirect参数格式，防止恶意重定向
+3. **表单验证**: 所有表单都有完整的验证规则和错误提示
+4. **防重复提交**: 关键操作按钮都有loading状态和防重复点击保护
+5. **参数验证**: API层对输入参数进行了有效性验证
+6. **Token刷新机制**: request.ts 实现了完善的Token刷新和并发请求处理
+7. **错误处理**: API调用有完整的错误处理和用户友好提示
+
+#### ✅ 本次修复内容
+1. Dashboard.vue 待审核帖子状态参数错误
+2. router/index.ts 缺少 ElMessage 导入
+3. PostManage.vue 未读取URL查询参数
+
+---
+
+### 建议后续测试
+1. 从Dashboard点击"待审核帖子"，验证是否正确跳转并筛选
+2. 使用非管理员账号访问管理员页面，验证错误提示是否正常显示
+3. 测试各按钮的防重复点击功能
+4. 测试登录跳转功能是否正常工作

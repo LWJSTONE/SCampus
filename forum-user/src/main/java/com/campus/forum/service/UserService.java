@@ -142,4 +142,22 @@ public interface UserService extends IService<User> {
      * @return 用户详情
      */
     UserDetailVO getCurrentUser(Long userId);
+
+    /**
+     * 验证用户是否为管理员
+     * 用于跨服务的管理员权限二次验证
+     *
+     * @param userId 用户ID
+     * @return 是否为管理员
+     */
+    boolean verifyAdmin(Long userId);
+
+    /**
+     * 获取用户角色编码
+     * 用于跨服务的角色查询
+     *
+     * @param userId 用户ID
+     * @return 角色编码（如ADMIN、USER等）
+     */
+    String getUserRole(Long userId);
 }

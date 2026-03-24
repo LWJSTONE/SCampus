@@ -156,7 +156,7 @@ interface TodoItem {
 }
 
 const todoList = ref<TodoItem[]>([
-  { title: '待审核帖子', count: 0, icon: 'Document', color: '#E6A23C', type: 'warning', path: '/admin/posts?status=1' },
+  { title: '待审核帖子', count: 0, icon: 'Document', color: '#E6A23C', type: 'warning', path: '/admin/posts?status=0' },
   { title: '待处理举报', count: 0, icon: 'Warning', color: '#F56C6C', type: 'danger', path: '/admin/reports' },
   { title: '待回复反馈', count: 0, icon: 'ChatDotRound', color: '#409EFF', type: 'primary' },
   { title: '系统公告待发布', count: 0, icon: 'Bell', color: '#67C23A', type: 'success', path: '/admin/notices' }

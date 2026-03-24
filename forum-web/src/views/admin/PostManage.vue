@@ -64,13 +64,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, reactive, onMounted, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getPostList, deletePost, topPost, auditPost } from '@/api/post'
 import type { PostVO } from '@/types'
 
 const router = useRouter()
+const route = useRoute()
 const loading = ref(false)
 const posts = ref<PostVO[]>([])
 const total = ref(0)
@@ -191,7 +192,27 @@ async function handleReject(row: PostVO) {
 }
 
 onMounted(() => {
+  // 从URL查询参数中读取status
+  const statusParam = route.query.status
+  if (statusParam !== undefined && statusParam !== null) {
+    const status = Number(statusParam)
+    if (!isNaN(status) && [0, 1, 2, 3].includes(status)) {
+      queryParams.status = status
+    }
+  }
   fetchPosts()
+})
+
+// 监听路由变化，当从Dashboard点击待审核帖子时更新筛选条件
+watch(() => route.query.status, (newStatus) => {
+  if (newStatus !== undefined && newStatus !== null) {
+    const status = Number(newStatus)
+    if (!isNaN(status) && [0, 1, 2, 3].includes(status) && status !== queryParams.status) {
+      queryParams.status = status
+      queryParams.page = 1
+      fetchPosts()
+    }
+  }
 })
 </script>
 

@@ -13,6 +13,8 @@ import com.campus.forum.dto.UserUpdateDTO;
 import com.campus.forum.entity.PageResult;
 import com.campus.forum.entity.User;
 import com.campus.forum.exception.BusinessException;
+import com.campus.forum.entity.Role;
+import com.campus.forum.mapper.RoleMapper;
 import com.campus.forum.mapper.UserFollowMapper;
 import com.campus.forum.mapper.UserMapper;
 import com.campus.forum.service.UserService;
@@ -47,6 +49,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
     private final UserMapper userMapper;
     private final UserFollowMapper userFollowMapper;
+    private final RoleMapper roleMapper;
     private final UserFollowService userFollowService;
     private final RedisUtils redisUtils;
 
@@ -458,5 +461,63 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             return "未知";
         }
         return status == 1 ? "正常" : "禁用";
+    }
+
+    @Override
+    public boolean verifyAdmin(Long userId) {
+        log.info("验证用户是否为管理员，用户ID: {}", userId);
+        
+        if (userId == null) {
+            return false;
+        }
+        
+        // 检查用户是否存在且状态正常
+        User user = getById(userId);
+        if (user == null || user.getStatus() == null || user.getStatus() != 1) {
+            log.warn("用户不存在或已被禁用，用户ID: {}", userId);
+            return false;
+        }
+        
+        // 查询用户角色
+        List<Role> roles = roleMapper.selectByUserId(userId);
+        if (roles == null || roles.isEmpty()) {
+            log.info("用户没有任何角色，用户ID: {}", userId);
+            return false;
+        }
+        
+        // 检查是否有管理员角色
+        boolean isAdmin = roles.stream()
+                .anyMatch(role -> "ADMIN".equalsIgnoreCase(role.getRoleCode()) 
+                        || "ROLE_ADMIN".equalsIgnoreCase(role.getRoleCode()));
+        
+        log.info("用户管理员验证结果，用户ID: {}, 是否管理员: {}", userId, isAdmin);
+        return isAdmin;
+    }
+
+    @Override
+    public String getUserRole(Long userId) {
+        log.info("获取用户角色，用户ID: {}", userId);
+        
+        if (userId == null) {
+            return "USER";
+        }
+        
+        // 查询用户角色
+        List<Role> roles = roleMapper.selectByUserId(userId);
+        if (roles == null || roles.isEmpty()) {
+            return "USER";
+        }
+        
+        // 返回第一个角色的编码（优先返回ADMIN角色）
+        // 如果有ADMIN角色，优先返回
+        for (Role role : roles) {
+            if ("ADMIN".equalsIgnoreCase(role.getRoleCode()) 
+                    || "ROLE_ADMIN".equalsIgnoreCase(role.getRoleCode())) {
+                return "ADMIN";
+            }
+        }
+        
+        // 否则返回第一个角色的编码
+        return roles.get(0).getRoleCode() != null ? roles.get(0).getRoleCode() : "USER";
     }
 }
