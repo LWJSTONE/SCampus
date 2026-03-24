@@ -24,6 +24,8 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -102,8 +104,8 @@ public class ReportController {
     @GetMapping
     @Operation(summary = "获取举报列表", description = "分页获取举报列表（管理员）")
     public Result<IPage<ReportVO>> getReportList(
-            @Parameter(description = "当前页") @RequestParam(defaultValue = "1") Integer current,
-            @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") Integer size,
+            @Parameter(description = "当前页") @RequestParam(defaultValue = "1") @Min(1) @Max(10000) Integer current,
+            @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") @Min(1) @Max(100) Integer size,
             @Parameter(description = "处理状态") @RequestParam(required = false) Integer status,
             @Parameter(description = "举报类型") @RequestParam(required = false) Integer reportType,
             @Parameter(description = "原因类型") @RequestParam(required = false) Integer reasonType,
@@ -199,8 +201,8 @@ public class ReportController {
     @GetMapping("/approve")
     @Operation(summary = "获取待审核列表", description = "分页获取待审核内容列表")
     public Result<IPage<ApproveVO>> getApproveList(
-            @Parameter(description = "当前页") @RequestParam(defaultValue = "1") Integer current,
-            @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") Integer size,
+            @Parameter(description = "当前页") @RequestParam(defaultValue = "1") @Min(1) @Max(10000) Integer current,
+            @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") @Min(1) @Max(100) Integer size,
             @Parameter(description = "审核状态") @RequestParam(required = false) Integer status,
             @Parameter(description = "内容类型") @RequestParam(required = false) Integer contentType,
             @Parameter(description = "用户ID") @RequestParam(required = false) Long userId,
@@ -357,8 +359,8 @@ public class ReportController {
     @GetMapping("/ban")
     @Operation(summary = "获取禁言列表", description = "分页获取禁言记录列表")
     public Result<IPage<UserBanVO>> getBanList(
-            @Parameter(description = "当前页") @RequestParam(defaultValue = "1") Integer current,
-            @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") Integer size,
+            @Parameter(description = "当前页") @RequestParam(defaultValue = "1") @Min(1) @Max(10000) Integer current,
+            @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") @Min(1) @Max(100) Integer size,
             @Parameter(description = "用户ID") @RequestParam(required = false) Long userId,
             @Parameter(description = "禁言状态") @RequestParam(required = false) Integer status,
             HttpServletRequest request) {

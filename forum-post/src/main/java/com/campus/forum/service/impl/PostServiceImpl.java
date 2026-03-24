@@ -613,9 +613,15 @@ public class PostServiceImpl implements PostService {
             log.info("帖子{}成功, postId: {}, userId: {}", isLike ? "点赞" : "取消点赞", id, userId);
             return isLike;
         } finally {
-            // 释放锁
+            // 【安全修复】使用Lua脚本原子性地验证并释放锁
+            // 防止误删其他线程的锁：只有锁的持有者才能释放锁
             try {
-                redisTemplate.delete(lockKey);
+                String luaScript = "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";
+                redisTemplate.execute(
+                    new org.springframework.data.redis.core.script.DefaultRedisScript<>(luaScript, Long.class),
+                    java.util.Collections.singletonList(lockKey),
+                    lockValue
+                );
             } catch (Exception e) {
                 log.warn("释放锁失败: {}", lockKey, e);
             }
@@ -664,9 +670,15 @@ public class PostServiceImpl implements PostService {
             log.info("帖子{}成功, postId: {}, userId: {}", isCollect ? "收藏" : "取消收藏", id, userId);
             return isCollect;
         } finally {
-            // 释放锁
+            // 【安全修复】使用Lua脚本原子性地验证并释放锁
+            // 防止误删其他线程的锁：只有锁的持有者才能释放锁
             try {
-                redisTemplate.delete(lockKey);
+                String luaScript = "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";
+                redisTemplate.execute(
+                    new org.springframework.data.redis.core.script.DefaultRedisScript<>(luaScript, Long.class),
+                    java.util.Collections.singletonList(lockKey),
+                    lockValue
+                );
             } catch (Exception e) {
                 log.warn("释放锁失败: {}", lockKey, e);
             }

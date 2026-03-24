@@ -120,3 +120,132 @@ export function unbanUser(userId: number, reason?: string): Promise<boolean> {
   }
   return request.delete(`/reports/ban/${userId}`, { reason })
 }
+
+// ==================== 审核相关接口 ====================
+
+export interface ApproveVO {
+  id: number
+  contentType: number      // 内容类型：1-帖子 2-评论
+  contentId: number        // 内容ID
+  userId: number           // 提交用户ID
+  userName: string         // 提交用户名
+  title: string            // 标题（帖子）
+  content: string          // 内容摘要
+  status: number           // 审核状态：0-待审核 1-通过 2-拒绝
+  auditorId: number        // 审核人ID
+  auditorName: string      // 审核人名称
+  auditTime: string        // 审核时间
+  rejectReason: string     // 拒绝原因
+  createTime: string       // 提交时间
+}
+
+export interface ApproveQueryDTO {
+  page?: number
+  current?: number
+  size: number
+  status?: number
+  contentType?: number
+  userId?: number
+}
+
+export interface ApproveHandleDTO {
+  status: number           // 审核状态：1-通过 2-拒绝
+  rejectReason?: string    // 拒绝原因
+}
+
+/**
+ * 获取待审核列表
+ */
+export function getApproveList(params: ApproveQueryDTO): Promise<PageResult<ApproveVO>> {
+  const queryParams = {
+    current: params.current || params.page || 1,
+    size: Math.max(1, Math.min(100, params.size || 10)),
+    status: params.status,
+    contentType: params.contentType,
+    userId: params.userId
+  }
+  return request.get('/reports/approve', queryParams)
+}
+
+/**
+ * 审核处理（通过/驳回）
+ */
+export function approve(id: number, data: ApproveHandleDTO): Promise<boolean> {
+  if (!id || isNaN(id) || id <= 0) {
+    throw new Error('无效的审核ID')
+  }
+  if (!data) {
+    throw new Error('审核数据不能为空')
+  }
+  // 审核状态验证：1-通过，2-拒绝
+  if (![1, 2].includes(data.status)) {
+    throw new Error('审核状态值无效，必须是1(通过)或2(拒绝)')
+  }
+  // 拒绝时需要填写原因
+  if (data.status === 2 && !data.rejectReason?.trim()) {
+    throw new Error('拒绝时必须填写拒绝原因')
+  }
+  return request.put(`/reports/approve/${id}`, data)
+}
+
+/**
+ * 获取审核详情
+ */
+export function getApproveDetail(id: number): Promise<ApproveVO> {
+  if (!id || isNaN(id) || id <= 0) {
+    throw new Error('无效的审核ID')
+  }
+  return request.get(`/reports/approve/${id}`)
+}
+
+// ==================== 禁言相关接口 ====================
+
+export interface UserBanVO {
+  id: number
+  userId: number
+  userName: string
+  banDays: number
+  reason: string
+  operatorId: number
+  operatorName: string
+  startTime: string
+  endTime: string
+  status: number           // 禁言状态：0-已解除 1-生效中 2-已过期
+  unbanTime: string        // 解除时间
+  unbanOperatorId: number  // 解除操作人ID
+  unbanReason: string      // 解除原因
+  createTime: string
+}
+
+/**
+ * 获取禁言列表
+ */
+export function getBanList(params: { page: number; size: number; userId?: number; status?: number }): Promise<PageResult<UserBanVO>> {
+  const queryParams = {
+    current: params.page || 1,
+    size: Math.max(1, Math.min(100, params.size || 10)),
+    userId: params.userId,
+    status: params.status
+  }
+  return request.get('/reports/ban', queryParams)
+}
+
+/**
+ * 获取用户禁言状态
+ */
+export function getUserBanStatus(userId: number): Promise<UserBanVO | null> {
+  if (!userId || isNaN(userId) || userId <= 0) {
+    throw new Error('无效的用户ID')
+  }
+  return request.get(`/reports/ban/user/${userId}`)
+}
+
+/**
+ * 获取用户禁言历史
+ */
+export function getBanHistory(userId: number): Promise<UserBanVO[]> {
+  if (!userId || isNaN(userId) || userId <= 0) {
+    throw new Error('无效的用户ID')
+  }
+  return request.get(`/reports/ban/history/${userId}`)
+}
