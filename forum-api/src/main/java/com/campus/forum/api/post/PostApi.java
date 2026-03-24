@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 
 /**
@@ -24,7 +25,7 @@ public interface PostApi {
      * @return Post info
      */
     @GetMapping("/api/v1/posts/internal/{id}")
-    Result<PostDTO> getPostById(@PathVariable("id") Long id);
+    Result<PostDTO> getPostById(@PathVariable("id") Long id, @RequestHeader("X-Internal-Service-Key") String serviceKey);
 
     /**
      * Delete post by ID (logical delete)
@@ -33,7 +34,7 @@ public interface PostApi {
      * @return Result
      */
     @DeleteMapping("/api/v1/posts/internal/{id}")
-    Result<Boolean> deletePost(@PathVariable("id") Long id);
+    Result<Boolean> deletePost(@PathVariable("id") Long id, @RequestHeader("X-Internal-Service-Key") String serviceKey);
 
     /**
      * Update post stats
@@ -46,7 +47,8 @@ public interface PostApi {
     @PostMapping("/api/v1/posts/internal/{id}/stats")
     Result<Boolean> updatePostStats(@PathVariable("id") Long id,
                                     @RequestParam("field") String field,
-                                    @RequestParam("delta") int delta);
+                                    @RequestParam("delta") int delta,
+                                    @RequestHeader("X-Internal-Service-Key") String serviceKey);
 
     /**
      * Get user posts
@@ -60,5 +62,6 @@ public interface PostApi {
     Result<Page<PostDTO>> getPostsByUserId(
             @PathVariable("userId") Long userId,
             @RequestParam("page") int page,
-            @RequestParam("size") int size);
+            @RequestParam("size") int size,
+            @RequestHeader("X-Internal-Service-Key") String serviceKey);
 }

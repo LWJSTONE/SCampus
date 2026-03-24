@@ -365,7 +365,7 @@ public class UserController {
         log.info("获取用户帖子，用户ID：{}", id);
         // 通过Feign调用帖子服务获取用户帖子
         try {
-            Result<Page<PostDTO>> result = postApi.getPostsByUserId(id, queryDTO.getCurrent(), queryDTO.getSize());
+            Result<Page<PostDTO>> result = postApi.getPostsByUserId(id, queryDTO.getCurrent(), queryDTO.getSize(), internalServiceKey);
             if (result != null && result.getData() != null) {
                 return Result.success(PageResult.of(result.getData()));
             }
@@ -390,7 +390,7 @@ public class UserController {
         log.info("获取用户评论，用户ID：{}", id);
         // 通过Feign调用评论服务获取用户评论
         try {
-            Result<Page<CommentDTO>> result = commentApi.getCommentsByUserId(id, queryDTO.getCurrent(), queryDTO.getSize());
+            Result<Page<CommentDTO>> result = commentApi.getCommentsByUserId(id, queryDTO.getCurrent(), queryDTO.getSize(), internalServiceKey);
             if (result != null && result.getData() != null) {
                 return Result.success(PageResult.of(result.getData()));
             }
@@ -737,6 +737,36 @@ public class UserController {
         return Result.success(role);
     }
     
+    /**
+     * 内部API：获取用户基本信息
+     * 供forum-category等服务调用，返回用户基本信息
+     *
+     * @param userId 用户ID
+     * @param serviceKey 内部服务密钥
+     * @return 用户基本信息
+     */
+    @GetMapping("/internal/{userId}/info")
+    @Operation(summary = "内部API-获取用户基本信息", description = "供其他服务调用的内部接口，获取用户基本信息")
+    public Result<com.campus.forum.api.user.UserDTO> getUserInfo(
+            @Parameter(description = "用户ID") @PathVariable Long userId,
+            @Parameter(description = "内部服务密钥") @RequestHeader(value = "X-Internal-Service-Key", required = false) String serviceKey) {
+        // 验证内部服务密钥
+        if (!isValidServiceKey(serviceKey)) {
+            log.warn("内部API调用鉴权失败，serviceKey: {}", serviceKey);
+            return Result.fail(403, "无权限访问内部API");
+        }
+        log.info("内部API调用：获取用户基本信息，用户ID: {}", userId);
+        
+        User user = userService.getById(userId);
+        if (user == null) {
+            return Result.fail(404, "用户不存在");
+        }
+        
+        // 转换为UserDTO
+        com.campus.forum.api.user.UserDTO userDTO = convertToUserDTO(user);
+        return Result.success(userDTO);
+    }
+
     /**
      * 校验头像URL安全性
      * 禁止javascript协议、data协议等危险URL，只允许http和https协议

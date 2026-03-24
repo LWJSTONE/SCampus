@@ -15,25 +15,25 @@ import org.springframework.stereotype.Component;
 public class PostApiFallback implements PostApi {
 
     @Override
-    public Result<PostDTO> getPostById(Long id) {
+    public Result<PostDTO> getPostById(Long id, String serviceKey) {
         log.error("调用帖子服务失败，获取帖子信息，帖子ID: {}", id);
         return Result.fail("帖子服务不可用，请稍后重试");
     }
 
     @Override
-    public Result<Boolean> deletePost(Long id) {
+    public Result<Boolean> deletePost(Long id, String serviceKey) {
         log.error("调用帖子服务失败，删除帖子，帖子ID: {}", id);
         return Result.fail("帖子服务不可用，请稍后重试");
     }
 
     @Override
-    public Result<Boolean> updatePostStats(Long id, String field, int delta) {
+    public Result<Boolean> updatePostStats(Long id, String field, int delta, String serviceKey) {
         log.error("调用帖子服务失败，更新帖子统计，帖子ID: {}, 字段: {}, 增量: {}", id, field, delta);
         return Result.fail("帖子服务不可用，请稍后重试");
     }
 
     @Override
-    public Result<Page<PostDTO>> getPostsByUserId(Long userId, int page, int size) {
+    public Result<Page<PostDTO>> getPostsByUserId(Long userId, int page, int size, String serviceKey) {
         log.error("调用帖子服务失败，获取用户帖子列表，用户ID: {}, 页码: {}, 每页大小: {}", userId, page, size);
         return Result.fail("帖子服务不可用，请稍后重试");
     }

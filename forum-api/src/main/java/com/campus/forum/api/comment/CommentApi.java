@@ -6,6 +6,7 @@ import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 
 /**
@@ -23,7 +24,7 @@ public interface CommentApi {
      * @return Comment info
      */
     @GetMapping("/api/v1/comments/internal/{id}")
-    Result<CommentDTO> getCommentById(@PathVariable("id") Long id);
+    Result<CommentDTO> getCommentById(@PathVariable("id") Long id, @RequestHeader("X-Internal-Service-Key") String serviceKey);
 
     /**
      * Delete comment by ID (logical delete)
@@ -32,7 +33,7 @@ public interface CommentApi {
      * @return Result
      */
     @DeleteMapping("/api/v1/comments/internal/{id}")
-    Result<Boolean> deleteComment(@PathVariable("id") Long id);
+    Result<Boolean> deleteComment(@PathVariable("id") Long id, @RequestHeader("X-Internal-Service-Key") String serviceKey);
 
     /**
      * Get comments by post ID
@@ -46,7 +47,8 @@ public interface CommentApi {
     Result<Page<CommentDTO>> getCommentsByPostId(
             @PathVariable("postId") Long postId,
             @RequestParam("page") int page,
-            @RequestParam("size") int size);
+            @RequestParam("size") int size,
+            @RequestHeader("X-Internal-Service-Key") String serviceKey);
 
     /**
      * Get comment count by post ID
@@ -55,7 +57,7 @@ public interface CommentApi {
      * @return Comment count
      */
     @GetMapping("/api/v1/comments/internal/post/{postId}/count")
-    Result<Integer> getCommentCountByPostId(@PathVariable("postId") Long postId);
+    Result<Integer> getCommentCountByPostId(@PathVariable("postId") Long postId, @RequestHeader("X-Internal-Service-Key") String serviceKey);
 
     /**
      * Get comments by user ID
@@ -69,5 +71,6 @@ public interface CommentApi {
     Result<Page<CommentDTO>> getCommentsByUserId(
             @PathVariable("userId") Long userId,
             @RequestParam("page") int page,
-            @RequestParam("size") int size);
+            @RequestParam("size") int size,
+            @RequestHeader("X-Internal-Service-Key") String serviceKey);
 }

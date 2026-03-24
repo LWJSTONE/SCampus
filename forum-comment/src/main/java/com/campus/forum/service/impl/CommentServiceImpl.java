@@ -25,6 +25,7 @@ import com.campus.forum.utils.IpUtils;
 import com.campus.forum.vo.CommentVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -58,6 +59,9 @@ public class CommentServiceImpl implements CommentService {
     // 远程服务调用
     private final PostApi postApi;
     private final UserApi userApi;
+    
+    @Value("${app.internal-service-key:campus-forum-internal-key-2024}")
+    private String internalServiceKey;
 
     // Redis Key前缀
     private static final String REDIS_KEY_COMMENT_COUNT = "comment:count:";
@@ -213,7 +217,7 @@ public class CommentServiceImpl implements CommentService {
         // 如果不是作者，检查是否是管理员
         if (!isAuthor) {
             try {
-                Result<UserDTO> userResult = userApi.getUserById(userId);
+                Result<UserDTO> userResult = userApi.getUserById(userId, internalServiceKey);
                 if (userResult != null && userResult.isSuccess() && userResult.getData() != null) {
                     String role = userResult.getData().getRole();
                     isAdmin = "ADMIN".equals(role);
@@ -556,7 +560,7 @@ public class CommentServiceImpl implements CommentService {
         
         // 验证帖子是否存在
         try {
-            Result<PostDTO> postResult = postApi.getPostById(createDTO.getPostId());
+            Result<PostDTO> postResult = postApi.getPostById(createDTO.getPostId(), internalServiceKey);
             if (postResult == null || !postResult.isSuccess() || postResult.getData() == null) {
                 throw new BusinessException(ResultCode.POST_NOT_FOUND, "帖子不存在或已删除");
             }
@@ -671,7 +675,7 @@ public class CommentServiceImpl implements CommentService {
             
             // 2. 【修复】同步更新帖子数据库中的评论数
             try {
-                postApi.updatePostStats(postId, "commentCount", delta);
+                postApi.updatePostStats(postId, "commentCount", delta, internalServiceKey);
                 log.debug("已同步更新帖子评论数到数据库, postId: {}, delta: {}", postId, delta);
             } catch (Exception e) {
                 log.error("同步更新帖子评论数失败, postId: {}, delta: {}", postId, delta, e);

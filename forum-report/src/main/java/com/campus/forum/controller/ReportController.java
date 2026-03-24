@@ -19,6 +19,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -51,6 +52,9 @@ public class ReportController {
     private final UserBanService userBanService;
     private final UserApi userApi;
     private final StringRedisTemplate stringRedisTemplate;
+    
+    @Value("${app.internal-service-key:campus-forum-internal-key-2024}")
+    private String internalServiceKey;
     
     /**
      * 举报频率限制：每用户每小时最大举报次数
@@ -453,7 +457,7 @@ public class ReportController {
         // 如果JWT中没有角色信息，通过UserApi获取用户角色进行双重验证
         if (role == null || role.isEmpty()) {
             try {
-                Result<UserDTO> result = userApi.getUserById(userId);
+                Result<UserDTO> result = userApi.getUserById(userId, internalServiceKey);
                 if (result != null && result.isSuccess() && result.getData() != null) {
                     role = result.getData().getRole();
                     log.debug("从UserApi获取到用户角色: {}", role);
@@ -510,7 +514,7 @@ public class ReportController {
         // 如果JWT中没有角色信息，通过UserApi获取用户角色进行双重验证
         if (role == null || role.isEmpty()) {
             try {
-                Result<UserDTO> result = userApi.getUserById(userId);
+                Result<UserDTO> result = userApi.getUserById(userId, internalServiceKey);
                 if (result != null && result.isSuccess() && result.getData() != null) {
                     role = result.getData().getRole();
                 }

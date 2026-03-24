@@ -227,3 +227,8 @@ file:
   # 修复：添加批量上传数量限制，防止恶意大量文件上传
   batch:
     max-count: 10
+
+# ==================== 内部服务安全配置 ====================
+app:
+  # 内部服务调用密钥（生产环境请使用环境变量配置）
+  internal-service-key: ${INTERNAL_SERVICE_KEY:campus-forum-internal-key-2024}

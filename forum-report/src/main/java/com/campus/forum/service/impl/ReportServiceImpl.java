@@ -20,6 +20,7 @@ import com.campus.forum.service.UserBanService;
 import com.campus.forum.vo.ReportVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,6 +44,9 @@ public class ReportServiceImpl extends ServiceImpl<ReportMapper, Report> impleme
     private final PostApi postApi;
     private final CommentApi commentApi;
     private final UserApi userApi;
+    
+    @Value("${app.internal-service-key:campus-forum-internal-key-2024}")
+    private String internalServiceKey;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -93,13 +97,13 @@ public class ReportServiceImpl extends ServiceImpl<ReportMapper, Report> impleme
         try {
             switch (createDTO.getReportType()) {
                 case 1: // 帖子
-                    Result<?> postResult = postApi.getPostById(createDTO.getTargetId());
+                    Result<?> postResult = postApi.getPostById(createDTO.getTargetId(), internalServiceKey);
                     if (postResult == null || postResult.getData() == null) {
                         throw new BusinessException("举报的帖子不存在");
                     }
                     break;
                 case 2: // 评论
-                    Result<?> commentResult = commentApi.getCommentById(createDTO.getTargetId());
+                    Result<?> commentResult = commentApi.getCommentById(createDTO.getTargetId(), internalServiceKey);
                     if (commentResult == null || commentResult.getData() == null) {
                         throw new BusinessException("举报的评论不存在");
                     }
@@ -108,7 +112,7 @@ public class ReportServiceImpl extends ServiceImpl<ReportMapper, Report> impleme
                     if (createDTO.getReportedUserId() == null) {
                         throw new BusinessException("举报用户时必须提供被举报用户ID");
                     }
-                    Result<?> userResult = userApi.getUserById(createDTO.getReportedUserId());
+                    Result<?> userResult = userApi.getUserById(createDTO.getReportedUserId(), internalServiceKey);
                     if (userResult == null || userResult.getData() == null) {
                         throw new BusinessException("举报的用户不存在");
                     }
@@ -234,7 +238,7 @@ public class ReportServiceImpl extends ServiceImpl<ReportMapper, Report> impleme
                         throw new BusinessException("封号失败：被举报用户ID为空");
                     }
                     try {
-                        Result<?> banResult = userApi.banUser(report.getReportedUserId());
+                        Result<?> banResult = userApi.banUser(report.getReportedUserId(), internalServiceKey);
                         if (banResult == null || banResult.getCode() != 200) {
                             log.error("封号失败: userId={}, result={}", report.getReportedUserId(), banResult);
                             throw new BusinessException("封号失败，请联系管理员");
@@ -283,7 +287,7 @@ public class ReportServiceImpl extends ServiceImpl<ReportMapper, Report> impleme
         try {
             switch (report.getReportType()) {
                 case 1: // 帖子
-                    Result<?> deletePostResult = postApi.deletePost(report.getTargetId());
+                    Result<?> deletePostResult = postApi.deletePost(report.getTargetId(), internalServiceKey);
                     if (deletePostResult == null || deletePostResult.getCode() != 200) {
                         log.error("删除被举报帖子失败: postId={}, result={}", report.getTargetId(), deletePostResult);
                         throw new BusinessException("删除帖子失败，请稍后重试");
@@ -291,7 +295,7 @@ public class ReportServiceImpl extends ServiceImpl<ReportMapper, Report> impleme
                     log.info("删除被举报帖子成功: postId={}", report.getTargetId());
                     break;
                 case 2: // 评论
-                    Result<?> deleteCommentResult = commentApi.deleteComment(report.getTargetId());
+                    Result<?> deleteCommentResult = commentApi.deleteComment(report.getTargetId(), internalServiceKey);
                     if (deleteCommentResult == null || deleteCommentResult.getCode() != 200) {
                         log.error("删除被举报评论失败: commentId={}, result={}", report.getTargetId(), deleteCommentResult);
                         throw new BusinessException("删除评论失败，请稍后重试");

@@ -170,3 +170,9 @@ info:
     description: 用户服务 - 用户管理、用户关注等功能
     version: 1.0.0
     author: Campus Team
+
+# ==================== 内部服务安全配置 ====================
+app:
+  # 内部服务调用密钥（生产环境请使用环境变量配置）
+  # 用于验证服务间Feign调用的合法性，防止外部伪造请求
+  internal-service-key: ${INTERNAL_SERVICE_KEY:campus-forum-internal-key-2024}

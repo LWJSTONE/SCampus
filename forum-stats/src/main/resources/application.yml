@@ -131,3 +131,8 @@ info:
     description: 统计服务 - 数据统计、报表导出等功能
     version: 1.0.0
     author: Campus Team
+
+# ==================== 内部服务安全配置 ====================
+app:
+  # 内部服务调用密钥（生产环境请使用环境变量配置）
+  internal-service-key: ${INTERNAL_SERVICE_KEY:campus-forum-internal-key-2024}

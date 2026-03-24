@@ -116,3 +116,13 @@ info:
     description: 版块服务 - 版块分类、版块管理、版主管理
     version: 1.0.0
     author: Campus Team
+
+# ==================== 内部服务安全配置 ====================
+app:
+  # 内部服务调用密钥（生产环境请使用环境变量配置）
+  internal-service-key: ${INTERNAL_SERVICE_KEY:campus-forum-internal-key-2024}
+
+# ==================== Feign配置 ====================
+feign:
+  user:
+    url: ${FEIGN_USER_URL:http://localhost:9002}

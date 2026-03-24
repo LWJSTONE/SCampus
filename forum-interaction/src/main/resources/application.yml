@@ -167,3 +167,13 @@ interaction:
     cache-expire: 86400
     # 每页最大数量
     max-page-size: 50
+
+# ==================== JWT配置 ====================
+jwt:
+  # JWT密钥（生产环境请使用环境变量配置）
+  secret: ${JWT_SECRET:campus-forum-jwt-secret-key-2024-please-change-in-production}
+
+# ==================== 内部服务安全配置 ====================
+app:
+  # 内部服务调用密钥（生产环境请使用环境变量配置）
+  internal-service-key: ${INTERNAL_SERVICE_KEY:campus-forum-internal-key-2024}

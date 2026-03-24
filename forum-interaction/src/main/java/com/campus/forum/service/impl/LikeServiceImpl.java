@@ -13,6 +13,7 @@ import com.campus.forum.mapper.LikeMapper;
 import com.campus.forum.service.LikeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
@@ -38,6 +39,9 @@ public class LikeServiceImpl implements LikeService {
     private final StringRedisTemplate redisTemplate;
     private final PostApi postApi;
     private final CommentApi commentApi;
+    
+    @Value("${app.internal-service-key:campus-forum-internal-key-2024}")
+    private String internalServiceKey;
 
     private static final String LIKE_COUNT_KEY = "like:count:";
     private static final String LIKE_USER_KEY = "like:user:";
@@ -264,13 +268,13 @@ public class LikeServiceImpl implements LikeService {
         try {
             if (targetType == 1) {
                 // 验证帖子是否存在
-                Result<PostDTO> postResult = postApi.getPostById(targetId);
+                Result<PostDTO> postResult = postApi.getPostById(targetId, internalServiceKey);
                 if (postResult == null || !postResult.isSuccess() || postResult.getData() == null) {
                     throw new BusinessException(ResultCode.POST_NOT_FOUND, "帖子不存在或已删除");
                 }
             } else if (targetType == 2) {
                 // 验证评论是否存在
-                Result<CommentDTO> commentResult = commentApi.getCommentById(targetId);
+                Result<CommentDTO> commentResult = commentApi.getCommentById(targetId, internalServiceKey);
                 if (commentResult == null || !commentResult.isSuccess() || commentResult.getData() == null) {
                     throw new BusinessException(ResultCode.COMMENT_NOT_FOUND, "评论不存在或已删除");
                 }
@@ -299,7 +303,7 @@ public class LikeServiceImpl implements LikeService {
         try {
             // 只有点赞的是帖子时才更新帖子统计
             if (targetType == 1) {
-                postApi.updatePostStats(targetId, "likeCount", delta);
+                postApi.updatePostStats(targetId, "likeCount", delta, internalServiceKey);
                 log.debug("已同步更新帖子点赞数, postId: {}, delta: {}", targetId, delta);
             }
             // 如果是评论点赞，可以在这里添加评论统计更新逻辑（如果需要）

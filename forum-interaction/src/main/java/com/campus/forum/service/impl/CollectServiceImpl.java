@@ -14,6 +14,7 @@ import com.campus.forum.service.CollectService;
 import com.campus.forum.vo.CollectVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
@@ -38,6 +39,9 @@ public class CollectServiceImpl implements CollectService {
     private final CollectMapper collectMapper;
     private final StringRedisTemplate redisTemplate;
     private final PostApi postApi;
+    
+    @Value("${app.internal-service-key:campus-forum-internal-key-2024}")
+    private String internalServiceKey;
 
     private static final String COLLECT_COUNT_KEY = "collect:count:";
     private static final String COLLECT_USER_KEY = "collect:user:";
@@ -250,7 +254,7 @@ public class CollectServiceImpl implements CollectService {
      */
     private void validatePostExists(Long postId) {
         try {
-            Result<PostDTO> postResult = postApi.getPostById(postId);
+            Result<PostDTO> postResult = postApi.getPostById(postId, internalServiceKey);
             if (postResult == null || !postResult.isSuccess() || postResult.getData() == null) {
                 throw new BusinessException(ResultCode.POST_NOT_FOUND, "帖子不存在或已删除");
             }
