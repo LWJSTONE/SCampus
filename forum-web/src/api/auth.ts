@@ -38,6 +38,10 @@ export function register(data: RegisterDTO): Promise<void> {
   if (!data.password) {
     throw new Error('密码不能为空')
   }
+  // 验证密码确认
+  if (data.confirmPassword !== undefined && data.password !== data.confirmPassword) {
+    throw new Error('两次输入的密码不一致')
+  }
   if (data.email && !validateEmail(data.email)) {
     throw new Error('邮箱格式不正确')
   }

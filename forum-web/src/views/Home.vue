@@ -148,7 +148,10 @@ async function fetchPosts() {
     
     // 兼容不同的分页字段名
     const currentPage = res.current || res.pageNum || res.page || page.value
-    const totalPages = res.pages || res.totalPages || res.total || 1
+    // 计算总页数：优先使用后端返回的pages字段，否则根据total和size计算
+    const totalRecords = res.total ?? 0
+    const pageSize = res.size || size
+    const totalPages = res.pages || res.totalPages || Math.ceil(totalRecords / pageSize) || 1
     hasMore.value = currentPage < totalPages
   } catch (e: any) {
     console.error('获取帖子列表失败:', e)

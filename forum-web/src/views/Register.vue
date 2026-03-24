@@ -234,11 +234,15 @@ const registerRules: FormRules = {
   ],
   agreement: [
     {
-      type: 'enum',
-      enum: [true] as boolean[],
-      message: '请同意用户协议和隐私政策',
+      validator: (_rule, value, callback) => {
+        if (!value) {
+          callback(new Error('请同意用户协议和隐私政策'))
+        } else {
+          callback()
+        }
+      },
       trigger: 'change',
-    } as FormItemRule,
+    },
   ],
 }
 

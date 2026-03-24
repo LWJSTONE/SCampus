@@ -53,12 +53,15 @@ dayjs.locale('zh-cn')
 const route = useRoute()
 const router = useRouter()
 
-// 参数验证
+// 参数验证 - 处理Vue Router可能返回数组的情况
 const forumIdParam = route.params.id
-const forumId = Number(forumIdParam)
+const forumId = computed(() => {
+  const param = Array.isArray(forumIdParam) ? forumIdParam[0] : forumIdParam
+  return Number(param)
+})
 
 // 使用computed进行有效性检查
-const isValidForumId = computed(() => !isNaN(forumId) && forumId > 0)
+const isValidForumId = computed(() => !isNaN(forumId.value) && forumId.value > 0)
 
 const forum = ref<ForumVO | null>(null)
 const posts = ref<PostVO[]>([])
@@ -76,7 +79,7 @@ async function fetchForum() {
   if (!isValidForumId.value) return
   
   try {
-    forum.value = await getForumDetail(forumId)
+    forum.value = await getForumDetail(forumId.value)
   } catch (e: any) {
     console.error('获取版块信息失败:', e)
     ElMessage.error(e?.message || '获取版块信息失败')
@@ -89,7 +92,7 @@ async function fetchPosts() {
   
   loading.value = true
   try {
-    const res = await getPostsByForum(forumId, { page: page.value, size: 10 })
+    const res = await getPostsByForum(forumId.value, { page: page.value, size: 10 })
     // 兼容后端返回字段名 userName -> username
     const records = (res.records || []).map((post: any) => ({
       ...post,
@@ -129,7 +132,7 @@ onMounted(() => {
   // 在 onMounted 中进行错误提示和跳转
   if (!isValidForumId.value) {
     ElMessage.error('版块ID无效')
-    router.push('/')
+    router.push('/').catch(() => {})
     return
   }
   fetchForum()

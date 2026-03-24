@@ -19,10 +19,10 @@ interface CommentQueryParams extends PageQuery {
  * @param params 分页参数
  */
 export function getPostComments(postId: number, params: PageQuery): Promise<PageResult<CommentVO>> {
-  // 兼容后端分页参数
+  // 兼容后端分页参数，使用nullish coalescing避免0值问题
   const queryParams = {
-    current: params.page || params.current,
-    size: params.size
+    current: params.page ?? params.current ?? 1,
+    size: params.size ?? 10
   }
   return request.get(`/comments/post/${postId}`, queryParams)
 }

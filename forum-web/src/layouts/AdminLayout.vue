@@ -81,7 +81,7 @@
         </div>
 
         <div class="header-right">
-          <el-button text @click="router.push('/')">
+          <el-button text @click="router.push('/').catch(() => {})">
             <el-icon><HomeFilled /></el-icon>
             前台首页
           </el-button>
@@ -116,7 +116,7 @@
   <div v-else class="no-permission">
     <el-icon :size="48"><WarningFilled /></el-icon>
     <p>您没有访问管理后台的权限</p>
-    <el-button type="primary" @click="router.push('/')">返回首页</el-button>
+    <el-button type="primary" @click="router.push('/').catch(() => {})">返回首页</el-button>
   </div>
 </template>
 
@@ -156,7 +156,7 @@ async function handleLogout() {
     
     userStore.logout()
     // 统一退出后跳转到首页，与 DefaultLayout 保持一致
-    router.push('/')
+    router.push('/').catch(() => {})
     ElMessage.success('已退出登录')
   } catch {
     // 用户取消操作，不需要处理
@@ -177,7 +177,7 @@ async function checkPermission() {
   // 如果没有登录，跳转登录页
   if (!userStore.isLoggedIn) {
     ElMessage.warning('请先登录')
-    router.push('/login')
+    router.push('/login').catch(() => {})
     return
   }
 
@@ -187,7 +187,7 @@ async function checkPermission() {
       await userStore.fetchUserInfo()
     } catch (e) {
       ElMessage.error('获取用户信息失败')
-      router.push('/login')
+      router.push('/login').catch(() => {})
       return
     }
   }

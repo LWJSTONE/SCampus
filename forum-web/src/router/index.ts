@@ -203,6 +203,7 @@ router.beforeEach(async (to, _from, next) => {
     
     if (!userStore.isAdmin) {
       // 非管理员，跳转到首页并提示
+      ElMessage.warning('您没有管理员权限')
       next({ name: 'Home' })
       return
     }

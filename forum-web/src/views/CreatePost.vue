@@ -117,7 +117,7 @@ async function handleSubmit() {
 
   submitting.value = true
   try {
-    const postId = await createPost({
+    const result = await createPost({
       forumId: form.forumId!,
       title: form.title,
       content: form.content,
@@ -128,6 +128,8 @@ async function handleSubmit() {
     })
     hasUnsavedChanges.value = false
     ElMessage.success('发布成功')
+    // 兼容后端返回不同格式的情况：可能是数字ID，也可能是包含id属性的对象
+    const postId = typeof result === 'object' && result !== null ? (result as any).id : result
     router.push(`/post/${postId}`)
   } catch (e: any) {
     console.error('发布失败:', e)
@@ -185,7 +187,7 @@ onMounted(() => {
   // 检查登录状态
   if (!userStore.isLoggedIn) {
     ElMessage.warning('请先登录')
-    router.push('/login')
+    router.push({ path: '/login', query: { redirect: '/post/create' } })
     return
   }
   fetchForums()

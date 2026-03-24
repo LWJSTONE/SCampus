@@ -190,6 +190,10 @@ async function handleAvatarUpload(options: UploadRequestOptions) {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
 
+    // 验证上传响应格式
+    if (!uploadRes?.url) {
+      throw new Error('上传响应格式错误，未获取到图片URL')
+    }
     const avatarUrl = uploadRes.url
 
     // 更新头像URL
@@ -282,7 +286,7 @@ onMounted(() => {
   // 检查登录状态
   if (!userStore.isLoggedIn) {
     ElMessage.warning('请先登录')
-    router.push('/login')
+    router.push('/login').catch(() => {})
     return
   }
   fetchUserInfo()

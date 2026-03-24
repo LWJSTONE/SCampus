@@ -166,9 +166,9 @@ const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 
-// 帖子ID - 添加有效性验证
-const postId = Number(route.params.id)
-const isValidPostId = computed(() => !isNaN(postId) && postId > 0)
+// 帖子ID - 使用computed使其响应路由变化
+const postId = computed(() => Number(route.params.id))
+const isValidPostId = computed(() => !isNaN(postId.value) && postId.value > 0)
 
 // 加载状态
 const loading = ref(false)
@@ -222,6 +222,13 @@ const sanitizedContent = computed(() => {
   // 移除embed和object标签
   result = result.replace(/<embed\b[^>]*>/gi, '')
   result = result.replace(/<object\b[^<]*(?:(?!<\/object>)<[^<]*)*<\/object>/gi, '')
+
+  // 移除SVG标签（SVG可以包含恶意脚本）
+  result = result.replace(/<svg\b[^<]*(?:(?!<\/svg>)<[^<]*)*<\/svg>/gi, '')
+  result = result.replace(/<svg\b[^>]*\/?>/gi, '')
+
+  // 移除math标签（MathML也可能被滥用）
+  result = result.replace(/<math\b[^<]*(?:(?!<\/math>)<[^<]*)*<\/math>/gi, '')
 
   // 移除所有事件处理属性（包括无引号的属性值）
   result = result.replace(/\s*on\w+\s*=\s*["'][^"']*["']/gi, '')
@@ -332,7 +339,7 @@ async function fetchPostDetail() {
   }
   loading.value = true
   try {
-    const res = await getPostById(postId)
+    const res = await getPostById(postId.value)
     // 兼容多种字段名
     res.liked = res.liked ?? res.isLiked ?? false
     res.collected = res.collected ?? res.isCollected ?? false
@@ -363,7 +370,7 @@ async function fetchComments() {
     return
   }
   try {
-    const res = await getPostComments(postId, queryParams)
+    const res = await getPostComments(postId.value, queryParams)
     // 兼容后端返回的字段名
     const records = (res.records || res.list || []).map((comment: any) => ({
       ...comment,
@@ -385,7 +392,7 @@ async function fetchComments() {
 async function handleLike() {
   if (!userStore.isLoggedIn) {
     ElMessage.warning('请先登录')
-    router.push('/login')
+    router.push({ path: '/login', query: { redirect: route.fullPath } })
     return
   }
 
@@ -424,7 +431,7 @@ async function handleLike() {
 async function handleCollect() {
   if (!userStore.isLoggedIn) {
     ElMessage.warning('请先登录')
-    router.push('/login')
+    router.push({ path: '/login', query: { redirect: route.fullPath } })
     return
   }
 
@@ -490,7 +497,7 @@ async function handleShare() {
 async function handleComment() {
   if (!userStore.isLoggedIn) {
     ElMessage.warning('请先登录')
-    router.push('/login')
+    router.push({ path: '/login', query: { redirect: route.fullPath } })
     return
   }
 
@@ -502,7 +509,7 @@ async function handleComment() {
   submitting.value = true
   try {
     await createComment({
-      postId,
+      postId: postId.value,
       content: commentContent.value,
       parentId: replyTo.value?.id,
     })

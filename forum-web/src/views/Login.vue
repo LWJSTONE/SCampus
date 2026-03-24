@@ -196,6 +196,11 @@ const forgotRules: FormRules = {
 }
 
 function showForgotPassword() {
+  // 如果之前的计时器还在运行，先清除
+  if (forgotCountdownTimer) {
+    clearInterval(forgotCountdownTimer)
+    forgotCountdownTimer = null
+  }
   forgotPasswordVisible.value = true
   // 使用直接属性赋值重置表单，确保所有字段正确重置
   forgotForm.username = ''
@@ -203,6 +208,7 @@ function showForgotPassword() {
   forgotForm.code = ''
   forgotForm.newPassword = ''
   forgotForm.confirmPassword = ''
+  forgotCountdown = 0 // 重置倒计时
   // 清除表单验证状态
   forgotFormRef.value?.clearValidate()
 }
@@ -237,7 +243,8 @@ async function sendForgotCode() {
 
   sendingCode.value = true
   try {
-    await sendEmailCode(forgotForm.email)
+    // 使用trim后的email变量，确保与验证一致
+    await sendEmailCode(email)
     ElMessage.success('验证码已发送')
     forgotCountdown.value = 60
     forgotCountdownTimer = setInterval(() => {

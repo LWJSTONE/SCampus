@@ -95,7 +95,7 @@ async function fetchNotifications(append = false) {
   // 检查登录状态
   if (!userStore.isLoggedIn) {
     ElMessage.warning('请先登录')
-    router.push('/login')
+    router.push('/login').catch(() => {})
     return
   }
   
@@ -197,7 +197,7 @@ onMounted(() => {
   // 检查登录状态
   if (!userStore.isLoggedIn) {
     ElMessage.warning('请先登录')
-    router.push('/login')
+    router.push('/login').catch(() => {})
     return
   }
   fetchNotifications()

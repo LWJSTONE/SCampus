@@ -7,11 +7,18 @@
     </div>
     <div class="comment-content">
       <div class="comment-header">
-        <router-link :to="`/user/${localComment.userId}`" class="username">
+        <router-link 
+          :to="localComment.userId ? `/user/${localComment.userId}` : '#'" 
+          class="username"
+          @click.prevent="!localComment.userId && ElMessage.warning('用户信息不可用')"
+        >
           {{ localComment.username }}
         </router-link>
         <span v-if="localComment.replyToUsername" class="reply-to">
-          回复 <router-link :to="`/user/${localComment.replyToUserId}`">@{{ localComment.replyToUsername }}</router-link>
+          回复 <router-link 
+            :to="localComment.replyToUserId ? `/user/${localComment.replyToUserId}` : '#'"
+            @click.prevent="!localComment.replyToUserId && ElMessage.warning('用户信息不可用')"
+          >@{{ localComment.replyToUsername }}</router-link>
         </span>
         <span class="time">{{ formatTime(localComment.createTime) }}</span>
       </div>
@@ -111,7 +118,7 @@ function handleDelete() {
 async function handleLike() {
   if (!userStore.isLoggedIn) {
     ElMessage.warning('请先登录')
-    router.push('/login')
+    router.push('/login').catch(() => {})
     return
   }
 

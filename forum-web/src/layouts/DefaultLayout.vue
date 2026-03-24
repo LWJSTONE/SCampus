@@ -23,7 +23,7 @@
       <div class="header-right">
         <template v-if="userStore.isLoggedIn">
           <el-badge :value="unreadCount" :hidden="unreadCount === 0" class="notification-badge">
-            <el-button text @click="router.push('/notifications')">
+            <el-button text @click="router.push('/notifications').catch(() => {})">
               <el-icon size="20"><Bell /></el-icon>
             </el-button>
           </el-badge>
@@ -58,8 +58,8 @@
           </el-dropdown>
         </template>
         <template v-else>
-          <el-button type="primary" @click="router.push('/login')">登录</el-button>
-          <el-button @click="router.push('/register')">注册</el-button>
+          <el-button type="primary" @click="router.push('/login').catch(() => {})">登录</el-button>
+          <el-button @click="router.push('/register').catch(() => {})">注册</el-button>
         </template>
       </div>
     </el-header>
@@ -156,7 +156,7 @@ async function fetchUnreadCount() {
   }
   try {
     const res = await getUnreadCount()
-    unreadCount.value = res.count || 0
+    unreadCount.value = res?.count ?? 0
   } catch (e) {
     console.error('获取未读消息数失败:', e)
   }
@@ -283,10 +283,10 @@ function stopUnreadPolling() {
 function handleCreatePost() {
   if (!userStore.isLoggedIn) {
     ElMessage.warning('请先登录')
-    router.push('/login')
+    router.push({ path: '/login', query: { redirect: '/post/create' } }).catch(() => {})
     return
   }
-  router.push('/post/create')
+  router.push('/post/create').catch(() => {})
 }
 
 onMounted(() => {
