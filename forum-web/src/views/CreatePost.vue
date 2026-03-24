@@ -63,8 +63,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onBeforeRouteLeave } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, reactive, onMounted } from 'vue'
+import { useRouter, onBeforeRouteLeave } from 'vue-router'
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus'
 import { createPost } from '@/api/post'
 import { getForumList } from '@/api/category'
@@ -169,7 +169,7 @@ function watchFormChanges() {
 }
 
 // 路由守卫 - 防止意外离开
-onBeforeRouteLeave((to, from, next) => {
+onBeforeRouteLeave((_to, _from, next) => {
   if (hasUnsavedChanges.value) {
     ElMessageBox.confirm('确定要离开吗？未保存的内容将会丢失。', '提示', {
       confirmButtonText: '确定',

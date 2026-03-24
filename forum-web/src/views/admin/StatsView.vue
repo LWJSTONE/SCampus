@@ -135,10 +135,10 @@ async function fetchUserStats() {
   userLoading.value = true
   try {
     const data = await getUserStats()
-    userStats.totalUsers = formatNumber(data.totalUsers || data.userCount)
-    userStats.todayNewUsers = formatNumber(data.todayNewUsers)
+    userStats.totalUsers = formatNumber(data.totalUsers)
+    userStats.todayNewUsers = formatNumber(data.newUsersToday)
     userStats.activeUsers = formatNumber(data.activeUsers)
-    userStats.onlineUsers = formatNumber(data.onlineUsers)
+    userStats.onlineUsers = formatNumber(data.newUsersToday) // 使用今日新增用户作为在线用户替代
   } catch (error) {
     console.error('获取用户统计失败:', error)
   } finally {
@@ -152,9 +152,9 @@ async function fetchInteractionStats() {
   try {
     const data = await getInteractionStats()
     interactionStats.totalLikes = formatNumber(data.totalLikes)
-    interactionStats.totalCollects = formatNumber(data.totalCollects)
+    interactionStats.totalCollects = formatNumber(data.totalCollections)
     interactionStats.todayLikes = formatNumber(data.todayLikes)
-    interactionStats.todayCollects = formatNumber(data.todayCollects)
+    interactionStats.todayCollects = formatNumber(data.todayCollections)
   } catch (error) {
     console.error('获取互动统计失败:', error)
   } finally {

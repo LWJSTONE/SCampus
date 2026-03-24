@@ -204,7 +204,7 @@ export function getPostsByForum(forumId: number, params: PostQueryDTO): Promise<
 }
 
 // 点赞帖子（toggle模式）
-export function likePost(id: number): Promise<{ isLike: boolean; message: string }> {
+export function likePost(id: number): Promise<{ isLike: boolean; isLiked?: boolean; message: string }> {
   if (!id || isNaN(id) || id <= 0) {
     throw new Error('无效的帖子ID')
   }
@@ -212,7 +212,7 @@ export function likePost(id: number): Promise<{ isLike: boolean; message: string
 }
 
 // 收藏帖子（toggle模式）
-export function collectPost(id: number): Promise<{ isCollect: boolean; message: string }> {
+export function collectPost(id: number): Promise<{ isCollect: boolean; isCollected?: boolean; message: string }> {
   if (!id || isNaN(id) || id <= 0) {
     throw new Error('无效的帖子ID')
   }

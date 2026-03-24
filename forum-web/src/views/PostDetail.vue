@@ -245,7 +245,7 @@ const sanitizedContent = computed(() => {
     if (attrs) {
       const allowedForTag = allowedAttrs[tag] || []
       const filteredAttrs = attrs.split(/\s+/)
-        .filter(attr => {
+        .filter((attr: string) => {
           if (!attr) return false
           const [name] = attr.split('=')
           const attrName = name.toLowerCase().trim()
@@ -263,7 +263,7 @@ const sanitizedContent = computed(() => {
           // 过滤style属性中的危险内容
           if (attrName === 'style') {
             const value = attr.substring(attr.indexOf('=') + 1).replace(/["']/g, '').trim()
-            const styles = value.split(';').filter(s => {
+            const styles = value.split(';').filter((s: string) => {
               const [prop] = s.split(':')
               return allowedStyles.includes(prop.trim().toLowerCase())
             })
@@ -349,9 +349,9 @@ async function fetchPostDetail() {
     res.username = res.username ?? res.userName
     res.authorAvatar = res.authorAvatar ?? res.userAvatar
     res.categoryName = res.categoryName ?? res.forumName
-    // 兼容 isTop 和 isEssence 的不同格式
-    res.isTop = res.isTop === 1 || res.isTop === true
-    res.isEssence = res.isEssence === 1 || res.isEssence === true
+    // 兼容 isTop 和 isEssence 的不同格式（后端可能返回数字或布尔值）
+    res.isTop = (res.isTop as any) === 1 || res.isTop === true
+    res.isEssence = (res.isEssence as any) === 1 || res.isEssence === true
     postDetail.value = res
   } catch (error: any) {
     console.error('获取帖子详情失败：', error)

@@ -6,14 +6,6 @@ import { request, PageResult } from './request'
 import type { CommentVO, CommentCreateDTO, PageQuery } from '@/types'
 
 /**
- * 评论查询参数
- */
-interface CommentQueryParams extends PageQuery {
-  postId: number
-  orderBy?: string
-}
-
-/**
  * 获取帖子的评论（树形结构）
  * @param postId 帖子ID
  * @param params 分页参数

@@ -312,6 +312,10 @@ export interface PageResult<T = any> {
   current: number
   pages: number
   list?: T[]
+  // 兼容不同的分页字段名
+  pageNum?: number
+  page?: number
+  totalPages?: number
 }
 
 // API 响应类型

@@ -83,8 +83,8 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, nextTick } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
-import { getNoticeList, createNotice, updateNotice, deleteNotice } from '@/api/notify'
-import type { NoticeVO, NoticeCreateDTO } from '@/api/notify'
+import { getNoticeList, createNotice, updateNotice, deleteNotice, type NoticeCreateDTO } from '@/api/notify'
+import type { NoticeVO } from '@/types'
 
 const loading = ref(false)
 const notices = ref<NoticeVO[]>([])

@@ -150,7 +150,7 @@ const handleFormRules = computed<FormRules>(() => ({
       required: true, 
       message: '请选择处罚措施', 
       trigger: 'change',
-      validator: (rule, value, callback) => {
+      validator: (_rule, value, callback) => {
         // 在validator中获取当前表单状态
         if (handleForm.result === 1 && !value) {
           callback(new Error('请选择处罚措施'))
