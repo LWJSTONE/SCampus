@@ -40,8 +40,8 @@
         <el-table-column prop="createTime" label="举报时间" width="180" />
         <el-table-column label="操作" width="150">
           <template #default="{ row }">
-            <el-button link type="primary" @click="handleProcess(row)" v-if="row.status === 0">处理</el-button>
-            <el-button link type="info" @click="handleView(row)">查看</el-button>
+            <el-button link type="primary" @click="handleProcess(row)" v-if="row.status === 0" :loading="processingId === row.id" :disabled="processingId !== null && processingId !== row.id">处理</el-button>
+            <el-button link type="info" @click="handleView(row)" :disabled="processingId !== null">查看</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -209,6 +209,9 @@ function handleProcess(row: ReportVO) {
 
 async function submitHandle() {
   if (!processingId.value) return
+  
+  // 防止重复点击
+  if (submitting.value) return
   
   // 表单验证
   const valid = await handleFormRef.value?.validate().catch(() => false)

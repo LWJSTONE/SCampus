@@ -123,8 +123,14 @@ async function loadMore() {
 }
 
 function navigateToPost(postId: number) {
+  // 验证postId有效性
+  if (!postId || isNaN(postId) || postId <= 0) {
+    ElMessage.error('帖子ID无效')
+    return
+  }
   router.push(`/post/${postId}`).catch((err) => {
     console.error('路由跳转失败:', err)
+    ElMessage.error('跳转失败，请稍后重试')
   })
 }
 

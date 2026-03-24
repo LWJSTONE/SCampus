@@ -231,8 +231,10 @@ function handleResize() {
   chart?.resize()
 }
 
-// 监听趋势类型变化
+// 监听趋势类型变化 - 添加防重复点击保护
 watch(trendType, () => {
+  // 如果正在加载中，不重复请求
+  if (chartLoading.value) return
   fetchTrendData()
 })
 

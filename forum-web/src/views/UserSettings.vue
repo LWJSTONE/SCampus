@@ -316,7 +316,9 @@ onMounted(() => {
   // 检查登录状态
   if (!userStore.isLoggedIn) {
     ElMessage.warning('请先登录')
-    router.push('/login').catch(() => {})
+    router.push({ path: '/login', query: { redirect: '/settings' } }).catch((err) => {
+      console.error('路由跳转失败:', err)
+    })
     return
   }
   fetchUserInfo()

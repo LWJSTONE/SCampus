@@ -56,6 +56,9 @@ export function createComment(data: CommentCreateDTO): Promise<number> {
  * @param id 评论ID
  */
 export function deleteComment(id: number): Promise<boolean> {
+  if (!id || isNaN(id) || id <= 0) {
+    throw new Error('无效的评论ID')
+  }
   return request.delete(`/comments/${id}`)
 }
 
@@ -64,6 +67,9 @@ export function deleteComment(id: number): Promise<boolean> {
  * @param id 评论ID
  */
 export function likeComment(id: number): Promise<{ isLike: boolean; message: string; likeCount?: number }> {
+  if (!id || isNaN(id) || id <= 0) {
+    throw new Error('无效的评论ID')
+  }
   return request.post(`/comments/${id}/like`)
 }
 
@@ -73,7 +79,14 @@ export function likeComment(id: number): Promise<{ isLike: boolean; message: str
  * @param params 分页参数
  */
 export function getCommentReplies(id: number, params: PageQuery): Promise<PageResult<CommentVO>> {
-  return request.get(`/comments/${id}/replies`, params)
+  if (!id || isNaN(id) || id <= 0) {
+    throw new Error('无效的评论ID')
+  }
+  const queryParams = {
+    current: params.page ?? params.current ?? 1,
+    size: Math.max(1, Math.min(100, params.size || 10))
+  }
+  return request.get(`/comments/${id}/replies`, queryParams)
 }
 
 /**
@@ -81,6 +94,9 @@ export function getCommentReplies(id: number, params: PageQuery): Promise<PageRe
  * @param id 评论ID
  */
 export function getCommentDetail(id: number): Promise<CommentVO> {
+  if (!id || isNaN(id) || id <= 0) {
+    throw new Error('无效的评论ID')
+  }
   return request.get(`/comments/${id}`)
 }
 
@@ -90,7 +106,14 @@ export function getCommentDetail(id: number): Promise<CommentVO> {
  * @param params 分页参数
  */
 export function getUserComments(userId: number, params: PageQuery): Promise<PageResult<CommentVO>> {
-  return request.get(`/comments/user/${userId}`, params)
+  if (!userId || isNaN(userId) || userId <= 0) {
+    throw new Error('无效的用户ID')
+  }
+  const queryParams = {
+    current: params.page ?? params.current ?? 1,
+    size: Math.max(1, Math.min(100, params.size || 10))
+  }
+  return request.get(`/comments/user/${userId}`, queryParams)
 }
 
 /**
@@ -99,5 +122,12 @@ export function getUserComments(userId: number, params: PageQuery): Promise<Page
  * @param status 状态
  */
 export function auditComment(id: number, status: number): Promise<boolean> {
+  if (!id || isNaN(id) || id <= 0) {
+    throw new Error('无效的评论ID')
+  }
+  // 【修复】状态值验证：后端只接受 1-通过 或 2-驳回
+  if (![1, 2].includes(status)) {
+    throw new Error('审核状态值无效，必须是1(通过)或2(驳回)')
+  }
   return request.put(`/comments/${id}/audit`, null, { params: { status } })
 }

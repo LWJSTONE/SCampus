@@ -28,8 +28,8 @@
         <el-table-column prop="createTime" label="发布时间" width="180" />
         <el-table-column label="操作" width="150">
           <template #default="{ row }">
-            <el-button link type="primary" @click="handleEdit(row)">编辑</el-button>
-            <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
+            <el-button link type="primary" @click="handleEdit(row)" :disabled="submitting || deletingId !== null">编辑</el-button>
+            <el-button link type="danger" @click="handleDelete(row)" :loading="deletingId === row.id" :disabled="submitting || (deletingId !== null && deletingId !== row.id)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -106,6 +106,7 @@ const noticeForm = reactive<NoticeCreateDTO>({
 })
 const editingId = ref<number | null>(null)
 const submitting = ref(false)
+const deletingId = ref<number | null>(null) // 正在删除的公告ID
 
 // 表单验证规则
 const formRules: FormRules = {
@@ -173,6 +174,9 @@ function handleEdit(row: NoticeVO) {
 }
 
 async function handleSubmit() {
+  // 防止重复点击
+  if (submitting.value) return
+  
   // 表单验证
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
@@ -197,17 +201,26 @@ async function handleSubmit() {
 }
 
 async function handleDelete(row: NoticeVO) {
+  // 防止重复点击
+  if (deletingId.value !== null) return
+  
   try {
     await ElMessageBox.confirm('确定要删除该公告吗？', '提示')
+  } catch {
+    // 用户取消确认
+    return
+  }
+  
+  deletingId.value = row.id
+  try {
     await deleteNotice(row.id)
     ElMessage.success('删除成功')
     fetchNotices()
   } catch (e: any) {
-    // 用户取消确认
-    if (e !== 'cancel') {
-      console.error('删除失败:', e)
-      ElMessage.error(e?.message || '删除失败，请稍后重试')
-    }
+    console.error('删除失败:', e)
+    ElMessage.error(e?.message || '删除失败，请稍后重试')
+  } finally {
+    deletingId.value = null
   }
 }
 

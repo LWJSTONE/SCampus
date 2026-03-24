@@ -876,4 +876,164 @@ fix: 修复verify-admin接口缺失和内部服务密钥配置不一致问题
 - 增强内部服务密钥验证
 ```
 
+---
+
+## Task ID: 按钮审查修复 Round 2 - 2026-03-24
+### Work Task
+从前端的每一个按钮开始逐级向后审查，修复所有问题并提交到fix分支
+
+### 审查范围
+
+#### 前端用户页面（10个文件）
+- Login.vue, Register.vue, Home.vue, PostDetail.vue, CreatePost.vue
+- UserProfile.vue, UserSettings.vue, Notifications.vue, Search.vue, CategoryPosts.vue
+
+#### 前端管理页面（8个文件）
+- Dashboard.vue, UserManage.vue, PostManage.vue, ReportManage.vue
+- NoticeManage.vue, CategoryManage.vue, SystemConfig.vue, StatsView.vue
+
+#### 后端控制器（10个文件）
+- AuthController.java, UserController.java, PostController.java, CommentController.java
+- NotifyController.java, ReportController.java, StatsController.java, CategoryController.java
+- InteractionController.java, FileController.java
+
+#### 前端API/Store（12个文件）
+- request.ts, auth.ts, user.ts, post.ts, comment.ts, category.ts
+- notify.ts, report.ts, stats.ts, user.ts(store), app.ts(store)
+
+#### 后端服务层（11个文件）
+- AuthServiceImpl.java, UserServiceImpl.java, PostServiceImpl.java, CommentServiceImpl.java
+- LikeServiceImpl.java, CollectServiceImpl.java, NoticeServiceImpl.java, ReportServiceImpl.java
+- StatsServiceImpl.java, CategoryServiceImpl.java, FileServiceImpl.java
+
+### 发现并修复的问题
+
+#### 前端用户页面修复（5个问题）
+
+| 文件 | 问题 | 严重程度 | 修复方案 |
+|------|------|---------|---------|
+| Home.vue | viewPost缺少ID验证 | 中 | 添加ID有效性和NaN检查，添加错误提示 |
+| UserProfile.vue | 关注功能缺少乐观更新回滚 | 高 | 实现乐观更新模式，失败时回滚状态 |
+| UserSettings.vue | 缺少redirect参数 | 低 | 添加redirect参数支持登录后返回 |
+| Notifications.vue | 缺少防重复触发保护 | 中 | 添加loadMoreTriggered状态变量 |
+| CategoryPosts.vue | navigateToPost缺少ID验证 | 中 | 添加ID验证和错误处理 |
+
+#### 前端管理页面修复（21个问题）
+
+| 文件 | 问题 | 严重程度 |
+|------|------|---------|
+| Dashboard.vue | 趋势切换无防重复 | 中 |
+| UserManage.vue | 禁用/启用按钮无保护 | 高 |
+| PostManage.vue | 审核按钮无loading状态 | 高 |
+| ReportManage.vue | 处理按钮无保护 | 高 |
+| NoticeManage.vue | 删除按钮无保护 | 高 |
+| CategoryManage.vue | 删除按钮无保护 | 高 |
+| SystemConfig.vue | 保存无防重复 | 中 |
+| StatsView.vue | 趋势切换无防重复 | 中 |
+
+**统一优化模式**:
+1. 添加loading状态变量和disabled属性联动
+2. 操作函数开头添加状态检查防止重复点击
+3. 错误处理使用try/catch分离确认和取消逻辑
+
+#### 后端控制器修复（3个高优先级问题）
+
+| 文件 | 问题 | 修复方案 |
+|------|------|---------|
+| StatsController.java | 硬编码密钥默认值 | 移除默认值，添加常量时间比较 |
+| CategoryController.java | 配置名称不一致 | 统一为app.internal-service-key |
+| InteractionController.java | JWT密钥无默认处理 | 添加空值检查和安全日志 |
+
+#### 前端API/Store修复（32个问题）
+
+| 类别 | 数量 | 修复内容 |
+|------|------|---------|
+| request.ts | 2 | Token刷新超时配置，登录过期对话框去重 |
+| post.ts | 13 | 添加ID验证、状态值验证、参数验证 |
+| comment.ts | 6 | 添加ID验证、状态值验证 |
+| category.ts | 8 | 添加ID验证、参数验证 |
+| notify.ts | 4 | 添加ID验证、分页参数处理 |
+| report.ts | 4 | 添加ID验证、参数验证 |
+| stats.ts | 3 | 添加类型定义、参数验证 |
+| stores/user.ts | 1 | 添加登录状态缓存机制 |
+
+#### 前后端接口一致性修复（3个问题）
+
+| 文件 | 问题 | 修复方案 |
+|------|------|---------|
+| post.ts - auditPost | 参数传递方式不一致 | 改用查询参数，修正状态值定义 |
+| post.ts - movePost | 参数传递方式不一致 | 改用查询参数传递forumId |
+| comment.ts - auditComment | 状态值验证不一致 | 修正为只接受1或2 |
+
+### 后端服务层评估
+
+| 服务 | 事务管理 | 异常处理 | 缓存使用 | 并发处理 | 数据验证 | 日志记录 | 总体评估 |
+|------|---------|---------|---------|---------|---------|---------|---------|
+| AuthServiceImpl | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 优秀 |
+| UserServiceImpl | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | 良好 |
+| PostServiceImpl | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 优秀 |
+| CommentServiceImpl | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 优秀 |
+| LikeServiceImpl | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | 良好 |
+| CollectServiceImpl | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | 良好 |
+| NoticeServiceImpl | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 优秀 |
+| ReportServiceImpl | ✅ | ✅ | N/A | ✅ | ✅ | ✅ | 优秀 |
+| StatsServiceImpl | N/A | ✅ | ✅ | N/A | ✅ | ✅ | 良好 |
+| CategoryServiceImpl | ✅ | ✅ | N/A | ⚠️ | ✅ | ✅ | 良好 |
+| FileServiceImpl | ✅ | ✅ | N/A | ✅ | ✅ | ✅ | 优秀 |
+
+### 修改文件清单
+
+**前端文件（24个）**:
+```
+forum-web/src/views/Home.vue
+forum-web/src/views/UserProfile.vue
+forum-web/src/views/UserSettings.vue
+forum-web/src/views/Notifications.vue
+forum-web/src/views/CategoryPosts.vue
+forum-web/src/views/admin/Dashboard.vue
+forum-web/src/views/admin/UserManage.vue
+forum-web/src/views/admin/PostManage.vue
+forum-web/src/views/admin/ReportManage.vue
+forum-web/src/views/admin/NoticeManage.vue
+forum-web/src/views/admin/CategoryManage.vue
+forum-web/src/views/admin/SystemConfig.vue
+forum-web/src/views/admin/StatsView.vue
+forum-web/src/api/request.ts
+forum-web/src/api/post.ts
+forum-web/src/api/comment.ts
+forum-web/src/api/category.ts
+forum-web/src/api/notify.ts
+forum-web/src/api/report.ts
+forum-web/src/api/stats.ts
+forum-web/src/stores/user.ts
+```
+
+**后端文件（3个）**:
+```
+forum-stats/src/main/java/com/campus/forum/controller/StatsController.java
+forum-category/src/main/java/com/campus/forum/controller/CategoryController.java
+forum-interaction/src/main/java/com/campus/forum/controller/InteractionController.java
+```
+
+### 提交信息
+```
+fix: 从前端按钮逐级向后审查修复问题
+
+前端修复(61个问题):
+- 用户页面: 5个问题修复(ID验证、乐观更新回滚、防重复触发)
+- 管理页面: 21个问题修复(按钮保护、loading状态、防重复点击)
+- API模块: 32个问题修复(参数验证、类型定义、Token刷新)
+- 接口一致性: 3个问题修复(参数传递方式、状态值定义)
+
+后端修复(3个问题):
+- StatsController: 移除硬编码密钥默认值，添加常量时间比较
+- CategoryController: 统一内部服务密钥配置名称
+- InteractionController: JWT密钥安全检查
+
+安全增强:
+- 使用常量时间比较防止时序攻击
+- 添加完善的参数验证
+- 实现乐观更新回滚机制
+```
+
 

@@ -15,6 +15,8 @@ import org.springframework.web.bind.annotation.*;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
@@ -46,8 +48,11 @@ public class StatsController {
 
     /**
      * 内部服务密钥，用于服务间调用的安全验证
+     * 
+     * 【安全修复】移除硬编码默认值，强制要求在配置文件中设置
+     * 如果未配置密钥，内部服务接口将被拒绝访问
      */
-    @Value("${app.internal-service-key:campus-internal-secret-key-2024}")
+    @Value("${app.internal-service-key:}")
     private String internalServiceKey;
 
     /**
@@ -170,12 +175,14 @@ public class StatsController {
      * 2. 用户角色验证（用户请求）：通过X-User-Role请求头或request.getAttribute
      * 
      * 两种方式任一通过即可，以支持不同调用场景
+     * 
+     * 【安全修复】使用常量时间比较防止时序攻击
      */
     private boolean isAdmin(HttpServletRequest request) {
         // 方式1：内部服务密钥验证（用于服务间内部调用）
         String internalKey = request.getHeader("X-Internal-Service-Key");
         if (internalKey != null && !internalKey.isEmpty()) {
-            if (internalServiceKey.equals(internalKey)) {
+            if (isValidServiceKey(internalKey)) {
                 log.debug("内部服务密钥验证通过");
                 return true;
             } else {
@@ -213,5 +220,29 @@ public class StatsController {
         
         log.debug("权限验证失败：未找到有效的身份验证信息");
         return false;
+    }
+    
+    /**
+     * 安全比较内部服务密钥（防止时序攻击）
+     * 使用MessageDigest.isEqual进行常量时间比较，避免通过响应时间推断密钥信息
+     * 
+     * 【安全修复】增加空值检查，防止密钥未配置时被绕过
+     *
+     * @param providedKey 请求提供的密钥
+     * @return 是否匹配
+     */
+    private boolean isValidServiceKey(String providedKey) {
+        // 检查密钥是否已配置
+        if (internalServiceKey == null || internalServiceKey.isEmpty()) {
+            log.error("【安全警告】内部服务密钥未配置！请在配置文件中设置 app.internal-service-key");
+            return false;
+        }
+        if (providedKey == null) {
+            return false;
+        }
+        // 使用常量时间比较，防止时序攻击
+        byte[] expectedBytes = internalServiceKey.getBytes(StandardCharsets.UTF_8);
+        byte[] providedBytes = providedKey.getBytes(StandardCharsets.UTF_8);
+        return MessageDigest.isEqual(expectedBytes, providedBytes);
     }
 }

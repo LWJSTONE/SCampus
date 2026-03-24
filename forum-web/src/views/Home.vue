@@ -177,7 +177,15 @@ async function loadMore() {
 }
 
 function viewPost(id: number) {
-  router.push(`/post/${id}`)
+  // 验证postId有效性
+  if (!id || isNaN(id) || id <= 0) {
+    ElMessage.error('帖子ID无效')
+    return
+  }
+  router.push(`/post/${id}`).catch((err) => {
+    console.error('路由跳转失败:', err)
+    ElMessage.error('跳转失败，请稍后重试')
+  })
 }
 
 // 查看公告详情

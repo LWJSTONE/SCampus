@@ -73,10 +73,23 @@ export function getReportList(params: ReportQueryDTO): Promise<PageResult<Report
 }
 
 export function getReportDetail(id: number): Promise<ReportVO> {
+  if (!id || isNaN(id) || id <= 0) {
+    throw new Error('无效的举报ID')
+  }
   return request.get(`/reports/${id}`)
 }
 
 export function handleReport(id: number, data: ReportHandleDTO): Promise<boolean> {
+  if (!id || isNaN(id) || id <= 0) {
+    throw new Error('无效的举报ID')
+  }
+  if (!data) {
+    throw new Error('处理数据不能为空')
+  }
+  // 处理结果验证：1-通过，2-拒绝
+  if (!data.result || ![1, 2].includes(data.result)) {
+    throw new Error('处理结果值无效，必须是1(通过)或2(拒绝)')
+  }
   return request.put(`/reports/${id}/handle`, data)
 }
 
@@ -85,9 +98,25 @@ export function getPendingCount(): Promise<{pendingReportCount: number; pendingA
 }
 
 export function banUser(data: { userId: number; banDays: number; reason: string }): Promise<number> {
-  return request.post('/reports/ban', data)
+  if (!data) {
+    throw new Error('封禁数据不能为空')
+  }
+  if (!data.userId || isNaN(data.userId) || data.userId <= 0) {
+    throw new Error('无效的用户ID')
+  }
+  if (!data.banDays || isNaN(data.banDays) || data.banDays <= 0) {
+    throw new Error('封禁天数必须是正整数')
+  }
+  const reason = data.reason?.trim()
+  if (!reason) {
+    throw new Error('封禁原因不能为空')
+  }
+  return request.post('/reports/ban', { ...data, reason })
 }
 
 export function unbanUser(userId: number, reason?: string): Promise<boolean> {
+  if (!userId || isNaN(userId) || userId <= 0) {
+    throw new Error('无效的用户ID')
+  }
   return request.delete(`/reports/ban/${userId}`, { reason })
 }

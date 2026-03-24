@@ -118,6 +118,9 @@ async function fetchConfig() {
 }
 
 async function handleSave() {
+  // 防止重复点击
+  if (saving.value) return
+  
   // 表单验证
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return

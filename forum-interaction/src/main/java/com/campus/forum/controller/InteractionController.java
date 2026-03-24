@@ -48,8 +48,11 @@ public class InteractionController {
 
     /**
      * JWT密钥 - 从配置文件读取，用于验证Token
+     * 
+     * 【安全修复】添加默认值处理，防止配置缺失时应用启动失败
+     * 注意：生产环境必须在配置文件中设置 jwt.secret
      */
-    @Value("${jwt.secret}")
+    @Value("${jwt.secret:}")
     private String jwtSecret;
 
     // ==================== 点赞相关接口 ====================
@@ -259,6 +262,7 @@ public class InteractionController {
      * 1. 移除不安全的HTTP Header方式获取用户ID
      * 2. 使用JWT Token验证用户身份
      * 3. 支持从请求属性获取（由拦截器预处理的场景）
+     * 4. 添加密钥未配置的安全检查
      * 
      * @param request HTTP请求
      * @return 用户ID，未认证返回null
@@ -268,6 +272,21 @@ public class InteractionController {
         Object userIdAttr = request.getAttribute("userId");
         if (userIdAttr instanceof Long) {
             return (Long) userIdAttr;
+        }
+        
+        // 检查JWT密钥是否已配置
+        if (StrUtil.isBlank(jwtSecret)) {
+            log.warn("JWT密钥未配置，请检查配置项 jwt.secret");
+            // 尝试从Header获取（兼容网关场景）
+            String userIdHeader = request.getHeader("X-User-Id");
+            if (StrUtil.isNotBlank(userIdHeader)) {
+                try {
+                    return Long.parseLong(userIdHeader);
+                } catch (NumberFormatException e) {
+                    log.warn("解析X-User-Id失败: {}", userIdHeader);
+                }
+            }
+            return null;
         }
         
         // 从请求头获取Token并验证

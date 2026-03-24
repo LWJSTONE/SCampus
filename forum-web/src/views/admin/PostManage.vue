@@ -39,14 +39,14 @@
         <el-table-column prop="createTime" label="发布时间" width="180" />
         <el-table-column label="操作" width="250">
           <template #default="{ row }">
-            <el-button link type="primary" @click="handleView(row)">查看</el-button>
-            <el-button v-if="row.status === 0" link type="success" @click="handleApprove(row)">审核通过</el-button>
-            <el-button v-if="row.status === 0" link type="danger" @click="handleReject(row)">拒绝</el-button>
+            <el-button link type="primary" @click="handleView(row)" :disabled="operatingId === row.id">查看</el-button>
+            <el-button v-if="row.status === 0" link type="success" @click="handleApprove(row)" :loading="operatingId === row.id && operatingType === 'approve'" :disabled="operatingId !== null && operatingId !== row.id">审核通过</el-button>
+            <el-button v-if="row.status === 0" link type="danger" @click="handleReject(row)" :loading="operatingId === row.id && operatingType === 'reject'" :disabled="operatingId !== null && operatingId !== row.id">拒绝</el-button>
             <template v-else>
-              <el-button link type="warning" @click="handleTop(row)">
+              <el-button link type="warning" @click="handleTop(row)" :loading="operatingId === row.id && operatingType === 'top'" :disabled="operatingId !== null && operatingId !== row.id">
                 {{ row.isTop ? '取消置顶' : '置顶' }}
               </el-button>
-              <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
+              <el-button link type="danger" @click="handleDelete(row)" :loading="operatingId === row.id && operatingType === 'delete'" :disabled="operatingId !== null && operatingId !== row.id">删除</el-button>
             </template>
           </template>
         </el-table-column>
@@ -82,6 +82,10 @@ const queryParams = reactive({
   status: undefined as number | undefined
 })
 
+// 操作状态
+const operatingId = ref<number | null>(null) // 当前正在操作的帖子ID
+const operatingType = ref<string>('') // 当前正在操作的类型
+
 const statusMap: Record<number, { text: string; type: 'success' | 'primary' | 'warning' | 'info' | 'danger' }> = {
   0: { text: '待审核', type: 'warning' },
   1: { text: '已发布', type: 'success' },
@@ -115,6 +119,9 @@ function handleView(row: PostVO) {
 }
 
 async function handleTop(row: PostVO) {
+  // 防止重复点击
+  if (operatingId.value !== null) return
+  
   const isTop = row.isTop ? 0 : 1
   const action = isTop === 1 ? '置顶' : '取消置顶'
   // 保存原始状态以便回滚
@@ -127,6 +134,8 @@ async function handleTop(row: PostVO) {
     return
   }
 
+  operatingId.value = row.id
+  operatingType.value = 'top'
   try {
     // 先更新UI（乐观更新）
     row.isTop = isTop === 1
@@ -138,56 +147,96 @@ async function handleTop(row: PostVO) {
     // API调用失败时回滚状态
     row.isTop = originalIsTop
     ElMessage.error(e?.message || '操作失败，请稍后重试')
+  } finally {
+    operatingId.value = null
+    operatingType.value = ''
   }
 }
 
 async function handleDelete(row: PostVO) {
+  // 防止重复点击
+  if (operatingId.value !== null) return
+  
   try {
     await ElMessageBox.confirm('确定要删除该帖子吗？', '提示')
+  } catch {
+    // 用户取消
+    return
+  }
+  
+  operatingId.value = row.id
+  operatingType.value = 'delete'
+  try {
     await deletePost(row.id)
     ElMessage.success('删除成功')
     fetchPosts()
   } catch (e: any) {
-    // 用户取消
-    if (e !== 'cancel') {
-      console.error('删除失败:', e)
-      ElMessage.error(e?.message || '删除失败')
-    }
+    console.error('删除失败:', e)
+    ElMessage.error(e?.message || '删除失败')
+  } finally {
+    operatingId.value = null
+    operatingType.value = ''
   }
 }
 
 // 审核通过
 async function handleApprove(row: PostVO) {
+  // 防止重复点击
+  if (operatingId.value !== null) return
+  
   try {
     await ElMessageBox.confirm('确定审核通过该帖子吗？', '审核确认')
+  } catch {
+    // 用户取消
+    return
+  }
+  
+  operatingId.value = row.id
+  operatingType.value = 'approve'
+  try {
     await auditPost(row.id, 1) // status=1 表示已发布
     ElMessage.success('审核通过')
     fetchPosts()
   } catch (e: any) {
-    if (e !== 'cancel') {
-      console.error('审核失败:', e)
-      ElMessage.error(e?.message || '审核失败')
-    }
+    console.error('审核失败:', e)
+    ElMessage.error(e?.message || '审核失败')
+  } finally {
+    operatingId.value = null
+    operatingType.value = ''
   }
 }
 
 // 审核拒绝
 async function handleReject(row: PostVO) {
+  // 防止重复点击
+  if (operatingId.value !== null) return
+  
+  let reason = ''
   try {
-    const { value: reason } = await ElMessageBox.prompt('请输入拒绝原因', '审核拒绝', {
+    const result = await ElMessageBox.prompt('请输入拒绝原因', '审核拒绝', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
       inputPattern: /^.{1,100}$/,
       inputErrorMessage: '拒绝原因长度为1-100个字符'
     })
+    reason = result.value
+  } catch {
+    // 用户取消
+    return
+  }
+  
+  operatingId.value = row.id
+  operatingType.value = 'reject'
+  try {
     await auditPost(row.id, 3, reason) // status=3 表示已删除/拒绝
     ElMessage.success('已拒绝该帖子')
     fetchPosts()
   } catch (e: any) {
-    if (e !== 'cancel') {
-      console.error('操作失败:', e)
-      ElMessage.error(e?.message || '操作失败')
-    }
+    console.error('操作失败:', e)
+    ElMessage.error(e?.message || '操作失败')
+  } finally {
+    operatingId.value = null
+    operatingType.value = ''
   }
 }
 

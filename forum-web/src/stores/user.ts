@@ -73,6 +73,10 @@ export const useUserStore = defineStore('user', () => {
   const token = ref<string>(safeGetStorage('token'))
   const refreshToken = ref<string>(safeGetStorage('refreshToken'))
   const userInfo = ref<UserInfoVO | null>(null)
+  // 上次检查登录状态的时间戳（用于避免频繁检查）
+  const lastLoginCheck = ref<number>(0)
+  // 登录状态缓存有效期（5分钟）
+  const LOGIN_CHECK_CACHE_MS = 5 * 60 * 1000
 
   // 计算属性
   const isLoggedIn = computed(() => !!token.value)
@@ -159,12 +163,24 @@ export const useUserStore = defineStore('user', () => {
       clearAuth()
       return false
     }
+    
+    // 检查缓存是否有效（避免频繁请求）
+    const now = Date.now()
+    if (userInfo.value && (now - lastLoginCheck.value) < LOGIN_CHECK_CACHE_MS) {
+      return true
+    }
+    
     // 如果有token但没有userInfo，尝试获取用户信息
     if (!userInfo.value) {
       const info = await fetchUserInfo()
+      if (info) {
+        lastLoginCheck.value = now
+      }
       return info !== null
     }
-    // 验证token是否仍然有效（可选：可以添加token过期检查）
+    
+    // 更新检查时间戳
+    lastLoginCheck.value = now
     return true
   }
 

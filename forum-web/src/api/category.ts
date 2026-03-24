@@ -17,6 +17,9 @@ export function getCategoryList(): Promise<CategoryVO[]> {
  * @param id 分类ID
  */
 export function getCategoryDetail(id: number): Promise<CategoryVO> {
+  if (!id || isNaN(id) || id <= 0) {
+    throw new Error('无效的分类ID')
+  }
   return request.get(`/categories/${id}`)
 }
 
@@ -71,6 +74,9 @@ export function updateCategory(id: number, data: Partial<CategoryVO>) {
  * @param id 分类ID
  */
 export function deleteCategory(id: number) {
+  if (!id || isNaN(id) || id <= 0) {
+    throw new Error('无效的分类ID')
+  }
   return request.delete(`/categories/${id}`)
 }
 
@@ -87,6 +93,9 @@ export function getForumList(categoryId?: number): Promise<ForumVO[]> {
  * @param id 版块ID
  */
 export function getForumDetail(id: number): Promise<ForumVO> {
+  if (!id || isNaN(id) || id <= 0) {
+    throw new Error('无效的版块ID')
+  }
   return request.get(`/forums/${id}`)
 }
 
@@ -95,7 +104,22 @@ export function getForumDetail(id: number): Promise<ForumVO> {
  * @param data 版块数据
  */
 export function createForum(data: Partial<ForumVO>) {
-  return request.post('/forums', data)
+  if (!data) {
+    throw new Error('版块数据不能为空')
+  }
+  // 分类ID验证
+  if (!data.categoryId || isNaN(data.categoryId) || data.categoryId <= 0) {
+    throw new Error('请选择有效的分类')
+  }
+  // 名称验证
+  const name = data.name?.trim()
+  if (!name) {
+    throw new Error('版块名称不能为空')
+  }
+  if (name.length < 2 || name.length > 50) {
+    throw new Error('版块名称长度为2-50个字符')
+  }
+  return request.post('/forums', { ...data, name })
 }
 
 /**
@@ -104,6 +128,23 @@ export function createForum(data: Partial<ForumVO>) {
  * @param data 版块数据
  */
 export function updateForum(id: number, data: Partial<ForumVO>) {
+  if (!id || isNaN(id) || id <= 0) {
+    throw new Error('无效的版块ID')
+  }
+  if (!data || Object.keys(data).length === 0) {
+    throw new Error('更新数据不能为空')
+  }
+  // 名称验证（如果提供）
+  if (data.name !== undefined) {
+    const name = data.name.trim()
+    if (!name) {
+      throw new Error('版块名称不能为空')
+    }
+    if (name.length < 2 || name.length > 50) {
+      throw new Error('版块名称长度为2-50个字符')
+    }
+    data = { ...data, name }
+  }
   return request.put(`/forums/${id}`, data)
 }
 
@@ -112,6 +153,9 @@ export function updateForum(id: number, data: Partial<ForumVO>) {
  * @param id 版块ID
  */
 export function deleteForum(id: number) {
+  if (!id || isNaN(id) || id <= 0) {
+    throw new Error('无效的版块ID')
+  }
   return request.delete(`/forums/${id}`)
 }
 
@@ -121,6 +165,12 @@ export function deleteForum(id: number) {
  * @param userId 用户ID
  */
 export function setModerator(forumId: number, userId: number) {
+  if (!forumId || isNaN(forumId) || forumId <= 0) {
+    throw new Error('无效的版块ID')
+  }
+  if (!userId || isNaN(userId) || userId <= 0) {
+    throw new Error('无效的用户ID')
+  }
   return request.post(`/forums/${forumId}/moderators`, { userId })
 }
 
@@ -130,5 +180,11 @@ export function setModerator(forumId: number, userId: number) {
  * @param userId 用户ID
  */
 export function removeModerator(forumId: number, userId: number) {
+  if (!forumId || isNaN(forumId) || forumId <= 0) {
+    throw new Error('无效的版块ID')
+  }
+  if (!userId || isNaN(userId) || userId <= 0) {
+    throw new Error('无效的用户ID')
+  }
   return request.delete(`/forums/${forumId}/moderators/${userId}`)
 }

@@ -23,10 +23,19 @@ export interface NoticeQueryDTO {
 }
 
 export function getNoticeList(params: NoticeQueryDTO): Promise<PageResult<NoticeVO>> {
-  return request.get('/notices', params)
+  // 兼容后端分页参数
+  const queryParams = {
+    ...params,
+    current: params.current || 1,
+    size: Math.max(1, Math.min(100, params.size || 10))
+  }
+  return request.get('/notices', queryParams)
 }
 
 export function getNoticeDetail(id: number): Promise<NoticeVO> {
+  if (!id || isNaN(id) || id <= 0) {
+    throw new Error('无效的公告ID')
+  }
   return request.get(`/notices/${id}`)
 }
 
@@ -86,6 +95,9 @@ export function updateNotice(id: number, data: NoticeUpdateDTO): Promise<boolean
 }
 
 export function deleteNotice(id: number): Promise<boolean> {
+  if (!id || isNaN(id) || id <= 0) {
+    throw new Error('无效的公告ID')
+  }
   return request.delete(`/notices/${id}`)
 }
 
@@ -94,6 +106,9 @@ export function getUnreadCount(): Promise<{ count: number }> {
 }
 
 export function markAsRead(id: number): Promise<boolean> {
+  if (!id || isNaN(id) || id <= 0) {
+    throw new Error('无效的公告ID')
+  }
   return request.post(`/notices/${id}/read`)
 }
 

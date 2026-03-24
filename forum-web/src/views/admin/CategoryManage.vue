@@ -33,13 +33,13 @@
         <el-table-column label="操作" width="200">
           <template #default="{ row }">
             <template v-if="!row._isForum">
-              <el-button link type="primary" @click="handleEdit(row)">编辑</el-button>
-              <el-button link type="primary" @click="handleAddForum(row)">添加版块</el-button>
-              <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
+              <el-button link type="primary" @click="handleEdit(row)" :disabled="submitting || operatingId !== null">编辑</el-button>
+              <el-button link type="primary" @click="handleAddForum(row)" :disabled="submitting || operatingId !== null">添加版块</el-button>
+              <el-button link type="danger" @click="handleDelete(row)" :loading="operatingId === row.id && operatingType === 'deleteCategory'" :disabled="operatingId !== null && operatingId !== row.id">删除</el-button>
             </template>
             <template v-else>
-              <el-button link type="primary" @click="handleEditForum(row)">编辑</el-button>
-              <el-button link type="danger" @click="handleDeleteForum(row)">删除</el-button>
+              <el-button link type="primary" @click="handleEditForum(row)" :disabled="submitting || operatingId !== null">编辑</el-button>
+              <el-button link type="danger" @click="handleDeleteForum(row)" :loading="operatingId === row.id && operatingType === 'deleteForum'" :disabled="operatingId !== null && operatingId !== row.id">删除</el-button>
             </template>
           </template>
         </el-table-column>
@@ -107,6 +107,10 @@ interface CategoryTreeVO extends CategoryVO {
 
 const loading = ref(false)
 const categories = ref<CategoryTreeVO[]>([])
+
+// 操作状态
+const operatingId = ref<number | null>(null) // 当前正在操作的ID
+const operatingType = ref<string>('') // 当前正在操作的类型
 
 // 扁平化的分类列表，用于表格显示
 const flattenedCategories = computed(() => {
@@ -233,6 +237,9 @@ function handleEdit(row: CategoryTreeVO) {
 }
 
 async function handleSubmit() {
+  // 防止重复点击
+  if (submitting.value) return
+  
   // 表单验证
   const valid = await categoryFormRef.value?.validate().catch(() => false)
   if (!valid) return
@@ -295,14 +302,17 @@ function handleEditForum(row: CategoryTreeVO) {
 }
 
 async function submitForum() {
+  // 防止重复点击
+  if (submitting.value) return
+  
   // 表单验证
   const valid = await forumFormRef.value?.validate().catch(() => false)
   if (!valid) return
 
+  submitting.value = true
   // 明确区分编辑模式和添加模式
   if (editingForumId.value) {
     // 编辑模式：直接更新版块
-    submitting.value = true
     try {
       await updateForum(editingForumId.value, {
         name: forumForm.name,
@@ -319,7 +329,6 @@ async function submitForum() {
     }
   } else if (currentCategory.value) {
     // 添加模式：需要currentCategory存在
-    submitting.value = true
     try {
       await createForum({
         categoryId: currentCategory.value.id,
@@ -340,38 +349,62 @@ async function submitForum() {
 }
 
 async function handleDelete(row: CategoryTreeVO) {
+  // 防止重复点击
+  if (operatingId.value !== null) return
+  
   try {
     await ElMessageBox.confirm('确定要删除该分类吗？删除分类将同时删除该分类下的所有版块', '提示', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
       type: 'warning'
     })
+  } catch {
+    // 用户取消
+    return
+  }
+  
+  operatingId.value = row.id
+  operatingType.value = 'deleteCategory'
+  try {
     await deleteCategory(row.id)
     ElMessage.success('删除成功')
     fetchCategories()
   } catch (e: any) {
-    if (e !== 'cancel') {
-      console.error('删除失败:', e)
-      ElMessage.error(e?.message || '删除失败')
-    }
+    console.error('删除失败:', e)
+    ElMessage.error(e?.message || '删除失败')
+  } finally {
+    operatingId.value = null
+    operatingType.value = ''
   }
 }
 
 async function handleDeleteForum(row: CategoryTreeVO) {
+  // 防止重复点击
+  if (operatingId.value !== null) return
+  
   try {
     await ElMessageBox.confirm('确定要删除该版块吗？', '提示', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
       type: 'warning'
     })
+  } catch {
+    // 用户取消
+    return
+  }
+  
+  operatingId.value = row.id
+  operatingType.value = 'deleteForum'
+  try {
     await deleteForum(row.id)
     ElMessage.success('删除成功')
     fetchCategories()
   } catch (e: any) {
-    if (e !== 'cancel') {
-      console.error('删除版块失败:', e)
-      ElMessage.error(e?.message || '删除失败')
-    }
+    console.error('删除版块失败:', e)
+    ElMessage.error(e?.message || '删除失败')
+  } finally {
+    operatingId.value = null
+    operatingType.value = ''
   }
 }
 

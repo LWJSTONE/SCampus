@@ -37,8 +37,8 @@
         <el-table-column prop="createTime" label="注册时间" width="180" />
         <el-table-column label="操作" width="150">
           <template #default="{ row }">
-            <el-button link type="primary" @click="handleEdit(row)">编辑</el-button>
-            <el-button link :type="row.status === 1 ? 'danger' : 'success'" @click="handleToggleStatus(row)">
+            <el-button link type="primary" @click="handleEdit(row)" :disabled="submitting">编辑</el-button>
+            <el-button link :type="row.status === 1 ? 'danger' : 'success'" @click="handleToggleStatus(row)" :loading="togglingStatus" :disabled="togglingStatus">
               {{ row.status === 1 ? '禁用' : '启用' }}
             </el-button>
           </template>
@@ -109,6 +109,7 @@ const userForm = reactive<UserUpdateDTO>({
   gender: 0
 })
 const submitting = ref(false)
+const togglingStatus = ref(false) // 禁用/启用操作的状态
 
 // 表单验证规则
 const formRules: FormRules = {
@@ -182,6 +183,9 @@ async function handleSubmit() {
 }
 
 async function handleToggleStatus(row: UserVO) {
+  // 防止重复点击
+  if (togglingStatus.value) return
+  
   // 后端状态定义：0-禁用，1-正常
   const newStatus = row.status === 1 ? 0 : 1
   const action = newStatus === 1 ? '启用' : '禁用'
@@ -195,16 +199,19 @@ async function handleToggleStatus(row: UserVO) {
     return
   }
 
+  togglingStatus.value = true
   try {
     // 先更新UI（乐观更新）
     row.status = newStatus
     await updateUserStatus(row.id, newStatus)
     ElMessage.success(`${action}成功`)
-  } catch (e) {
+  } catch (e: any) {
     console.error(`${action}用户失败:`, e)
     // API调用失败时回滚状态
     row.status = originalStatus
-    ElMessage.error(`${action}用户失败`)
+    ElMessage.error(e?.message || `${action}用户失败`)
+  } finally {
+    togglingStatus.value = false
   }
 }
 

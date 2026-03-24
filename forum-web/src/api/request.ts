@@ -86,6 +86,24 @@ function onRefreshFailed() {
   return subscribers.length
 }
 
+// 显示登录过期对话框（统一处理）
+function showExpiredDialog(userStore: ReturnType<typeof useUserStore>) {
+  if (hasShownExpiredDialog) return
+  hasShownExpiredDialog = true
+  userStore.clearAuth()
+  ElMessageBox.confirm('登录状态已过期，请重新登录', '提示', {
+    confirmButtonText: '重新登录',
+    cancelButtonText: '取消',
+    type: 'warning'
+  }).then(() => {
+    router.replace({ name: 'Login' })
+  }).catch(() => {
+    // 用户取消
+  }).finally(() => {
+    hasShownExpiredDialog = false
+  })
+}
+
 // 响应拦截器
 service.interceptors.response.use(
   (response: AxiosResponse<Result>) => {
@@ -123,22 +141,7 @@ service.interceptors.response.use(
           // 如果没有refreshToken或已经重试过，直接跳转登录
           if (!refreshTokenValue || originalRequest._retry) {
             // 刷新失败或没有refreshToken，跳转登录页
-            // 防止重复弹出对话框
-            if (!hasShownExpiredDialog) {
-              hasShownExpiredDialog = true
-              userStore.clearAuth()
-              ElMessageBox.confirm('登录状态已过期，请重新登录', '提示', {
-                confirmButtonText: '重新登录',
-                cancelButtonText: '取消',
-                type: 'warning'
-              }).then(() => {
-                router.replace({ name: 'Login' })
-              }).catch(() => {
-                // 用户取消
-              }).finally(() => {
-                hasShownExpiredDialog = false
-              })
-            }
+            showExpiredDialog(userStore)
             return Promise.reject(error)
           }
 
@@ -161,8 +164,11 @@ service.interceptors.response.use(
 
           try {
             // 调用刷新Token接口 - 使用完整的URL，避免baseURL问题
+            // 创建独立的axios实例，设置超时时间，避免刷新请求卡住
             const response = await axios.post(`${BASE_URL}/auth/refresh`, {
               refreshToken: refreshTokenValue
+            }, {
+              timeout: 10000 // 刷新token请求超时时间10秒
             })
 
             const responseData = response.data?.data || response.data
@@ -190,24 +196,7 @@ service.interceptors.response.use(
           } catch (refreshError) {
             // 刷新Token失败
             onRefreshFailed()
-            userStore.clearAuth()
-
-            // 防止重复弹出对话框
-            if (!hasShownExpiredDialog) {
-              hasShownExpiredDialog = true
-              ElMessageBox.confirm('登录状态已过期，请重新登录', '提示', {
-                confirmButtonText: '重新登录',
-                cancelButtonText: '取消',
-                type: 'warning'
-              }).then(() => {
-                router.replace({ name: 'Login' })
-              }).catch(() => {
-                // 用户取消
-              }).finally(() => {
-                hasShownExpiredDialog = false
-              })
-            }
-
+            showExpiredDialog(userStore)
             return Promise.reject(refreshError)
           } finally {
             isRefreshing = false

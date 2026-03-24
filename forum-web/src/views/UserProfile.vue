@@ -224,25 +224,32 @@ async function handleFollow() {
   if (followLoading.value) return
   
   followLoading.value = true
+  
+  // 保存当前状态用于回滚
+  const wasFollowing = isFollowing.value
+  const originalFollowerCount = user.value?.followerCount || 0
+  
   try {
-    // 保存当前状态用于计算粉丝数变化
-    const wasFollowing = isFollowing.value
+    // 乐观更新UI
+    isFollowing.value = !wasFollowing
+    if (user.value) {
+      user.value.followerCount = originalFollowerCount + (wasFollowing ? -1 : 1)
+    }
     
     if (wasFollowing) {
       await unfollowUser(userId.value)
-      isFollowing.value = false
       ElMessage.success('已取消关注')
     } else {
       await followUser(userId.value)
-      isFollowing.value = true
       ElMessage.success('关注成功')
-    }
-    // 更新粉丝数：如果之前是关注状态现在取消，粉丝数-1；如果之前不是关注状态现在关注，粉丝数+1
-    if (user.value) {
-      user.value.followerCount = (user.value.followerCount || 0) + (wasFollowing ? -1 : 1)
     }
   } catch (e: any) {
     console.error('操作失败:', e)
+    // 回滚状态
+    isFollowing.value = wasFollowing
+    if (user.value) {
+      user.value.followerCount = originalFollowerCount
+    }
     ElMessage.error(e?.message || '操作失败，请稍后重试')
   } finally {
     followLoading.value = false

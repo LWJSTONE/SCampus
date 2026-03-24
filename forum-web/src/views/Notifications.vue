@@ -81,6 +81,9 @@ const size = 20
 const hasMore = ref(true)
 const markAllLoading = ref(false)
 
+// 加载更多状态
+const loadMoreTriggered = ref(false)
+
 const commentNotifications = computed(() => 
   notifications.value.filter(n => n.type === 1)
 )
@@ -122,6 +125,7 @@ async function fetchNotifications(append = false) {
     }
   } finally {
     loading.value = false
+    loadMoreTriggered.value = false
   }
 }
 
@@ -182,14 +186,21 @@ async function markAllRead() {
 
 // 加载更多
 async function loadMore() {
-  if (loading.value || !hasMore.value) return
+  // 防止重复触发加载
+  if (loadMoreTriggered.value || loading.value || !hasMore.value) return
+  
+  loadMoreTriggered.value = true
   page.value++
   await fetchNotifications(true)
 }
 
 // 刷新通知列表
 async function refresh() {
+  // 防止重复刷新
+  if (loading.value) return
+  
   page.value = 1
+  hasMore.value = true
   await fetchNotifications(false)
 }
 
