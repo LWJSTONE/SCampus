@@ -707,6 +707,77 @@ public class PostServiceImpl implements PostService {
         postMapper.incrementCommentCount(id, delta);
     }
 
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean movePost(Long id, Long forumId, Long operatorId) {
+        log.info("移动帖子, postId: {}, forumId: {}, operatorId: {}", id, forumId, operatorId);
+
+        // 1. 查询帖子
+        Post post = postMapper.selectById(id);
+        if (post == null || post.getDeleteFlag() == 1) {
+            throw new BusinessException(ResultCode.POST_NOT_FOUND);
+        }
+
+        // 2. 更新版块ID
+        post.setForumId(forumId);
+        postMapper.updateById(post);
+
+        log.info("帖子移动成功, postId: {}, newForumId: {}", id, forumId);
+        return true;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean updatePostStatus(Long id, Integer status, Long operatorId) {
+        log.info("更新帖子状态, postId: {}, status: {}, operatorId: {}", id, status, operatorId);
+
+        // 1. 查询帖子
+        Post post = postMapper.selectById(id);
+        if (post == null || post.getDeleteFlag() == 1) {
+            throw new BusinessException(ResultCode.POST_NOT_FOUND);
+        }
+
+        // 2. 验证状态值 (0-关闭 1-正常)
+        if (status != 0 && status != 1) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "状态值无效，只能为0（关闭）或1（正常）");
+        }
+
+        // 3. 更新状态
+        post.setStatus(status);
+        postMapper.updateById(post);
+
+        log.info("帖子状态更新成功, postId: {}, status: {}", id, status);
+        return true;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean auditPost(Long id, Integer status, String reason, Long operatorId) {
+        log.info("审核帖子, postId: {}, status: {}, reason: {}, operatorId: {}", id, status, reason, operatorId);
+
+        // 1. 查询帖子
+        Post post = postMapper.selectById(id);
+        if (post == null || post.getDeleteFlag() == 1) {
+            throw new BusinessException(ResultCode.POST_NOT_FOUND);
+        }
+
+        // 2. 验证状态值 (2-审核通过 3-审核拒绝)
+        if (status != 2 && status != 3) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "审核状态无效，只能为2（通过）或3（拒绝）");
+        }
+
+        // 3. 更新审核状态
+        post.setAuditStatus(status);
+        // 如果审核通过，更新帖子状态为已发布
+        if (status == 2) {
+            post.setStatus(1);
+        }
+        postMapper.updateById(post);
+
+        log.info("帖子审核完成, postId: {}, status: {}", id, status);
+        return true;
+    }
+
     // ==================== 私有方法 ====================
 
     /**

@@ -65,7 +65,8 @@ export interface UserUpdateDTO {
 
 // 认证相关类型
 export interface LoginDTO {
-  username: string
+  username?: string  // 用户名登录时使用（可选，与email二选一）
+  email?: string     // 邮箱登录时使用（可选，与username二选一）
   password: string
   captcha?: string
   captchaKey?: string

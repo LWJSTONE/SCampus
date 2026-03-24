@@ -113,6 +113,7 @@ const submitting = ref(false)
 // 表单验证规则
 const formRules: FormRules = {
   nickname: [
+    { required: true, message: '请输入昵称', trigger: 'blur' },
     { min: 2, max: 20, message: '昵称长度为2-20个字符', trigger: 'blur' }
   ],
   school: [

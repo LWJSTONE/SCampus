@@ -20,9 +20,9 @@ import org.springframework.web.bind.annotation.*;
 
 import org.springframework.beans.factory.annotation.Value;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.validation.constraints.Max;
-import javax.validation.constraints.Min;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.HashMap;
@@ -353,6 +353,123 @@ public class PostController {
         resultMap.put("message", isEssence == 1 ? "加精成功" : "取消加精成功");
 
         return Result.success(resultMap);
+    }
+
+    /**
+     * 移动帖子
+     *
+     * @param id      帖子ID
+     * @param forumId 目标版块ID
+     * @param request HTTP请求
+     * @return 操作结果
+     */
+    @PutMapping("/{id}/move")
+    @Operation(summary = "移动帖子", description = "将帖子移动到其他版块（需要管理员权限）")
+    public Result<Boolean> movePost(
+            @Parameter(description = "帖子ID") @PathVariable Long id,
+            @Parameter(description = "目标版块ID") @RequestParam Long forumId,
+            HttpServletRequest request) {
+
+        log.info("移动帖子, postId: {}, forumId: {}", id, forumId);
+
+        // 获取当前用户ID（需要管理员权限）
+        Long operatorId = getCurrentUserId(request);
+        if (operatorId == null) {
+            return Result.fail(401, "请先登录");
+        }
+
+        // 验证管理员权限 - 使用二次验证
+        if (!verifyAdminWithSecondCheck(request)) {
+            log.warn("用户无管理员权限，无法移动帖子: operatorId={}", operatorId);
+            return Result.fail(403, "无权限执行此操作，需要管理员权限");
+        }
+
+        // 移动帖子
+        boolean result = postService.movePost(id, forumId, operatorId);
+
+        return Result.success("移动成功", result);
+    }
+
+    /**
+     * 关闭/打开帖子
+     *
+     * @param id      帖子ID
+     * @param status  帖子状态(0-关闭 1-打开)
+     * @param request HTTP请求
+     * @return 操作结果
+     */
+    @PutMapping("/{id}/close")
+    @Operation(summary = "关闭帖子", description = "关闭或打开帖子（需要管理员权限）")
+    public Result<Boolean> closePost(
+            @Parameter(description = "帖子ID") @PathVariable Long id,
+            @Parameter(description = "帖子状态(0-关闭 1-打开)") @RequestParam(defaultValue = "0") Integer status,
+            HttpServletRequest request) {
+
+        log.info("关闭帖子, postId: {}, status: {}", id, status);
+
+        // 获取当前用户ID（需要管理员权限）
+        Long operatorId = getCurrentUserId(request);
+        if (operatorId == null) {
+            return Result.fail(401, "请先登录");
+        }
+
+        // 验证管理员权限 - 使用二次验证
+        if (!verifyAdminWithSecondCheck(request)) {
+            log.warn("用户无管理员权限，无法关闭帖子: operatorId={}", operatorId);
+            return Result.fail(403, "无权限执行此操作，需要管理员权限");
+        }
+
+        // 关闭/打开帖子
+        boolean result = postService.updatePostStatus(id, status, operatorId);
+
+        return Result.success(status == 0 ? "关闭成功" : "打开成功", result);
+    }
+
+    /**
+     * 审核帖子
+     *
+     * @param id      帖子ID
+     * @param status  审核状态(2-审核通过 3-审核拒绝)
+     * @param reason  审核备注（拒绝时必填）
+     * @param request HTTP请求
+     * @return 操作结果
+     */
+    @PutMapping("/{id}/audit")
+    @Operation(summary = "审核帖子", description = "审核帖子通过或拒绝（需要管理员权限）")
+    public Result<Boolean> auditPost(
+            @Parameter(description = "帖子ID") @PathVariable Long id,
+            @Parameter(description = "审核状态(2-审核通过 3-审核拒绝)") @RequestParam Integer status,
+            @Parameter(description = "审核备注") @RequestParam(required = false) String reason,
+            HttpServletRequest request) {
+
+        log.info("审核帖子, postId: {}, status: {}, reason: {}", id, status, reason);
+
+        // 获取当前用户ID（需要管理员权限）
+        Long operatorId = getCurrentUserId(request);
+        if (operatorId == null) {
+            return Result.fail(401, "请先登录");
+        }
+
+        // 验证管理员权限 - 使用二次验证
+        if (!verifyAdminWithSecondCheck(request)) {
+            log.warn("用户无管理员权限，无法审核帖子: operatorId={}", operatorId);
+            return Result.fail(403, "无权限执行此操作，需要管理员权限");
+        }
+
+        // 验证状态值
+        if (status != 2 && status != 3) {
+            return Result.fail(400, "审核状态无效，只能为2（通过）或3（拒绝）");
+        }
+
+        // 拒绝时需要填写原因
+        if (status == 3 && (reason == null || reason.trim().isEmpty())) {
+            return Result.fail(400, "拒绝审核时必须填写原因");
+        }
+
+        // 审核帖子
+        boolean result = postService.auditPost(id, status, reason, operatorId);
+
+        return Result.success(status == 2 ? "审核通过" : "审核拒绝", result);
     }
 
     /**

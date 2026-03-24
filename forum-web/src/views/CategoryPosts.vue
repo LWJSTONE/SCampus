@@ -9,7 +9,7 @@
 
     <el-card class="posts-card">
       <div class="post-list">
-        <div v-for="post in posts" :key="post.id" class="post-item" @click="$router.push(`/post/${post.id}`)">
+        <div v-for="post in posts" :key="post.id" class="post-item" @click="navigateToPost(post.id)">
           <div class="post-header">
             <el-avatar :size="40" :src="post.userAvatar">
               {{ post.username?.charAt(0) }}
@@ -113,10 +113,16 @@ async function fetchPosts() {
 async function loadMore() {
   // 防止重复触发加载
   if (loadMoreTriggered.value || loading.value || !hasMore.value) return
-  
+
   loadMoreTriggered.value = true
   page.value++
   await fetchPosts()
+}
+
+function navigateToPost(postId: number) {
+  router.push(`/post/${postId}`).catch((err) => {
+    console.error('路由跳转失败:', err)
+  })
 }
 
 onMounted(() => {

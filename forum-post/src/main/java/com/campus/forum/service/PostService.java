@@ -176,4 +176,35 @@ public interface PostService {
      * @param delta 变化量
      */
     void updateCommentCount(Long id, Integer delta);
+
+    /**
+     * 移动帖子到其他版块
+     *
+     * @param id 帖子ID
+     * @param forumId 目标版块ID
+     * @param operatorId 操作人ID
+     * @return 是否成功
+     */
+    boolean movePost(Long id, Long forumId, Long operatorId);
+
+    /**
+     * 更新帖子状态（关闭/打开）
+     *
+     * @param id 帖子ID
+     * @param status 帖子状态
+     * @param operatorId 操作人ID
+     * @return 是否成功
+     */
+    boolean updatePostStatus(Long id, Integer status, Long operatorId);
+
+    /**
+     * 审核帖子
+     *
+     * @param id 帖子ID
+     * @param status 审核状态(2-通过 3-拒绝)
+     * @param reason 审核备注
+     * @param operatorId 操作人ID
+     * @return 是否成功
+     */
+    boolean auditPost(Long id, Integer status, String reason, Long operatorId);
 }
