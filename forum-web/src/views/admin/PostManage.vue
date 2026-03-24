@@ -20,7 +20,7 @@
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="fetchPosts">搜索</el-button>
+          <el-button type="primary" @click="fetchPosts" :loading="loading" :disabled="loading">搜索</el-button>
         </el-form-item>
       </el-form>
 

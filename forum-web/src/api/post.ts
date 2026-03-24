@@ -29,11 +29,64 @@ export const getPostDetail = getPostById
 
 // 发布帖子
 export function createPost(data: PostCreateDTO): Promise<number> {
-  return request.post('/posts', data)
+  // 参数验证
+  if (!data) {
+    throw new Error('帖子数据不能为空')
+  }
+  // 版块ID验证
+  if (!data.forumId || isNaN(data.forumId) || data.forumId <= 0) {
+    throw new Error('请选择有效的版块')
+  }
+  // 标题验证
+  const title = data.title?.trim()
+  if (!title) {
+    throw new Error('帖子标题不能为空')
+  }
+  if (title.length < 5 || title.length > 100) {
+    throw new Error('帖子标题长度为5-100个字符')
+  }
+  // 内容验证
+  const content = data.content?.trim()
+  if (!content) {
+    throw new Error('帖子内容不能为空')
+  }
+  if (content.length < 10) {
+    throw new Error('帖子内容至少10个字符')
+  }
+  return request.post('/posts', { ...data, title, content })
 }
 
 // 编辑帖子
 export function updatePost(id: number, data: Partial<PostCreateDTO>): Promise<void> {
+  // ID验证
+  if (!id || isNaN(id) || id <= 0) {
+    throw new Error('无效的帖子ID')
+  }
+  if (!data || Object.keys(data).length === 0) {
+    throw new Error('更新数据不能为空')
+  }
+  // 标题验证（如果提供）
+  if (data.title !== undefined) {
+    const title = data.title.trim()
+    if (!title) {
+      throw new Error('帖子标题不能为空')
+    }
+    if (title.length < 5 || title.length > 100) {
+      throw new Error('帖子标题长度为5-100个字符')
+    }
+    data = { ...data, title }
+  }
+  // 内容验证（如果提供）
+  if (data.content !== undefined) {
+    const content = data.content.trim()
+    if (!content) {
+      throw new Error('帖子内容不能为空')
+    }
+    if (content.length < 10) {
+      throw new Error('帖子内容至少10个字符')
+    }
+    data = { ...data, content }
+  }
   return request.put(`/posts/${id}`, data)
 }
 

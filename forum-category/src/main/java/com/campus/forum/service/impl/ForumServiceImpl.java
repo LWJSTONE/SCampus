@@ -154,7 +154,23 @@ public class ForumServiceImpl extends ServiceImpl<ForumMapper, Forum> implements
     @Transactional(rollbackFor = Exception.class)
     public boolean updateStatus(Long id, Integer status) {
         log.info("更新版块状态：{}，状态：{}", id, status);
-        return forumMapper.updateStatus(id, status) > 0;
+
+        // 验证版块是否存在
+        Forum forum = getById(id);
+        if (forum == null) {
+            log.warn("版块不存在，id：{}", id);
+            throw new BusinessException("版块不存在");
+        }
+
+        // 验证status参数有效性（只能是0或1）
+        if (status == null || (status != 0 && status != 1)) {
+            log.warn("无效的状态参数：{}，只能是0或1", status);
+            throw new BusinessException("状态参数无效，只能是0（禁用）或1（启用）");
+        }
+
+        boolean result = forumMapper.updateStatus(id, status) > 0;
+        log.info("版块状态更新成功，id：{}，新状态：{}", id, status);
+        return result;
     }
 
     @Override

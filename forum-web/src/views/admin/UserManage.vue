@@ -18,7 +18,7 @@
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="fetchUsers">搜索</el-button>
+          <el-button type="primary" @click="fetchUsers" :loading="loading" :disabled="loading">搜索</el-button>
         </el-form-item>
       </el-form>
 

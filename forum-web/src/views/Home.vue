@@ -51,7 +51,7 @@
 
       <!-- 加载更多 -->
       <div class="load-more" v-if="hasMore && posts.length > 0">
-        <el-button @click="loadMore" :loading="loading" :disabled="loading">加载更多</el-button>
+        <el-button @click="loadMore" :loading="loading" :disabled="loading || loadMoreTriggered">加载更多</el-button>
       </div>
       
       <!-- 无数据提示 -->

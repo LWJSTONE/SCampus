@@ -2,18 +2,24 @@ package com.campus.forum.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.campus.forum.constant.Constants;
+import com.campus.forum.constant.ResultCode;
 import com.campus.forum.dto.CollectDTO;
 import com.campus.forum.dto.LikeDTO;
 import com.campus.forum.entity.Result;
+import com.campus.forum.exception.BusinessException;
 import com.campus.forum.service.CollectService;
 import com.campus.forum.service.LikeService;
 import com.campus.forum.service.MentionService;
+import com.campus.forum.utils.JwtUtils;
 import com.campus.forum.vo.CollectVO;
+import cn.hutool.core.util.StrUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -39,6 +45,12 @@ public class InteractionController {
     private final LikeService likeService;
     private final CollectService collectService;
     private final MentionService mentionService;
+
+    /**
+     * JWT密钥 - 从配置文件读取，用于验证Token
+     */
+    @Value("${jwt.secret}")
+    private String jwtSecret;
 
     // ==================== 点赞相关接口 ====================
 
@@ -164,6 +176,20 @@ public class InteractionController {
             return Result.fail(401, "请先登录");
         }
         
+        // 分页参数边界校验
+        if (current == null || current < 1) {
+            current = Constants.DEFAULT_PAGE_NUM;
+        }
+        if (size == null || size < 1) {
+            size = Constants.DEFAULT_PAGE_SIZE;
+        }
+        // 防止极大值导致内存溢出
+        if (size > Constants.MAX_PAGE_SIZE) {
+            log.warn("分页参数size超过最大值，已自动调整为: userId={}, 原始size={}, 调整后size={}", 
+                    userId, size, Constants.MAX_PAGE_SIZE);
+            size = Constants.MAX_PAGE_SIZE;
+        }
+        
         log.info("获取收藏列表: userId={}, current={}, size={}", userId, current, size);
         
         IPage<CollectVO> collectPage = collectService.getCollectList(userId, current, size);
@@ -227,23 +253,77 @@ public class InteractionController {
     // ==================== 私有方法 ====================
 
     /**
-     * 从请求中获取当前用户ID
+     * 从请求中获取当前用户ID（安全的JWT Token验证）
+     * 
+     * 【安全修复】
+     * 1. 移除不安全的HTTP Header方式获取用户ID
+     * 2. 使用JWT Token验证用户身份
+     * 3. 支持从请求属性获取（由拦截器预处理的场景）
+     * 
+     * @param request HTTP请求
+     * @return 用户ID，未认证返回null
      */
     private Long getCurrentUserId(HttpServletRequest request) {
-        String userIdStr = request.getHeader("X-User-Id");
-        if (userIdStr != null && !userIdStr.isEmpty()) {
-            try {
-                return Long.parseLong(userIdStr);
-            } catch (NumberFormatException e) {
-                log.warn("解析用户ID失败: {}", userIdStr);
-            }
-        }
-        
+        // 优先从请求属性获取（由拦截器预处理的场景，已验证Token有效性）
         Object userIdAttr = request.getAttribute("userId");
         if (userIdAttr instanceof Long) {
             return (Long) userIdAttr;
         }
         
-        return null;
+        // 从请求头获取Token并验证
+        String token = getTokenFromRequest(request);
+        if (StrUtil.isBlank(token)) {
+            log.debug("请求未携带有效的认证Token");
+            return null;
+        }
+        
+        // 使用配置的密钥验证Token
+        if (!JwtUtils.verifyToken(token, jwtSecret)) {
+            log.warn("Token验证失败，可能已被篡改或已过期");
+            return null;
+        }
+        
+        // 从Token中安全获取用户ID（带签名验证）
+        Long userId = JwtUtils.getUserId(token, jwtSecret);
+        if (userId != null) {
+            log.debug("JWT Token验证成功，userId={}", userId);
+        }
+        
+        return userId;
+    }
+    
+    /**
+     * 从请求头获取Token
+     * 
+     * @param request HTTP请求
+     * @return Token字符串，未找到返回null
+     */
+    private String getTokenFromRequest(HttpServletRequest request) {
+        String authorization = request.getHeader(Constants.TOKEN_HEADER);
+        if (StrUtil.isBlank(authorization)) {
+            return null;
+        }
+        
+        // 处理Bearer前缀
+        if (authorization.startsWith(Constants.TOKEN_PREFIX_BEARER)) {
+            return authorization.substring(Constants.TOKEN_PREFIX_BEARER.length());
+        }
+        
+        return authorization;
+    }
+    
+    /**
+     * 获取当前用户ID，如果未认证则抛出异常
+     * 
+     * @param request HTTP请求
+     * @return 用户ID
+     * @throws BusinessException 如果用户未认证
+     */
+    private Long requireCurrentUserId(HttpServletRequest request) {
+        Long userId = getCurrentUserId(request);
+        if (userId == null) {
+            throw new BusinessException(ResultCode.UNAUTHORIZED);
+        }
+        return userId;
     }
 }

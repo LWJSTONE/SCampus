@@ -7,17 +7,20 @@ import com.campus.forum.dto.CommentQueryDTO;
 import com.campus.forum.entity.Result;
 import com.campus.forum.service.CommentService;
 import com.campus.forum.utils.IpUtils;
+import com.campus.forum.exception.BusinessException;
 import com.campus.forum.vo.CommentVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.*;
-
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.util.StringUtils;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.util.HtmlUtils;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.nio.charset.StandardCharsets;
@@ -39,6 +42,7 @@ import java.util.Map;
 @RequestMapping("/api/v1/comments")
 @RequiredArgsConstructor
 @Tag(name = "评论管理", description = "评论相关接口")
+@Validated
 public class CommentController {
 
     private final CommentService commentService;
@@ -65,8 +69,8 @@ public class CommentController {
     @Operation(summary = "获取帖子评论列表", description = "分页获取指定帖子的评论列表，包含子评论")
     public Result<IPage<CommentVO>> getPostComments(
             @Parameter(description = "帖子ID") @PathVariable Long postId,
-            @Parameter(description = "当前页") @RequestParam(defaultValue = "1") Integer current,
-            @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") Integer size,
+            @Parameter(description = "当前页") @RequestParam(defaultValue = "1") @Min(value = 1, message = "页码最小为1") @Max(value = 10000, message = "页码最大为10000") Integer current,
+            @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") @Min(value = 1, message = "每页大小最小为1") @Max(value = 100, message = "每页大小最大为100") Integer size,
             @Parameter(description = "排序方式") @RequestParam(required = false) String sortBy,
             HttpServletRequest request) {
         
@@ -102,6 +106,11 @@ public class CommentController {
             HttpServletRequest request) {
         
         log.info("发布评论, postId: {}, parentId: {}", createDTO.getPostId(), createDTO.getParentId());
+        
+        // 【XSS防护】对评论内容进行HTML转义，防止XSS攻击
+        String sanitizedContent = sanitizeContent(createDTO.getContent());
+        createDTO.setContent(sanitizedContent);
+        log.debug("评论内容已进行XSS过滤处理");
         
         // 获取当前用户ID
         Long userId = getCurrentUserId(request);
@@ -190,8 +199,8 @@ public class CommentController {
     @Operation(summary = "获取评论回复列表", description = "分页获取指定评论的回复列表")
     public Result<IPage<CommentVO>> getCommentReplies(
             @Parameter(description = "评论ID") @PathVariable Long id,
-            @Parameter(description = "当前页") @RequestParam(defaultValue = "1") Integer current,
-            @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") Integer size,
+            @Parameter(description = "当前页") @RequestParam(defaultValue = "1") @Min(value = 1, message = "页码最小为1") @Max(value = 10000, message = "页码最大为10000") Integer current,
+            @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") @Min(value = 1, message = "每页大小最小为1") @Max(value = 100, message = "每页大小最大为100") Integer size,
             HttpServletRequest request) {
         
         log.info("获取评论回复列表, commentId: {}, current: {}, size: {}", id, current, size);
@@ -288,8 +297,8 @@ public class CommentController {
     @Operation(summary = "获取用户评论列表", description = "分页获取指定用户发表的评论列表")
     public Result<IPage<CommentVO>> getUserComments(
             @Parameter(description = "用户ID") @PathVariable Long userId,
-            @Parameter(description = "当前页") @RequestParam(defaultValue = "1") Integer current,
-            @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") Integer size,
+            @Parameter(description = "当前页") @RequestParam(defaultValue = "1") @Min(value = 1, message = "页码最小为1") @Max(value = 10000, message = "页码最大为10000") Integer current,
+            @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") @Min(value = 1, message = "每页大小最小为1") @Max(value = 100, message = "每页大小最大为100") Integer size,
             HttpServletRequest request) {
         
         log.info("获取用户评论列表, userId: {}, current: {}, size: {}", userId, current, size);
@@ -422,5 +431,31 @@ public class CommentController {
         }
         
         return null;
+    }
+    
+    /**
+     * 对内容进行XSS过滤处理
+     * 使用Spring HtmlUtils进行HTML转义，防止XSS攻击
+     *
+     * @param content 原始内容
+     * @return 转义后的安全内容
+     */
+    private String sanitizeContent(String content) {
+        if (content == null || content.isEmpty()) {
+            return content;
+        }
+        // 使用Spring的HtmlUtils进行HTML转义
+        // 将特殊字符转换为HTML实体，如 < -> &lt;, > -> &gt;, " -> &quot; 等
+        String escaped = HtmlUtils.htmlEscape(content, "UTF-8");
+        
+        // 额外过滤潜在的危险字符
+        // 移除可能被利用的javascript:协议
+        escaped = escaped.replaceAll("(?i)javascript:", "");
+        // 移除可能被利用的data:协议（用于内联脚本）
+        escaped = escaped.replaceAll("(?i)data:", "");
+        // 移除on开头的事件属性
+        escaped = escaped.replaceAll("(?i)on\\w+\\s*=", "");
+        
+        return escaped;
     }
 }

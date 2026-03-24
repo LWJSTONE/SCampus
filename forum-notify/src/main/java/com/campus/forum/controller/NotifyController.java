@@ -1,17 +1,22 @@
 package com.campus.forum.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.campus.forum.constant.ResultCode;
 import com.campus.forum.dto.NoticeCreateDTO;
 import com.campus.forum.dto.NoticeQueryDTO;
 import com.campus.forum.dto.NoticeUpdateDTO;
 import com.campus.forum.entity.Result;
+import com.campus.forum.exception.BusinessException;
 import com.campus.forum.service.NoticeService;
+import com.campus.forum.utils.JwtUtils;
+import com.campus.forum.utils.XssUtils;
 import com.campus.forum.vo.NoticeVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -126,11 +131,20 @@ public class NotifyController {
             return Result.fail(401, "请先登录");
         }
         
-        // 权限校验：只有管理员可以发布通知
-        if (!isAdmin(request)) {
+        // 【安全修复】权限校验：使用增强的管理员验证
+        if (!isAdminSecure(request)) {
             log.warn("非管理员尝试发布通知: userId={}", userId);
             return Result.fail(403, "无权限执行此操作，需要管理员权限");
         }
+        
+        // 【安全修复】XSS过滤：对标题、内容、备注进行XSS过滤
+        createDTO.setTitle(XssUtils.filterTitle(createDTO.getTitle()));
+        createDTO.setContent(XssUtils.filterContent(createDTO.getContent()));
+        if (StringUtils.hasText(createDTO.getRemark())) {
+            createDTO.setRemark(XssUtils.filterRemark(createDTO.getRemark()));
+        }
+        
+        log.info("通知内容已进行XSS过滤, userId={}, title={}", userId, createDTO.getTitle());
         
         // 发布通知
         Long noticeId = noticeService.publishNotice(createDTO, userId, userName);
@@ -161,11 +175,24 @@ public class NotifyController {
             return Result.fail(401, "请先登录");
         }
         
-        // 权限校验：只有管理员可以更新通知
-        if (!isAdmin(request)) {
+        // 【安全修复】权限校验：使用增强的管理员验证
+        if (!isAdminSecure(request)) {
             log.warn("非管理员尝试更新通知: userId={}, noticeId={}", userId, id);
             return Result.fail(403, "无权限执行此操作，需要管理员权限");
         }
+        
+        // 【安全修复】XSS过滤：对标题、内容、备注进行XSS过滤
+        if (StringUtils.hasText(updateDTO.getTitle())) {
+            updateDTO.setTitle(XssUtils.filterTitle(updateDTO.getTitle()));
+        }
+        if (StringUtils.hasText(updateDTO.getContent())) {
+            updateDTO.setContent(XssUtils.filterContent(updateDTO.getContent()));
+        }
+        if (StringUtils.hasText(updateDTO.getRemark())) {
+            updateDTO.setRemark(XssUtils.filterRemark(updateDTO.getRemark()));
+        }
+        
+        log.info("更新通知内容已进行XSS过滤, userId={}, noticeId={}", userId, id);
         
         // 更新通知
         boolean result = noticeService.updateNotice(id, updateDTO, userId);
@@ -194,8 +221,8 @@ public class NotifyController {
             return Result.fail(401, "请先登录");
         }
         
-        // 权限校验：只有管理员可以删除通知
-        if (!isAdmin(request)) {
+        // 【安全修复】权限校验：使用增强的管理员验证
+        if (!isAdminSecure(request)) {
             log.warn("非管理员尝试删除通知: userId={}, noticeId={}", userId, id);
             return Result.fail(403, "无权限执行此操作，需要管理员权限");
         }
@@ -325,8 +352,11 @@ public class NotifyController {
     }
 
     /**
-     * 检查当前用户是否为管理员
-     * 修复：添加二次验证，同时检查Header和request.getAttribute
+     * 检查当前用户是否为管理员（基础方法）
+     * 同时检查Header和request.getAttribute
+     * 
+     * @param request HTTP请求
+     * @return 是否为管理员
      */
     private boolean isAdmin(HttpServletRequest request) {
         // 优先从Header获取（网关传递）
@@ -343,5 +373,129 @@ public class NotifyController {
         }
         
         return false;
+    }
+
+    /**
+     * 【安全修复】增强的管理员权限验证
+     * 
+     * 验证流程：
+     * 1. 首先检查Header和Attribute中的角色信息（兼容网关传递）
+     * 2. 然后通过JWT Token进行二次验证（更安全）
+     * 3. 两者都验证通过才认为是管理员
+     * 
+     * @param request HTTP请求
+     * @return 是否为管理员
+     */
+    private boolean isAdminSecure(HttpServletRequest request) {
+        // 第一层验证：检查Header和Attribute中的角色信息
+        boolean headerAdmin = isAdmin(request);
+        
+        // 第二层验证：通过JWT Token验证
+        boolean tokenAdmin = verifyAdminByToken(request);
+        
+        // 如果Header验证通过，但没有Token，仍然允许（兼容网关场景）
+        // 但如果Token验证失败（Token存在但角色不对），则拒绝
+        String token = extractToken(request);
+        
+        if (token == null || token.isEmpty()) {
+            // 无Token场景：仅依赖Header验证，记录警告
+            log.warn("管理员操作未提供JWT Token，仅使用Header验证，安全性降低");
+            return headerAdmin;
+        }
+        
+        // 有Token场景：必须Token验证也通过
+        if (!tokenAdmin) {
+            log.warn("JWT Token验证失败或角色不匹配");
+            return false;
+        }
+        
+        // 两层验证都通过
+        return headerAdmin && tokenAdmin;
+    }
+
+    /**
+     * 通过JWT Token验证管理员身份
+     * 
+     * @param request HTTP请求
+     * @return 是否为管理员
+     */
+    private boolean verifyAdminByToken(HttpServletRequest request) {
+        try {
+            String token = extractToken(request);
+            if (token == null || token.isEmpty()) {
+                log.debug("未找到JWT Token");
+                return false;
+            }
+            
+            // 检查JWT密钥是否配置
+            if (!JwtUtils.isSecretConfigured()) {
+                log.warn("JWT密钥未配置，跳过Token验证");
+                return false;
+            }
+            
+            // 验证Token有效性
+            if (!JwtUtils.verifyToken(token)) {
+                log.warn("JWT Token验证失败");
+                return false;
+            }
+            
+            // 获取Token中的角色信息
+            String role = JwtUtils.getRole(token);
+            if (role == null) {
+                log.warn("JWT Token中未包含角色信息");
+                return false;
+            }
+            
+            // 检查是否为管理员角色
+            boolean isAdmin = "ADMIN".equalsIgnoreCase(role) || "ROLE_ADMIN".equalsIgnoreCase(role);
+            if (isAdmin) {
+                log.debug("JWT Token验证通过，角色: {}", role);
+            } else {
+                log.warn("JWT Token中角色不是管理员: {}", role);
+            }
+            
+            return isAdmin;
+            
+        } catch (SecurityException e) {
+            log.error("JWT安全验证异常: {}", e.getMessage());
+            return false;
+        } catch (Exception e) {
+            log.error("JWT Token验证异常: {}", e.getMessage(), e);
+            return false;
+        }
+    }
+
+    /**
+     * 从请求中提取JWT Token
+     * 
+     * @param request HTTP请求
+     * @return Token字符串，不存在则返回null
+     */
+    private String extractToken(HttpServletRequest request) {
+        // 1. 从Authorization Header获取
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            return authHeader.substring(7);
+        }
+        
+        // 2. 从自定义Header获取
+        String tokenHeader = request.getHeader("X-Access-Token");
+        if (tokenHeader != null && !tokenHeader.isEmpty()) {
+            return tokenHeader;
+        }
+        
+        // 3. 从请求参数获取
+        String tokenParam = request.getParameter("token");
+        if (tokenParam != null && !tokenParam.isEmpty()) {
+            return tokenParam;
+        }
+        
+        // 4. 从request.getAttribute获取
+        Object tokenAttr = request.getAttribute("token");
+        if (tokenAttr instanceof String) {
+            return (String) tokenAttr;
+        }
+        
+        return null;
     }
 }

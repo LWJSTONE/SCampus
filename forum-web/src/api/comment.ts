@@ -32,7 +32,23 @@ export function getPostComments(postId: number, params: PageQuery): Promise<Page
  * @param data 评论数据
  */
 export function createComment(data: CommentCreateDTO): Promise<number> {
-  return request.post('/comments', data)
+  // 参数验证
+  if (!data) {
+    throw new Error('评论数据不能为空')
+  }
+  // 帖子ID验证
+  if (!data.postId || isNaN(data.postId) || data.postId <= 0) {
+    throw new Error('无效的帖子ID')
+  }
+  // 内容验证
+  const content = data.content?.trim()
+  if (!content) {
+    throw new Error('评论内容不能为空')
+  }
+  if (content.length < 1 || content.length > 500) {
+    throw new Error('评论内容长度为1-500个字符')
+  }
+  return request.post('/comments', { ...data, content })
 }
 
 /**

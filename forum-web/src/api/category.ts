@@ -25,7 +25,18 @@ export function getCategoryDetail(id: number): Promise<CategoryVO> {
  * @param data 分类数据
  */
 export function createCategory(data: Partial<CategoryVO>) {
-  return request.post('/categories', data)
+  // 参数验证
+  if (!data) {
+    throw new Error('分类数据不能为空')
+  }
+  const name = data.name?.trim()
+  if (!name) {
+    throw new Error('分类名称不能为空')
+  }
+  if (name.length < 2 || name.length > 50) {
+    throw new Error('分类名称长度为2-50个字符')
+  }
+  return request.post('/categories', { ...data, name })
 }
 
 /**
@@ -34,6 +45,24 @@ export function createCategory(data: Partial<CategoryVO>) {
  * @param data 分类数据
  */
 export function updateCategory(id: number, data: Partial<CategoryVO>) {
+  // ID验证
+  if (!id || isNaN(id) || id <= 0) {
+    throw new Error('无效的分类ID')
+  }
+  if (!data || Object.keys(data).length === 0) {
+    throw new Error('更新数据不能为空')
+  }
+  // 名称验证（如果提供）
+  if (data.name !== undefined) {
+    const name = data.name.trim()
+    if (!name) {
+      throw new Error('分类名称不能为空')
+    }
+    if (name.length < 2 || name.length > 50) {
+      throw new Error('分类名称长度为2-50个字符')
+    }
+    data = { ...data, name }
+  }
   return request.put(`/categories/${id}`, data)
 }
 

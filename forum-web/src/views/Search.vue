@@ -31,7 +31,7 @@
       <el-empty v-else description="未找到相关内容" />
 
       <div v-if="hasMore" class="load-more">
-        <el-button :loading="loading" @click="loadMore">加载更多</el-button>
+        <el-button :loading="loading" :disabled="loading || loadMoreTriggered" @click="loadMore">加载更多</el-button>
       </div>
     </el-card>
   </div>
