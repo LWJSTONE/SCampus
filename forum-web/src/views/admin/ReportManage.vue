@@ -7,6 +7,19 @@
         </div>
       </template>
 
+      <el-form :inline="true" :model="queryParams" class="search-form">
+        <el-form-item label="状态">
+          <el-select v-model="queryParams.status" placeholder="全部" clearable>
+            <el-option label="待处理" :value="0" />
+            <el-option label="已处理" :value="1" />
+            <el-option label="已驳回" :value="2" />
+          </el-select>
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="fetchReports">搜索</el-button>
+        </el-form-item>
+      </el-form>
+
       <el-table :data="reports" v-loading="loading">
         <el-table-column prop="id" label="ID" width="80" />
         <el-table-column prop="reportType" label="类型" width="100">
@@ -34,24 +47,24 @@
       </el-table>
 
       <el-pagination
-        v-model:current-page="page"
+        v-model:current-page="queryParams.current"
+        v-model:page-size="queryParams.size"
         :total="total"
-        :page-size="size"
         layout="total, prev, pager, next"
-        @current-change="fetchReports"
+        @current-change="handlePageChange"
       />
     </el-card>
 
     <!-- 处理举报对话框 -->
     <el-dialog v-model="processDialogVisible" title="处理举报" width="500px">
-      <el-form :model="handleForm" label-width="100px">
-        <el-form-item label="处理结果">
+      <el-form ref="handleFormRef" :model="handleForm" :rules="handleFormRules" label-width="100px">
+        <el-form-item label="处理结果" prop="result">
           <el-radio-group v-model="handleForm.result">
             <el-radio :value="1">通过（处罚）</el-radio>
             <el-radio :value="2">驳回</el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-form-item label="处罚措施" v-if="handleForm.result === 1">
+        <el-form-item label="处罚措施" prop="action" v-if="handleForm.result === 1">
           <el-radio-group v-model="handleForm.action">
             <el-radio :value="1">删除内容</el-radio>
             <el-radio :value="2">警告用户</el-radio>
@@ -61,8 +74,8 @@
         <el-form-item label="封禁天数" v-if="handleForm.result === 1 && handleForm.action === 3">
           <el-input-number v-model="handleForm.banDays" :min="1" :max="365" />
         </el-form-item>
-        <el-form-item label="处理备注">
-          <el-input v-model="handleForm.handleRemark" type="textarea" :rows="3" placeholder="请输入处理备注" />
+        <el-form-item label="处理备注" prop="handleRemark">
+          <el-input v-model="handleForm.handleRemark" type="textarea" :rows="3" placeholder="请输入处理备注" maxlength="200" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -90,15 +103,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ref, reactive, onMounted, nextTick } from 'vue'
+import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { getReportList, handleReport, type ReportVO, type ReportHandleDTO } from '@/api/report'
 
 const loading = ref(false)
 const reports = ref<ReportVO[]>([])
-const page = ref(1)
 const total = ref(0)
-const size = 10
+const queryParams = reactive({
+  current: 1,
+  size: 10,
+  status: undefined as number | undefined
+})
 
 const typeMap: Record<number, string> = {
   1: '帖子',
@@ -116,12 +132,34 @@ const statusMap: Record<number, { text: string; type: 'success' | 'primary' | 'w
 const processDialogVisible = ref(false)
 const submitting = ref(false)
 const processingId = ref<number | null>(null)
+const handleFormRef = ref<FormInstance>()
 const handleForm = reactive<ReportHandleDTO>({
   result: 1,
   action: 1,
   banDays: 7,
   handleRemark: ''
 })
+
+// 表单验证规则
+const handleFormRules: FormRules = {
+  result: [
+    { required: true, message: '请选择处理结果', trigger: 'change' }
+  ],
+  action: [
+    { 
+      required: true, 
+      message: '请选择处罚措施', 
+      trigger: 'change',
+      validator: (rule, value, callback) => {
+        if (handleForm.result === 1 && !value) {
+          callback(new Error('请选择处罚措施'))
+        } else {
+          callback()
+        }
+      }
+    }
+  ]
+}
 
 // 查看详情对话框
 const viewDialogVisible = ref(false)
@@ -130,16 +168,22 @@ const currentReport = ref<ReportVO | null>(null)
 async function fetchReports() {
   loading.value = true
   try {
-    const res = await getReportList({ current: page.value, size })
+    const res = await getReportList(queryParams)
     reports.value = res.records || res.list || []
     total.value = res.total || 0
   } catch (e: any) {
     console.error('获取举报列表失败:', e)
     ElMessage.error(e?.message || '获取举报列表失败')
     reports.value = []
+    total.value = 0
   } finally {
     loading.value = false
   }
+}
+
+function handlePageChange(page: number) {
+  queryParams.current = page
+  fetchReports()
 }
 
 function handleView(row: ReportVO) {
@@ -156,10 +200,18 @@ function handleProcess(row: ReportVO) {
     handleRemark: ''
   })
   processDialogVisible.value = true
+  // 清除表单验证状态
+  nextTick(() => {
+    handleFormRef.value?.clearValidate()
+  })
 }
 
 async function submitHandle() {
   if (!processingId.value) return
+  
+  // 表单验证
+  const valid = await handleFormRef.value?.validate().catch(() => false)
+  if (!valid) return
   
   submitting.value = true
   try {

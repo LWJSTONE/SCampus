@@ -50,9 +50,12 @@
       </el-card>
 
       <!-- 加载更多 -->
-      <div class="load-more" v-if="hasMore">
-        <el-button @click="loadMore" :loading="loading">加载更多</el-button>
+      <div class="load-more" v-if="hasMore && posts.length > 0">
+        <el-button @click="loadMore" :loading="loading" :disabled="loading">加载更多</el-button>
       </div>
+      
+      <!-- 无数据提示 -->
+      <el-empty v-if="!initialLoading && posts.length === 0" description="暂无帖子" />
     </div>
   </div>
 </template>
@@ -101,6 +104,8 @@ const hasMore = ref(true)
 const page = ref(1)
 const size = 10
 const announcements = ref<Announcement[]>([])
+const initialLoading = ref(true)
+const loadMoreTriggered = ref(false)
 
 function formatTime(time: string) {
   return dayjs(time).fromNow()
@@ -122,11 +127,14 @@ async function fetchAnnouncements() {
 }
 
 async function fetchPosts() {
+  // 防止重复请求
+  if (loading.value) return
+  
   loading.value = true
   try {
     const res = await getPostList({ page: page.value, size })
     // 兼容后端返回的字段名 userName -> username
-    const records = res.records.map((post: any) => ({
+    const records = (res.records || []).map((post: any) => ({
       ...post,
       username: post.username || post.userName,
       userAvatar: post.userAvatar || post.avatar,
@@ -135,16 +143,30 @@ async function fetchPosts() {
       isEssence: post.isEssence === 1 || post.isEssence === true
     }))
     posts.value = [...posts.value, ...records]
-    hasMore.value = res.current < res.pages
+    
+    // 兼容不同的分页字段名
+    const currentPage = res.current || res.pageNum || res.page || page.value
+    const totalPages = res.pages || res.totalPages || res.total || 1
+    hasMore.value = currentPage < totalPages
   } catch (e: any) {
     console.error('获取帖子列表失败:', e)
     ElMessage.error(e?.message || '获取帖子列表失败')
+    // 请求失败时回滚页码
+    if (page.value > 1) {
+      page.value--
+    }
   } finally {
     loading.value = false
+    initialLoading.value = false
+    loadMoreTriggered.value = false
   }
 }
 
 async function loadMore() {
+  // 防止重复触发加载
+  if (loadMoreTriggered.value || loading.value || !hasMore.value) return
+  
+  loadMoreTriggered.value = true
   page.value++
   await fetchPosts()
 }

@@ -18,7 +18,7 @@
         </el-form-item>
 
         <el-form-item label="标题" prop="title">
-          <el-input v-model="form.title" placeholder="请输入标题" maxlength="100" show-word-limit />
+          <el-input v-model="form.title" placeholder="请输入标题" maxlength="100" show-word-limit @input="watchFormChanges" />
         </el-form-item>
 
         <el-form-item label="内容" prop="content">
@@ -29,6 +29,7 @@
             placeholder="请输入内容"
             maxlength="10000"
             show-word-limit
+            @input="watchFormChanges"
           />
         </el-form-item>
 
@@ -40,6 +41,7 @@
             allow-create
             placeholder="输入标签后回车添加"
             style="width: 100%"
+            @change="watchFormChanges"
           />
         </el-form-item>
 
@@ -51,7 +53,7 @@
           <el-button type="primary" :loading="submitting" @click="handleSubmit">
             发布
           </el-button>
-          <el-button @click="$router.back()">取消</el-button>
+          <el-button @click="handleCancel">取消</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -59,9 +61,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, onBeforeRouteLeave } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, FormInstance, FormRules } from 'element-plus'
+import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus'
 import { createPost } from '@/api/post'
 import { getForumList } from '@/api/category'
 import { useUserStore } from '@/stores/user'
@@ -72,6 +74,7 @@ const userStore = useUserStore()
 const formRef = ref<FormInstance>()
 const submitting = ref(false)
 const forums = ref<ForumVO[]>([])
+const hasUnsavedChanges = ref(false)
 
 const form = reactive({
   forumId: undefined as number | undefined,
@@ -106,6 +109,9 @@ async function fetchForums() {
 }
 
 async function handleSubmit() {
+  // 防止重复提交
+  if (submitting.value) return
+  
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
 
@@ -120,6 +126,7 @@ async function handleSubmit() {
       type: form.type,
       attachmentIds: form.attachmentIds
     })
+    hasUnsavedChanges.value = false
     ElMessage.success('发布成功')
     router.push(`/post/${postId}`)
   } catch (e: any) {
@@ -129,6 +136,50 @@ async function handleSubmit() {
     submitting.value = false
   }
 }
+
+// 取消发布
+async function handleCancel() {
+  // 如果表单有内容，提示用户确认
+  if (form.title || form.content) {
+    try {
+      await ElMessageBox.confirm('确定要离开吗？未保存的内容将会丢失。', '提示', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      })
+      hasUnsavedChanges.value = false
+      router.back()
+    } catch {
+      // 用户取消
+    }
+  } else {
+    router.back()
+  }
+}
+
+// 监听表单变化
+function watchFormChanges() {
+  if (form.title || form.content || form.tags.length > 0) {
+    hasUnsavedChanges.value = true
+  }
+}
+
+// 路由守卫 - 防止意外离开
+onBeforeRouteLeave((to, from, next) => {
+  if (hasUnsavedChanges.value) {
+    ElMessageBox.confirm('确定要离开吗？未保存的内容将会丢失。', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    }).then(() => {
+      next()
+    }).catch(() => {
+      next(false)
+    })
+  } else {
+    next()
+  }
+})
 
 onMounted(() => {
   // 检查登录状态

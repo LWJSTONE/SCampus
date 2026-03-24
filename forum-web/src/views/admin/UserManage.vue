@@ -50,7 +50,7 @@
         v-model:page-size="queryParams.size"
         :total="total"
         layout="total, prev, pager, next"
-        @current-change="fetchUsers"
+        @current-change="handlePageChange"
       />
     </el-card>
 
@@ -83,7 +83,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, nextTick } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { getUserList, updateUser, updateUserStatus } from '@/api/user'
 import type { UserVO, UserUpdateDTO } from '@/types'
@@ -133,9 +133,15 @@ async function fetchUsers() {
     console.error('获取用户列表失败:', e)
     ElMessage.error(e?.message || '获取用户列表失败')
     users.value = []
+    total.value = 0
   } finally {
     loading.value = false
   }
+}
+
+function handlePageChange(page: number) {
+  queryParams.page = page
+  fetchUsers()
 }
 
 function handleEdit(row: UserVO) {
@@ -147,6 +153,10 @@ function handleEdit(row: UserVO) {
     gender: row.gender ?? 0
   })
   dialogVisible.value = true
+  // 清除表单验证状态
+  nextTick(() => {
+    formRef.value?.clearValidate()
+  })
 }
 
 async function handleSubmit() {

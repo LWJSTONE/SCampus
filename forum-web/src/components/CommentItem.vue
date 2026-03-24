@@ -51,6 +51,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { likeComment } from '@/api/comment'
@@ -71,7 +72,11 @@ const emit = defineEmits<{
   delete: [id: number]
 }>()
 
+const router = useRouter()
 const userStore = useUserStore()
+
+// 防重复点击状态
+const liking = ref(false)
 
 // 使用本地副本避免直接修改props
 const localComment = ref<CommentVO>({ ...props.comment })
@@ -105,8 +110,16 @@ function handleDelete() {
 async function handleLike() {
   if (!userStore.isLoggedIn) {
     ElMessage.warning('请先登录')
+    router.push('/login')
     return
   }
+
+  // 防止重复点击
+  if (liking.value) {
+    return
+  }
+
+  liking.value = true
   try {
     const result = await likeComment(localComment.value.id)
     // 更新本地状态和计数（不直接修改props）
@@ -114,11 +127,15 @@ async function handleLike() {
     localComment.value = {
       ...localComment.value,
       isLiked: isLiked,
-      likeCount: (localComment.value.likeCount || 0) + (isLiked ? 1 : -1)
+      // 防止计数器变为负数
+      likeCount: Math.max(0, (localComment.value.likeCount || 0) + (isLiked ? 1 : -1))
     }
+    ElMessage.success(result.message || (isLiked ? '点赞成功' : '已取消点赞'))
   } catch (e: any) {
     console.error('点赞失败:', e)
     ElMessage.error(e?.message || '点赞失败，请稍后重试')
+  } finally {
+    liking.value = false
   }
 }
 </script>

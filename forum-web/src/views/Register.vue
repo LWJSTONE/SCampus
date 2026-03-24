@@ -89,9 +89,9 @@
         <el-form-item prop="agreement">
           <el-checkbox v-model="registerForm.agreement">
             我已阅读并同意
-            <el-button link type="primary">《用户协议》</el-button>
+            <el-button link type="primary" @click.prevent="showAgreement('user')">《用户协议》</el-button>
             和
-            <el-button link type="primary">《隐私政策》</el-button>
+            <el-button link type="primary" @click.prevent="showAgreement('privacy')">《隐私政策》</el-button>
           </el-checkbox>
         </el-form-item>
 
@@ -115,6 +115,42 @@
         </div>
       </el-form>
     </div>
+
+    <!-- 用户协议/隐私政策弹窗 -->
+    <el-dialog
+      v-model="agreementDialogVisible"
+      :title="agreementType === 'user' ? '用户协议' : '隐私政策'"
+      width="600px"
+    >
+      <div class="agreement-content" v-if="agreementType === 'user'">
+        <h4>一、服务条款</h4>
+        <p>欢迎使用SCampus校园论坛平台。在使用本平台前，请您仔细阅读以下服务条款。</p>
+        <h4>二、用户行为规范</h4>
+        <p>1. 用户应遵守国家法律法规，不得发布违法、违规内容。</p>
+        <p>2. 用户应尊重他人，不得发布侮辱、诽谤、恐吓等不当言论。</p>
+        <p>3. 用户不得发布广告、垃圾信息等干扰平台正常运营的内容。</p>
+        <p>4. 用户应对自己的账号安全负责，妥善保管密码。</p>
+        <h4>三、知识产权</h4>
+        <p>用户发布的内容应确保拥有合法的知识产权或已获得授权。</p>
+        <h4>四、免责声明</h4>
+        <p>本平台对用户发布的内容不承担审查义务，但有权对违规内容进行处理。</p>
+      </div>
+      <div class="agreement-content" v-else>
+        <h4>一、信息收集</h4>
+        <p>我们收集您的用户名、邮箱等信息用于提供基础服务。</p>
+        <h4>二、信息使用</h4>
+        <p>您的信息仅用于提供、改进我们的服务，不会出售给第三方。</p>
+        <h4>三、信息保护</h4>
+        <p>我们采用安全措施保护您的个人信息，防止未经授权的访问、使用或泄露。</p>
+        <h4>四、Cookie使用</h4>
+        <p>我们使用Cookie来提供更好的用户体验，您可以在浏览器中管理Cookie设置。</p>
+        <h4>五、权利保护</h4>
+        <p>您有权查看、修改、删除您的个人信息，如有需要请联系管理员。</p>
+      </div>
+      <template #footer>
+        <el-button type="primary" @click="agreementDialogVisible = false">我已了解</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -146,6 +182,10 @@ const countdown = ref(0)
 
 // 定时器引用，用于组件卸载时清理
 let countdownTimer: ReturnType<typeof setInterval> | null = null
+
+// 协议弹窗相关
+const agreementDialogVisible = ref(false)
+const agreementType = ref<'user' | 'privacy'>('user')
 
 // 注册表单
 const registerForm = reactive({
@@ -206,25 +246,35 @@ const registerRules: FormRules = {
 // ==================== 方法定义 ====================
 
 /**
+ * 显示协议弹窗
+ */
+const showAgreement = (type: 'user' | 'privacy') => {
+  agreementType.value = type
+  agreementDialogVisible.value = true
+}
+
+/**
  * 发送验证码
  */
 const handleSendCode = async () => {
   // 验证邮箱
-  if (!registerForm.email) {
+  const email = registerForm.email?.trim() || ''
+  if (!email) {
     ElMessage.warning('请先输入邮箱')
     return
   }
 
   // 邮箱格式验证
   const emailReg = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-  if (!emailReg.test(registerForm.email)) {
+  if (!emailReg.test(email)) {
     ElMessage.warning('请输入正确的邮箱格式')
     return
   }
 
   sendingCode.value = true
   try {
-    await sendEmailCode(registerForm.email)
+    // 使用trim后的邮箱
+    await sendEmailCode(email)
     ElMessage.success('验证码已发送')
 
     // 开始倒计时
@@ -252,21 +302,37 @@ const handleSendCode = async () => {
 const handleRegister = async () => {
   // 表单验证
   const valid = await formRef.value?.validate().catch(() => false)
-  if (!valid) return
+  if (valid === false) {
+    ElMessage.warning('请检查表单')
+    return
+  }
 
   // 注册时只需要邮箱验证码，不需要图形验证码
   // 直接提交注册请求
   loading.value = true
   try {
+    // 用户名trim处理，防止前后空格问题
+    const username = registerForm.username.trim()
+    const email = registerForm.email.trim()
+    
     await register({
-      username: registerForm.username,
+      username,
       password: registerForm.password,
       confirmPassword: registerForm.confirmPassword,
-      email: registerForm.email,
+      email,
       code: registerForm.code,
     })
 
     ElMessage.success('注册成功，请登录')
+    // 注册成功后清空表单，防止数据残留
+    Object.assign(registerForm, {
+      username: '',
+      email: '',
+      code: '',
+      password: '',
+      confirmPassword: '',
+      agreement: false
+    })
     router.push('/login')
   } catch (error: any) {
     console.error('注册失败：', error)
@@ -346,6 +412,27 @@ onUnmounted(() => {
         text-decoration: underline;
       }
     }
+  }
+}
+
+.agreement-content {
+  max-height: 400px;
+  overflow-y: auto;
+  line-height: 1.8;
+  color: #606266;
+
+  h4 {
+    margin: 16px 0 8px;
+    color: #303133;
+
+    &:first-child {
+      margin-top: 0;
+    }
+  }
+
+  p {
+    margin: 4px 0;
+    font-size: 14px;
   }
 }
 </style>

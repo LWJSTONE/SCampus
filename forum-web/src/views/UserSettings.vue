@@ -84,6 +84,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, FormInstance, FormRules, type UploadRequestOptions } from 'element-plus'
 import { updateUser, updatePassword, updateAvatar, getCurrentUserInfo } from '@/api/user'
 import { request } from '@/api/request'
@@ -91,13 +92,14 @@ import { useUserStore } from '@/stores/user'
 import type { UserUpdateDTO } from '@/types'
 
 const userStore = useUserStore()
+const router = useRouter()
 const formRef = ref<FormInstance>()
 const pwdFormRef = ref<FormInstance>()
 const saving = ref(false)
 const savingPwd = ref(false)
 const uploadingAvatar = ref(false)
 
-const form = reactive<UserUpdateDTO & { avatar?: string }>({
+const form = reactive<Partial<UserUpdateDTO>>({
   nickname: '',
   bio: '',
   major: '',
@@ -152,14 +154,14 @@ async function fetchUserInfo() {
 // 头像上传前验证
 function beforeAvatarUpload(file: File) {
   const isImage = file.type.startsWith('image/')
-  const isLt2M = file.size / 1024 / 1024 < 2
+  const isLt5M = file.size / 1024 / 1024 < 5
 
   if (!isImage) {
     ElMessage.error('只能上传图片文件!')
     return false
   }
-  if (!isLt2M) {
-    ElMessage.error('图片大小不能超过 2MB!')
+  if (!isLt5M) {
+    ElMessage.error('图片大小不能超过 5MB!')
     return false
   }
   return true
@@ -205,6 +207,9 @@ async function handleAvatarUpload(options: UploadRequestOptions) {
 }
 
 async function handleSave() {
+  // 防止重复提交
+  if (saving.value) return
+  
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
 
@@ -216,9 +221,17 @@ async function handleSave() {
 
   saving.value = true
   try {
-    await updateUser(userStore.userInfo.id, form)
+    // 只发送需要更新的字段
+    const updateData: Partial<UserUpdateDTO> = {
+      nickname: form.nickname,
+      bio: form.bio,
+      major: form.major,
+      grade: form.grade,
+      gender: form.gender
+    }
+    await updateUser(userStore.userInfo.id, updateData)
     // 更新 store 中的用户信息
-    userStore.updateUserInfo(form)
+    userStore.updateUserInfo(updateData)
     ElMessage.success('保存成功')
   } catch (e: any) {
     console.error('保存失败:', e)
@@ -229,6 +242,9 @@ async function handleSave() {
 }
 
 async function handleChangePwd() {
+  // 防止重复提交
+  if (savingPwd.value) return
+  
   const valid = await pwdFormRef.value?.validate().catch(() => false)
   if (!valid) return
 
@@ -245,8 +261,14 @@ async function handleChangePwd() {
       newPassword: pwdForm.newPassword,
       confirmPassword: pwdForm.confirmPassword
     })
-    ElMessage.success('密码修改成功')
+    ElMessage.success('密码修改成功，请重新登录')
     pwdFormRef.value?.resetFields()
+    
+    // 密码修改成功后退出登录
+    setTimeout(() => {
+      userStore.logout()
+      router.push('/login')
+    }, 1500)
   } catch (e: any) {
     console.error('修改密码失败:', e)
     ElMessage.error(e?.message || '修改密码失败，请检查当前密码是否正确')
@@ -256,6 +278,12 @@ async function handleChangePwd() {
 }
 
 onMounted(() => {
+  // 检查登录状态
+  if (!userStore.isLoggedIn) {
+    ElMessage.warning('请先登录')
+    router.push('/login')
+    return
+  }
   fetchUserInfo()
 })
 </script>

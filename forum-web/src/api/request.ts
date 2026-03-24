@@ -4,6 +4,9 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import router from '@/router'
 
+// API基础URL配置
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1'
+
 // 响应数据接口
 export interface Result<T = any> {
   code: number
@@ -50,6 +53,8 @@ service.interceptors.request.use(
 let isRefreshing = false
 // 存储等待重试的请求队列
 let refreshSubscribers: Array<(token: string) => void> = []
+// 防止重复弹出登录过期提示
+let hasShownExpiredDialog = false
 
 // 订阅Token刷新完成事件
 function subscribeTokenRefresh(callback: (token: string) => void) {
@@ -65,6 +70,7 @@ function onRefreshed(token: string) {
 // Token刷新失败，清除订阅队列
 function onRefreshFailed() {
   refreshSubscribers = []
+  hasShownExpiredDialog = false
 }
 
 // 响应拦截器
@@ -104,8 +110,9 @@ service.interceptors.response.use(
           // 如果没有refreshToken或已经重试过，直接跳转登录
           if (!refreshTokenValue || originalRequest._retry) {
             // 刷新失败或没有refreshToken，跳转登录页
-            if (!isRefreshing) {
-              isRefreshing = true
+            // 防止重复弹出对话框
+            if (!hasShownExpiredDialog) {
+              hasShownExpiredDialog = true
               userStore.clearAuth()
               ElMessageBox.confirm('登录状态已过期，请重新登录', '提示', {
                 confirmButtonText: '重新登录',
@@ -116,7 +123,7 @@ service.interceptors.response.use(
               }).catch(() => {
                 // 用户取消
               }).finally(() => {
-                isRefreshing = false
+                hasShownExpiredDialog = false
               })
             }
             return Promise.reject(error)
@@ -140,18 +147,26 @@ service.interceptors.response.use(
           isRefreshing = true
 
           try {
-            // 调用刷新Token接口
-            const response = await axios.post('/api/v1/auth/refresh', {
+            // 调用刷新Token接口 - 使用完整的URL，避免baseURL问题
+            const response = await axios.post(`${BASE_URL}/auth/refresh`, {
               refreshToken: refreshTokenValue
             })
 
-            const { accessToken, refreshToken: newRefreshToken } = response.data.data || response.data
+            const responseData = response.data?.data || response.data
+            const accessToken = responseData.accessToken || responseData.access_token
+            const newRefreshToken = responseData.refreshToken || responseData.refresh_token
+
+            if (!accessToken) {
+              throw new Error('刷新Token失败：未获取到新的访问令牌')
+            }
 
             // 更新store中的token
             userStore.token = accessToken
-            userStore.refreshToken = newRefreshToken
+            userStore.refreshToken = newRefreshToken || refreshTokenValue
             localStorage.setItem('token', accessToken)
-            localStorage.setItem('refreshToken', newRefreshToken)
+            if (newRefreshToken) {
+              localStorage.setItem('refreshToken', newRefreshToken)
+            }
 
             // 通知所有等待的请求使用新Token
             onRefreshed(accessToken)
@@ -164,15 +179,21 @@ service.interceptors.response.use(
             onRefreshFailed()
             userStore.clearAuth()
 
-            ElMessageBox.confirm('登录状态已过期，请重新登录', '提示', {
-              confirmButtonText: '重新登录',
-              cancelButtonText: '取消',
-              type: 'warning'
-            }).then(() => {
-              router.push({ name: 'Login' })
-            }).catch(() => {
-              // 用户取消
-            })
+            // 防止重复弹出对话框
+            if (!hasShownExpiredDialog) {
+              hasShownExpiredDialog = true
+              ElMessageBox.confirm('登录状态已过期，请重新登录', '提示', {
+                confirmButtonText: '重新登录',
+                cancelButtonText: '取消',
+                type: 'warning'
+              }).then(() => {
+                router.push({ name: 'Login' })
+              }).catch(() => {
+                // 用户取消
+              }).finally(() => {
+                hasShownExpiredDialog = false
+              })
+            }
 
             return Promise.reject(refreshError)
           } finally {
@@ -233,14 +254,27 @@ export const request = {
     })
   },
 
-  download(url: string, params?: any, filename?: string): void {
-    service.get(url, { params, responseType: 'blob' }).then((response: any) => {
+  download(url: string, params?: any, filename?: string): Promise<void> {
+    return service.get(url, { params, responseType: 'blob' }).then((response: any) => {
       const blob = new Blob([response.data])
+      // 尝试从响应头获取文件名
+      const contentDisposition = response.headers?.['content-disposition']
+      let downloadFilename = filename || 'download'
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/)
+        if (filenameMatch && filenameMatch[1]) {
+          downloadFilename = decodeURIComponent(filenameMatch[1].replace(/['"]/g, ''))
+        }
+      }
       const link = document.createElement('a')
       link.href = URL.createObjectURL(blob)
-      link.download = filename || 'download'
+      link.download = downloadFilename
       link.click()
       URL.revokeObjectURL(link.href)
+    }).catch((error) => {
+      console.error('文件下载失败:', error)
+      ElMessage.error('文件下载失败')
+      throw error
     })
   }
 }

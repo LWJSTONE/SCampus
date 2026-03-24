@@ -153,8 +153,9 @@ const router = createRouter({
 router.beforeEach(async (to, _from, next) => {
   NProgress.start()
 
-  // 设置页面标题
-  document.title = to.meta.title ? `${to.meta.title} - SCampus` : 'SCampus 校园论坛'
+  // 设置页面标题 - 安全处理，防止XSS
+  const pageTitle = typeof to.meta.title === 'string' ? to.meta.title : ''
+  document.title = pageTitle ? `${pageTitle} - SCampus` : 'SCampus 校园论坛'
 
   const userStore = useUserStore()
 
@@ -164,23 +165,40 @@ router.beforeEach(async (to, _from, next) => {
       await userStore.fetchUserInfo()
     } catch (e) {
       console.error('获取用户信息失败:', e)
-      // 获取用户信息失败，清除登录状态
-      userStore.clearAuth()
+      // 获取用户信息失败时，fetchUserInfo已经处理了清除逻辑
+      // 如果需要登录的页面，会跳转到登录页
     }
   }
 
+  // 等待userInfo更新后再计算登录状态
   const isLoggedIn = userStore.isLoggedIn
+  const requiresAuth = to.meta.requiresAuth
+  const requiresAdmin = to.meta.requiresAdmin
 
   // 需要登录但未登录
-  if (to.meta.requiresAuth && !isLoggedIn) {
+  if (requiresAuth && !isLoggedIn) {
+    // 保存目标路由，登录后跳转
     next({ name: 'Login', query: { redirect: to.fullPath } })
     return
   }
 
-  // 需要管理员权限
-  if (to.meta.requiresAdmin && !userStore.isAdmin) {
-    next({ name: 'Home' })
-    return
+  // 需要管理员权限 - 必须在获取用户信息后检查
+  if (requiresAdmin) {
+    // 确保有用户信息才能判断权限
+    if (!userStore.userInfo && userStore.token) {
+      // 如果有token但没有获取到userInfo，尝试再次获取
+      try {
+        await userStore.fetchUserInfo()
+      } catch (e) {
+        console.error('获取用户信息失败:', e)
+      }
+    }
+    
+    if (!userStore.isAdmin) {
+      // 非管理员，跳转到首页并提示
+      next({ name: 'Home' })
+      return
+    }
   }
 
   // 已登录访问登录页

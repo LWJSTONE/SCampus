@@ -86,11 +86,16 @@
 
         <!-- 发表评论 -->
         <div class="comment-form">
+          <!-- 回复提示 -->
+          <div v-if="replyTo" class="reply-hint">
+            <span>{{ replyHint }}</span>
+            <el-button link type="primary" @click="cancelReply">取消回复</el-button>
+          </div>
           <el-input
             v-model="commentContent"
             type="textarea"
             :rows="3"
-            placeholder="发表你的看法..."
+            :placeholder="replyTo ? `回复 @${replyTo.username}...` : '发表你的看法...'"
             maxlength="500"
             show-word-limit
           />
@@ -123,8 +128,10 @@
             v-model:current-page="queryParams.page"
             v-model:page-size="queryParams.size"
             :total="commentTotal"
-            layout="prev, pager, next"
+            :page-sizes="[10, 20, 50]"
+            layout="prev, pager, next, sizes"
             @current-change="fetchComments"
+            @size-change="handleSizeChange"
           />
         </div>
       </el-card>
@@ -150,6 +157,15 @@ import 'dayjs/locale/zh-cn'
 import { useUserStore } from '@/stores/user'
 import CommentItem from '@/components/CommentItem.vue'
 
+// 防抖函数
+function debounce<T extends (...args: any[]) => any>(fn: T, delay: number): T {
+  let timer: ReturnType<typeof setTimeout> | null = null
+  return ((...args: any[]) => {
+    if (timer) clearTimeout(timer)
+    timer = setTimeout(() => fn(...args), delay)
+  }) as T
+}
+
 dayjs.extend(relativeTime)
 dayjs.locale('zh-cn')
 
@@ -167,6 +183,10 @@ const isValidPostId = computed(() => !isNaN(postId) && postId > 0)
 const loading = ref(false)
 const submitting = ref(false)
 
+// 防重复点击状态
+const liking = ref(false)
+const collecting = ref(false)
+
 // 帖子详情
 const postDetail = ref<PostDetailVO | null>(null)
 
@@ -175,7 +195,7 @@ const sanitizedContent = computed(() => {
   if (!postDetail.value?.content) return ''
   const content = postDetail.value.content
 
-  // 允许的标签白名单
+  // 允许的标签白名单（不包含iframe等危险标签）
   const allowedTags = ['p', 'br', 'b', 'i', 'u', 'strong', 'em', 'span', 'div',
     'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'blockquote',
     'pre', 'code', 'a', 'img', 'table', 'thead', 'tbody', 'tr', 'td', 'th', 'hr']
@@ -205,8 +225,16 @@ const sanitizedContent = computed(() => {
   // 移除style标签及其内容
   result = result.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
 
-  // 移除所有事件处理属性
+  // 移除iframe标签及其内容（重要安全防护）
+  result = result.replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '')
+
+  // 移除embed和object标签
+  result = result.replace(/<embed\b[^>]*>/gi, '')
+  result = result.replace(/<object\b[^<]*(?:(?!<\/object>)<[^<]*)*<\/object>/gi, '')
+
+  // 移除所有事件处理属性（包括无引号的属性值）
   result = result.replace(/\s*on\w+\s*=\s*["'][^"']*["']/gi, '')
+  result = result.replace(/\s*on\w+\s*=\s*[^\s>]*/gi, '')
 
   // 处理所有HTML标签
   result = result.replace(/<\/?(\w+)([^>]*)>/gi, (match, tagName, attrs) => {
@@ -267,6 +295,12 @@ const commentContent = ref('')
 // 回复的评论
 const replyTo = ref<CommentVO | null>(null)
 
+// 回复提示信息
+const replyHint = computed(() => {
+  if (!replyTo.value) return ''
+  return `回复 @${replyTo.value.username}`
+})
+
 // 查询参数
 const queryParams = reactive<PageQuery>({
   page: 1,
@@ -277,6 +311,14 @@ const queryParams = reactive<PageQuery>({
 
 function formatRelativeTime(time: string) {
   return dayjs(time).fromNow()
+}
+
+/**
+ * 处理分页大小变化
+ */
+function handleSizeChange() {
+  queryParams.page = 1
+  fetchComments()
 }
 
 /**
@@ -348,6 +390,12 @@ async function handleLike() {
     return
   }
 
+  // 防止重复点击
+  if (liking.value) {
+    return
+  }
+
+  liking.value = true
   try {
     const result = await likePost(postId)
     if (postDetail.value) {
@@ -358,13 +406,16 @@ async function handleLike() {
       if (isLiked) {
         postDetail.value.likeCount++
       } else {
-        postDetail.value.likeCount--
+        // 防止计数器变为负数
+        postDetail.value.likeCount = Math.max(0, postDetail.value.likeCount - 1)
       }
       ElMessage.success(result.message || (isLiked ? '点赞成功' : '已取消点赞'))
     }
   } catch (error: any) {
     console.error('操作失败：', error)
     ElMessage.error(error?.message || '操作失败，请稍后重试')
+  } finally {
+    liking.value = false
   }
 }
 
@@ -378,6 +429,12 @@ async function handleCollect() {
     return
   }
 
+  // 防止重复点击
+  if (collecting.value) {
+    return
+  }
+
+  collecting.value = true
   try {
     const result = await collectPost(postId)
     if (postDetail.value) {
@@ -388,13 +445,16 @@ async function handleCollect() {
       if (isCollected) {
         postDetail.value.collectCount++
       } else {
-        postDetail.value.collectCount--
+        // 防止计数器变为负数
+        postDetail.value.collectCount = Math.max(0, postDetail.value.collectCount - 1)
       }
       ElMessage.success(result.message || (isCollected ? '收藏成功' : '已取消收藏'))
     }
   } catch (error: any) {
     console.error('操作失败：', error)
     ElMessage.error(error?.message || '操作失败，请稍后重试')
+  } finally {
+    collecting.value = false
   }
 }
 
@@ -467,6 +527,19 @@ async function handleComment() {
 function handleReply(comment: CommentVO) {
   replyTo.value = comment
   commentContent.value = `@${comment.username} `
+  // 滚动到评论输入框
+  const commentForm = document.querySelector('.comment-form')
+  if (commentForm) {
+    commentForm.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+}
+
+/**
+ * 取消回复
+ */
+function cancelReply() {
+  replyTo.value = null
+  commentContent.value = ''
 }
 
 /**
@@ -482,6 +555,18 @@ async function handleDeleteComment(commentId: number) {
 
     await deleteComment(commentId)
     ElMessage.success('删除成功')
+    
+    // 更新评论总数
+    if (commentTotal.value > 0) {
+      commentTotal.value--
+    }
+    
+    // 如果当前页只有一条评论且不是第一页，则跳转到上一页
+    const totalPages = Math.ceil(commentTotal.value / queryParams.size)
+    if (commentList.value.length === 1 && queryParams.page > 1 && queryParams.page > totalPages) {
+      queryParams.page--
+    }
+    
     fetchComments()
   } catch (error: any) {
     // 用户取消或删除失败
@@ -587,6 +672,18 @@ onMounted(() => {
   }
 
   .comment-form {
+    .reply-hint {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+      padding: 8px 12px;
+      background-color: #f4f4f5;
+      border-radius: 4px;
+      font-size: 14px;
+      color: #606266;
+    }
+
     .form-actions {
       display: flex;
       justify-content: flex-end;

@@ -128,14 +128,20 @@ const loginForm = reactive({
   rememberMe: false
 })
 
+// 用户名验证：过滤XSS特殊字符，支持字母、数字、下划线、中文
+const usernamePattern = /^[a-zA-Z0-9_\u4e00-\u9fa5]+$/
+
 // 动态验证规则：当captchaUrl存在时才要求验证码
 const rules = computed<FormRules>(() => ({
   username: [
-    { required: true, message: '请输入用户名', trigger: 'blur' }
+    { required: true, message: '请输入用户名', trigger: 'blur' },
+    { min: 3, max: 20, message: '用户名长度为 3 到 20 个字符', trigger: 'blur' },
+    { pattern: usernamePattern, message: '用户名只能包含字母、数字、下划线和中文', trigger: 'blur' },
   ],
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' },
-    { min: 6, message: '密码长度不能少于6位', trigger: 'blur' }
+    { min: 6, max: 20, message: '密码长度为 6 到 20 个字符', trigger: 'blur' },
+    { pattern: /^(?=.*[a-zA-Z])(?=.*\d).+$/, message: '密码必须包含字母和数字', trigger: 'blur' },
   ],
   captcha: captchaUrl.value ? [
     { required: true, message: '请输入验证码', trigger: 'blur' }
@@ -202,17 +208,28 @@ function showForgotPassword() {
 
 async function sendForgotCode() {
   // 验证用户名
-  if (!forgotForm.username || !forgotForm.username.trim()) {
+  const username = forgotForm.username.trim()
+  if (!username) {
     ElMessage.warning('请输入用户名')
     return
   }
+  // 用户名格式验证
+  if (username.length < 3 || username.length > 20) {
+    ElMessage.warning('用户名长度为 3 到 20 个字符')
+    return
+  }
+  if (!usernamePattern.test(username)) {
+    ElMessage.warning('用户名只能包含字母、数字、下划线和中文')
+    return
+  }
   // 验证邮箱
-  if (!forgotForm.email) {
+  const email = forgotForm.email.trim()
+  if (!email) {
     ElMessage.warning('请输入邮箱')
     return
   }
   const emailReg = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-  if (!emailReg.test(forgotForm.email)) {
+  if (!emailReg.test(email)) {
     ElMessage.warning('请输入正确的邮箱格式')
     return
   }
@@ -285,8 +302,11 @@ async function handleLogin() {
 
   loading.value = true
   try {
+    // 用户名trim处理，防止前后空格导致的登录问题
+    const username = loginForm.username.trim()
+    
     await userStore.login({
-      username: loginForm.username,
+      username,
       password: loginForm.password,
       captcha: loginForm.captcha,
       captchaKey: captchaKey.value,
@@ -299,6 +319,9 @@ async function handleLogin() {
     const redirect = route.query.redirect as string
     router.push(redirect || '/')
   } catch (e: any) {
+    // 登录失败后清空密码和验证码，防止密码泄露
+    loginForm.password = ''
+    loginForm.captcha = ''
     refreshCaptcha()
     console.error('登录失败:', e)
     ElMessage.error(e?.message || '登录失败，请检查用户名和密码')

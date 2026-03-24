@@ -91,7 +91,7 @@
 
         <!-- 发帖按钮 -->
         <div class="post-button">
-          <el-button type="primary" size="large" @click="router.push('/post/create')">
+          <el-button type="primary" size="large" @click="handleCreatePost">
             <el-icon><Edit /></el-icon>
             发布帖子
           </el-button>
@@ -116,7 +116,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/user'
@@ -131,6 +131,7 @@ const userStore = useUserStore()
 const searchKeyword = ref('')
 const unreadCount = ref(0)
 const categories = ref<CategoryVO[]>([])
+let unreadTimer: ReturnType<typeof setInterval> | null = null
 
 const activeMenu = computed(() => route.path)
 
@@ -161,37 +162,58 @@ async function fetchUnreadCount() {
 }
 
 function handleSearch() {
-  if (searchKeyword.value.trim()) {
+  const keyword = searchKeyword.value.trim()
+  if (keyword) {
+    // 对搜索关键词进行基本的XSS防护（移除特殊字符）
+    const sanitizedKeyword = keyword
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;')
+    
+    if (sanitizedKeyword !== keyword) {
+      // 如果检测到XSS字符，使用净化后的关键词
+      searchKeyword.value = sanitizedKeyword
+    }
+    
     // 使用 q 参数名，与 Search.vue 中 route.query.q 保持一致
-    router.push({ path: '/search', query: { q: searchKeyword.value } })
+    router.push({ path: '/search', query: { q: sanitizedKeyword } })
   }
 }
 
 function handleCommand(command: string) {
   switch (command) {
     case 'profile':
-      router.push(`/user/${userStore.userInfo?.id}`)
+      router.push(`/user/${userStore.userInfo?.id}`).catch(() => {})
       break
     case 'settings':
-      router.push('/user/settings')
+      router.push('/user/settings').catch(() => {})
       break
     case 'myPosts':
-      router.push(`/user/${userStore.userInfo?.id}?tab=posts`)
+      router.push(`/user/${userStore.userInfo?.id}?tab=posts`).catch(() => {})
       break
     case 'admin':
-      router.push('/admin')
+      router.push('/admin').catch(() => {})
       break
     case 'logout':
-      ElMessageBox.confirm('确定要退出登录吗？', '提示', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }).then(() => {
-        userStore.logout()
-        router.push('/')
-        ElMessage.success('已退出登录')
-      })
+      handleLogout()
       break
+  }
+}
+
+async function handleLogout() {
+  try {
+    await ElMessageBox.confirm('确定要退出登录吗？', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    
+    userStore.logout()
+    router.push('/').catch(() => {})
+    ElMessage.success('已退出登录')
+  } catch {
+    // 用户取消操作，不需要处理
   }
 }
 
@@ -201,11 +223,38 @@ watch(
   (isLoggedIn) => {
     if (isLoggedIn) {
       fetchUnreadCount()
+      startUnreadPolling()
     } else {
       unreadCount.value = 0
+      stopUnreadPolling()
     }
   }
 )
+
+// 定时刷新未读消息数
+function startUnreadPolling() {
+  if (unreadTimer) return
+  unreadTimer = setInterval(() => {
+    fetchUnreadCount()
+  }, 60000) // 每分钟刷新一次
+}
+
+function stopUnreadPolling() {
+  if (unreadTimer) {
+    clearInterval(unreadTimer)
+    unreadTimer = null
+  }
+}
+
+// 发帖按钮点击处理
+function handleCreatePost() {
+  if (!userStore.isLoggedIn) {
+    ElMessage.warning('请先登录')
+    router.push('/login')
+    return
+  }
+  router.push('/post/create')
+}
 
 onMounted(() => {
   // 获取分类列表
@@ -213,7 +262,12 @@ onMounted(() => {
   // 获取未读消息数
   if (userStore.isLoggedIn) {
     fetchUnreadCount()
+    startUnreadPolling()
   }
+})
+
+onUnmounted(() => {
+  stopUnreadPolling()
 })
 </script>
 
@@ -230,6 +284,9 @@ onMounted(() => {
   background: #fff;
   border-bottom: 1px solid #e4e7ed;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  position: sticky;
+  top: 0;
+  z-index: 100;
 
   .header-left {
     display: flex;

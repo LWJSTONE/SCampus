@@ -35,19 +35,19 @@
       </el-table>
 
       <el-pagination
-        v-model:current-page="page"
+        v-model:current-page="queryParams.current"
+        v-model:page-size="queryParams.size"
         :total="total"
-        :page-size="size"
         layout="total, prev, pager, next"
-        @current-change="fetchNotices"
+        @current-change="handlePageChange"
       />
     </el-card>
 
     <!-- 公告表单对话框 -->
     <el-dialog v-model="dialogVisible" :title="dialogTitle" width="600px">
-      <el-form :model="noticeForm" label-width="80px">
-        <el-form-item label="标题" required>
-          <el-input v-model="noticeForm.title" placeholder="请输入公告标题" maxlength="100" />
+      <el-form ref="formRef" :model="noticeForm" :rules="formRules" label-width="80px">
+        <el-form-item label="标题" prop="title">
+          <el-input v-model="noticeForm.title" placeholder="请输入公告标题" maxlength="100" show-word-limit />
         </el-form-item>
         <el-form-item label="类型">
           <el-radio-group v-model="noticeForm.type">
@@ -61,7 +61,7 @@
             <el-radio :value="1">草稿</el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-form-item label="内容" required>
+        <el-form-item label="内容" prop="content">
           <el-input
             v-model="noticeForm.content"
             type="textarea"
@@ -81,20 +81,23 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ref, reactive, onMounted, nextTick } from 'vue'
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { getNoticeList, createNotice, updateNotice, deleteNotice } from '@/api/notify'
 import type { NoticeVO, NoticeCreateDTO } from '@/api/notify'
 
 const loading = ref(false)
 const notices = ref<NoticeVO[]>([])
-const page = ref(1)
 const total = ref(0)
-const size = 10
+const queryParams = reactive({
+  current: 1,
+  size: 10
+})
 
 // 公告表单对话框
 const dialogVisible = ref(false)
 const dialogTitle = ref('发布公告')
+const formRef = ref<FormInstance>()
 const noticeForm = reactive<NoticeCreateDTO>({
   title: '',
   content: '',
@@ -104,18 +107,36 @@ const noticeForm = reactive<NoticeCreateDTO>({
 const editingId = ref<number | null>(null)
 const submitting = ref(false)
 
+// 表单验证规则
+const formRules: FormRules = {
+  title: [
+    { required: true, message: '请输入公告标题', trigger: 'blur' },
+    { min: 2, max: 100, message: '标题长度为2-100个字符', trigger: 'blur' }
+  ],
+  content: [
+    { required: true, message: '请输入公告内容', trigger: 'blur' },
+    { min: 2, max: 500, message: '内容长度为2-500个字符', trigger: 'blur' }
+  ]
+}
+
 async function fetchNotices() {
   loading.value = true
   try {
-    const res = await getNoticeList({ current: page.value, size })
+    const res = await getNoticeList(queryParams)
     notices.value = res.records || res.list || []
     total.value = res.total || 0
   } catch (e) {
     console.error('获取公告列表失败:', e)
     notices.value = []
+    total.value = 0
   } finally {
     loading.value = false
   }
+}
+
+function handlePageChange(page: number) {
+  queryParams.current = page
+  fetchNotices()
 }
 
 function handleAdd() {
@@ -128,6 +149,10 @@ function handleAdd() {
     status: 0
   })
   dialogVisible.value = true
+  // 清除表单验证状态
+  nextTick(() => {
+    formRef.value?.clearValidate()
+  })
 }
 
 function handleEdit(row: NoticeVO) {
@@ -140,17 +165,16 @@ function handleEdit(row: NoticeVO) {
     status: row.status
   })
   dialogVisible.value = true
+  // 清除表单验证状态
+  nextTick(() => {
+    formRef.value?.clearValidate()
+  })
 }
 
 async function handleSubmit() {
-  if (!noticeForm.title.trim()) {
-    ElMessage.warning('请输入公告标题')
-    return
-  }
-  if (!noticeForm.content.trim()) {
-    ElMessage.warning('请输入公告内容')
-    return
-  }
+  // 表单验证
+  const valid = await formRef.value?.validate().catch(() => false)
+  if (!valid) return
   
   submitting.value = true
   try {

@@ -1,6 +1,13 @@
 <template>
   <div class="user-profile-page">
-    <el-card v-if="user" class="profile-card">
+    <!-- 加载状态 -->
+    <el-card v-if="loading" class="profile-card">
+      <div class="loading-container">
+        <el-skeleton :rows="5" animated />
+      </div>
+    </el-card>
+    
+    <el-card v-else-if="user" class="profile-card">
       <div class="profile-header">
         <el-avatar :size="80" :src="user.avatar">
           {{ user.nickname?.charAt(0) || user.username?.charAt(0) }}
@@ -23,11 +30,14 @@
       </div>
     </el-card>
 
-    <el-card class="content-card">
+    <el-card class="content-card" v-if="!loading">
       <el-tabs v-model="activeTab" @tab-change="handleTabChange">
         <el-tab-pane label="帖子" name="posts">
-          <div v-if="posts.length" class="post-list">
-            <div v-for="post in posts" :key="post.id" class="post-item" @click="$router.push(`/post/${post.id}`)">
+          <div v-if="postsLoading" class="loading-container">
+            <el-skeleton :rows="3" animated />
+          </div>
+          <div v-else-if="posts.length" class="post-list">
+            <div v-for="post in posts" :key="post.id" class="post-item" @click="navigateToPost(post.id)">
               <h3>{{ post.title }}</h3>
               <p>{{ post.summary || post.content?.slice(0, 100) }}</p>
               <div class="meta">
@@ -39,9 +49,9 @@
           </div>
           <el-empty v-else description="暂无帖子" />
         </el-tab-pane>
-        <el-tab-pane label="收藏" name="collections">
+        <el-tab-pane label="收藏" name="collections" v-if="isOwnProfile">
           <div v-if="collections.length" class="post-list">
-            <div v-for="item in collections" :key="item.id" class="post-item" @click="$router.push(`/post/${item.postId}`)">
+            <div v-for="item in collections" :key="item.id" class="post-item" @click="navigateToPost(item.postId)">
               <h3>{{ item.postTitle }}</h3>
               <p>{{ item.postSummary }}</p>
               <div class="meta">
@@ -78,14 +88,24 @@ const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 
-// 参数验证
-const userIdParam = route.params.id
-const userId = Number(userIdParam)
+// 参数验证状态
+const isValidUserId = ref(true)
+const userId = ref(0)
 
-// 检查userId是否有效
-if (isNaN(userId) || userId <= 0) {
-  ElMessage.error('用户ID无效')
-  router.push('/')
+// 验证用户ID
+function validateUserId() {
+  const userIdParam = route.params.id
+  const id = Number(userIdParam)
+  
+  if (isNaN(id) || id <= 0) {
+    isValidUserId.value = false
+    ElMessage.error('用户ID无效')
+    router.push('/').catch(() => {})
+    return false
+  }
+  
+  userId.value = id
+  return true
 }
 
 const user = ref<UserDetailVO | null>(null)
@@ -94,28 +114,40 @@ const collections = ref<CollectionItem[]>([])
 const activeTab = ref('posts')
 const isFollowing = ref(false)
 const followLoading = ref(false)
+const loading = ref(true)
+const postsLoading = ref(false)
 
-const isOwnProfile = computed(() => userStore.userInfo?.id === userId)
+const isOwnProfile = computed(() => userStore.userInfo?.id === userId.value)
 
 async function fetchUser() {
+  if (!isValidUserId.value) return
+  
+  loading.value = true
   try {
-    const res = await getUserById(userId)
+    const res = await getUserById(userId.value)
     user.value = res
     // 初始化关注状态 - 后端返回的字段名可能是 isFollowing 或 followed
     isFollowing.value = res.isFollowing || res.followed || false
   } catch (e: any) {
     console.error('获取用户信息失败:', e)
     ElMessage.error(e?.message || '获取用户信息失败')
+  } finally {
+    loading.value = false
   }
 }
 
 async function fetchPosts() {
+  if (!isValidUserId.value) return
+  
+  postsLoading.value = true
   try {
-    const res = await getPostList({ page: 1, size: 10, userId })
-    posts.value = res.records
+    const res = await getPostList({ page: 1, size: 10, userId: userId.value })
+    posts.value = res.records || []
   } catch (e: any) {
     console.error('获取帖子失败:', e)
     ElMessage.error(e?.message || '获取帖子列表失败')
+  } finally {
+    postsLoading.value = false
   }
 }
 
@@ -132,7 +164,7 @@ async function fetchCollections() {
   }
   try {
     // 使用封装好的 API 函数获取收藏列表
-    const res = await getUserCollections(userId, { page: 1, size: 10 })
+    const res = await getUserCollections(userId.value, { page: 1, size: 10 })
     const records = res.records || res.list || []
     collections.value = records.map((item: any) => ({
       id: item.id,
@@ -154,12 +186,26 @@ function handleTabChange(tab: string) {
   }
 }
 
+// 导航到帖子详情页
+function navigateToPost(postId: number) {
+  if (!postId) {
+    ElMessage.error('帖子ID无效')
+    return
+  }
+  router.push(`/post/${postId}`).catch((err) => {
+    console.error('路由跳转失败:', err)
+  })
+}
+
 async function handleFollow() {
   if (!userStore.isLoggedIn) {
     ElMessage.warning('请先登录')
-    router.push('/login')
+    router.push('/login').catch(() => {})
     return
   }
+  
+  // 防止重复点击
+  if (followLoading.value) return
   
   followLoading.value = true
   try {
@@ -167,11 +213,11 @@ async function handleFollow() {
     const wasFollowing = isFollowing.value
     
     if (wasFollowing) {
-      await unfollowUser(userId)
+      await unfollowUser(userId.value)
       isFollowing.value = false
       ElMessage.success('已取消关注')
     } else {
-      await followUser(userId)
+      await followUser(userId.value)
       isFollowing.value = true
       ElMessage.success('关注成功')
     }
@@ -188,8 +234,11 @@ async function handleFollow() {
 }
 
 onMounted(() => {
-  fetchUser()
-  fetchPosts()
+  // 先验证用户ID
+  if (validateUserId()) {
+    fetchUser()
+    fetchPosts()
+  }
 })
 </script>
 
@@ -197,6 +246,10 @@ onMounted(() => {
 .user-profile-page {
   max-width: 900px;
   margin: 0 auto;
+
+  .loading-container {
+    padding: 20px;
+  }
 
   .profile-card {
     .profile-header {

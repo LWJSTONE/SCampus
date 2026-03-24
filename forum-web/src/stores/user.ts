@@ -3,10 +3,38 @@ import { ref, computed } from 'vue'
 import { login as loginApi, logout as logoutApi, getCurrentUser } from '@/api/auth'
 import type { LoginDTO, UserInfoVO } from '@/types'
 
+// 安全的localStorage操作辅助函数
+function safeGetStorage(key: string): string {
+  try {
+    return localStorage.getItem(key) || ''
+  } catch (e) {
+    console.warn('localStorage访问失败:', e)
+    return ''
+  }
+}
+
+function safeSetStorage(key: string, value: string): boolean {
+  try {
+    localStorage.setItem(key, value)
+    return true
+  } catch (e) {
+    console.warn('localStorage写入失败:', e)
+    return false
+  }
+}
+
+function safeRemoveStorage(key: string): void {
+  try {
+    localStorage.removeItem(key)
+  } catch (e) {
+    console.warn('localStorage删除失败:', e)
+  }
+}
+
 export const useUserStore = defineStore('user', () => {
   // 状态
-  const token = ref<string>(localStorage.getItem('token') || '')
-  const refreshToken = ref<string>(localStorage.getItem('refreshToken') || '')
+  const token = ref<string>(safeGetStorage('token'))
+  const refreshToken = ref<string>(safeGetStorage('refreshToken'))
   const userInfo = ref<UserInfoVO | null>(null)
 
   // 计算属性
@@ -27,8 +55,8 @@ export const useUserStore = defineStore('user', () => {
     const res = await loginApi(loginData)
     token.value = res.accessToken
     refreshToken.value = res.refreshToken
-    localStorage.setItem('token', res.accessToken)
-    localStorage.setItem('refreshToken', res.refreshToken)
+    safeSetStorage('token', res.accessToken)
+    safeSetStorage('refreshToken', res.refreshToken)
 
     // 获取用户信息
     await fetchUserInfo()
@@ -52,26 +80,44 @@ export const useUserStore = defineStore('user', () => {
     token.value = ''
     refreshToken.value = ''
     userInfo.value = null
-    localStorage.removeItem('token')
-    localStorage.removeItem('refreshToken')
+    safeRemoveStorage('token')
+    safeRemoveStorage('refreshToken')
   }
 
   // 获取用户信息
   async function fetchUserInfo() {
+    // 如果没有token，直接返回
+    if (!token.value) {
+      return null
+    }
     try {
       const info = await getCurrentUser()
       userInfo.value = info
-    } catch (e) {
+      return info
+    } catch (e: any) {
       console.error('获取用户信息失败:', e)
-      clearAuth()
+      // 只有在401错误时才清除认证信息，其他错误不清除
+      // 这样可以避免网络错误导致用户被登出
+      if (e?.response?.status === 401) {
+        clearAuth()
+      }
+      return null
     }
   }
 
   // 检查登录状态
-  async function checkLoginStatus() {
-    if (token.value && !userInfo.value) {
-      await fetchUserInfo()
+  async function checkLoginStatus(): Promise<boolean> {
+    // 如果没有token，直接返回未登录
+    if (!token.value) {
+      clearAuth()
+      return false
     }
+    // 如果有token但没有userInfo，尝试获取用户信息
+    if (!userInfo.value) {
+      const info = await fetchUserInfo()
+      return info !== null
+    }
+    return true
   }
 
   // 更新用户信息

@@ -4,13 +4,19 @@
       <template #header>
         <div class="header">
           <span>消息通知</span>
-          <el-button link type="primary" @click="markAllRead">全部已读</el-button>
+          <div class="header-actions">
+            <el-button link type="primary" @click="refresh" :loading="loading">刷新</el-button>
+            <el-button link type="primary" @click="markAllRead" :loading="markAllLoading">全部已读</el-button>
+          </div>
         </div>
       </template>
 
       <el-tabs v-model="activeTab" v-loading="loading">
         <el-tab-pane label="全部" name="all">
           <NotificationList :notifications="notifications" @read="markRead" />
+          <div class="load-more" v-if="hasMore">
+            <el-button @click="loadMore" :loading="loading" :disabled="loading">加载更多</el-button>
+          </div>
         </el-tab-pane>
         <el-tab-pane label="评论" name="comment">
           <NotificationList :notifications="commentNotifications" @read="markRead" />
@@ -28,9 +34,11 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, h, defineComponent } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import type { NoticeVO } from '@/types'
 import { getNoticeList, markAsRead, markAllAsRead } from '@/api/notify'
+import { useUserStore } from '@/stores/user'
 
 // 简单的通知列表组件
 const NotificationList = defineComponent({
@@ -59,9 +67,15 @@ const NotificationList = defineComponent({
   }
 })
 
+const router = useRouter()
+const userStore = useUserStore()
 const activeTab = ref('all')
 const notifications = ref<NoticeVO[]>([])
 const loading = ref(false)
+const page = ref(1)
+const size = 20
+const hasMore = ref(true)
+const markAllLoading = ref(false)
 
 const commentNotifications = computed(() => 
   notifications.value.filter(n => n.type === 1)
@@ -73,16 +87,35 @@ const systemNotifications = computed(() =>
   notifications.value.filter(n => n.type === 0)
 )
 
-async function fetchNotifications() {
+async function fetchNotifications(append = false) {
+  // 检查登录状态
+  if (!userStore.isLoggedIn) {
+    ElMessage.warning('请先登录')
+    router.push('/login')
+    return
+  }
+  
   loading.value = true
   try {
-    const res = await getNoticeList({ current: 1, size: 100 })
-    notifications.value = res.records || res.list || []
+    const res = await getNoticeList({ current: page.value, size })
+    const records = res.records || res.list || []
+    
+    if (append) {
+      notifications.value = [...notifications.value, ...records]
+    } else {
+      notifications.value = records
+    }
+    
+    // 判断是否还有更多数据
+    const total = res.total || 0
+    hasMore.value = notifications.value.length < total
   } catch (e: any) {
     console.error('获取通知失败:', e)
     ElMessage.error(e?.message || '获取通知失败')
     // 如果API调用失败，显示空列表而不是模拟数据
-    notifications.value = []
+    if (!append) {
+      notifications.value = []
+    }
   } finally {
     loading.value = false
   }
@@ -91,28 +124,78 @@ async function fetchNotifications() {
 async function markRead(id: number) {
   const notification = notifications.value.find(n => n.id === id)
   if (notification) {
+    // 保存原始状态用于回滚
+    const originalReadState = notification.isRead
+    
     try {
-      await markAsRead(id)
+      // 乐观更新 UI
       notification.isRead = true
+      await markAsRead(id)
     } catch (e) {
       console.error('标记已读失败:', e)
+      // 回滚状态
+      notification.isRead = originalReadState
       ElMessage.error('操作失败')
     }
   }
 }
 
 async function markAllRead() {
+  // 检查是否有未读通知
+  const unreadNotifications = notifications.value.filter(n => !n.isRead)
+  if (unreadNotifications.length === 0) {
+    ElMessage.info('没有未读通知')
+    return
+  }
+  
+  // 防止重复点击
+  if (markAllLoading.value) return
+  
+  markAllLoading.value = true
+  
+  // 保存原始状态用于回滚
+  const originalStates = unreadNotifications.map(n => ({ id: n.id, isRead: n.isRead }))
+  
   try {
+    // 乐观更新 UI
+    unreadNotifications.forEach(n => n.isRead = true)
     await markAllAsRead()
-    notifications.value.forEach(n => n.isRead = true)
     ElMessage.success('已全部标记为已读')
   } catch (e) {
     console.error('全部标记已读失败:', e)
+    // 回滚状态
+    originalStates.forEach(({ id, isRead }) => {
+      const notification = notifications.value.find(n => n.id === id)
+      if (notification) {
+        notification.isRead = isRead
+      }
+    })
     ElMessage.error('操作失败')
+  } finally {
+    markAllLoading.value = false
   }
 }
 
+// 加载更多
+async function loadMore() {
+  if (loading.value || !hasMore.value) return
+  page.value++
+  await fetchNotifications(true)
+}
+
+// 刷新通知列表
+async function refresh() {
+  page.value = 1
+  await fetchNotifications(false)
+}
+
 onMounted(() => {
+  // 检查登录状态
+  if (!userStore.isLoggedIn) {
+    ElMessage.warning('请先登录')
+    router.push('/login')
+    return
+  }
   fetchNotifications()
 })
 </script>
