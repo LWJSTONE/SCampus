@@ -27,19 +27,25 @@ import java.util.Map;
 public class JwtUtils {
 
     /**
-     * 默认密钥（仅用于开发环境，生产环境必须配置jwt.secret）
+     * 【安全修复】移除硬编码默认密钥
      * 
-     * ⚠️ 安全警告：此默认密钥仅供开发测试使用，生产环境必须配置强密钥！
-     * 生产环境请通过配置文件设置 jwt.secret 属性
+     * 原安全问题：硬编码的默认密钥可被攻击者利用伪造Token
+     * 修复方案：强制要求从配置文件加载密钥，不提供默认值
      * 
-     * 启动时会检查是否使用默认密钥，生产环境使用默认密钥将输出警告日志
+     * 必须通过 setConfiguredSecret() 方法设置密钥后才能使用
+     * 如果未配置密钥，将抛出 SecurityException 异常
      */
-    private static final String DEFAULT_SECRET = "campus-forum-jwt-secret-key-2024-DEV-ONLY-CHANGE-IN-PRODUCTION-ENVIRONMENT";
+    // 已移除 DEFAULT_SECRET 常量 - 强制配置密钥
 
     /**
-     * 是否使用默认密钥的标记
+     * 未配置密钥时的错误消息
      */
-    private static volatile boolean usingDefaultSecret = true;
+    private static final String NO_SECRET_ERROR = "JWT密钥未配置！请通过配置文件设置 jwt.secret 属性后启动应用。";
+
+    /**
+     * 是否已配置密钥
+     */
+    private static volatile boolean secretConfigured = false;
 
     /**
      * 配置的密钥
@@ -49,35 +55,66 @@ public class JwtUtils {
     /**
      * 设置配置的密钥（应用启动时调用）
      *
-     * @param secret 配置的密钥
+     * @param secret 配置的密钥（必须是非空且长度至少32字符的强密钥）
+     * @throws IllegalArgumentException 如果密钥不符合安全要求
      */
     public static void setConfiguredSecret(String secret) {
-        if (secret != null && !secret.isEmpty() && !secret.equals(DEFAULT_SECRET)) {
-            configuredSecret = secret;
-            usingDefaultSecret = false;
-            log.info("JWT密钥已从配置文件加载");
-        } else {
-            usingDefaultSecret = true;
-            log.warn("⚠️ 安全警告：JWT使用默认密钥，生产环境必须配置 jwt.secret！");
+        if (secret == null || secret.isEmpty()) {
+            throw new IllegalArgumentException("JWT密钥不能为空！请在配置文件中设置 jwt.secret 属性。");
         }
+        if (secret.length() < 32) {
+            throw new IllegalArgumentException("JWT密钥长度不足！密钥长度至少需要32字符，当前长度: " + secret.length());
+        }
+        // 检查是否为常见弱密钥
+        if (isWeakSecret(secret)) {
+            throw new IllegalArgumentException("JWT密钥强度不足！请使用包含大小写字母、数字和特殊字符的随机密钥。");
+        }
+        configuredSecret = secret;
+        secretConfigured = true;
+        log.info("JWT密钥已从配置文件加载，密钥长度: {}", secret.length());
+    }
+
+    /**
+     * 检查是否为弱密钥
+     *
+     * @param secret 密钥
+     * @return 是否为弱密钥
+     */
+    private static boolean isWeakSecret(String secret) {
+        // 检查常见的弱密钥模式
+        String lowerSecret = secret.toLowerCase();
+        String[] weakPatterns = {
+            "secret", "password", "key", "default", "admin", "test",
+            "123456", "qwerty", "abc", "xyz", "campus", "forum"
+        };
+        for (String pattern : weakPatterns) {
+            if (lowerSecret.contains(pattern)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
  * 获取当前使用的密钥
      *
      * @return 密钥
+     * @throws SecurityException 如果密钥未配置
      */
     public static String getCurrentSecret() {
-        return configuredSecret != null ? configuredSecret : DEFAULT_SECRET;
+        if (configuredSecret == null || !secretConfigured) {
+            throw new SecurityException(NO_SECRET_ERROR);
+        }
+        return configuredSecret;
     }
 
     /**
-     * 检查是否使用默认密钥
+     * 检查是否已配置密钥
      *
-     * @return 是否使用默认密钥
+     * @return 是否已配置密钥
      */
-    public static boolean isUsingDefaultSecret() {
-        return usingDefaultSecret;
+    public static boolean isSecretConfigured() {
+        return secretConfigured;
     }
 
     /**
@@ -96,14 +133,27 @@ public class JwtUtils {
     private static final String ISSUER = "campus-forum";
 
     /**
-     * 生成访问令牌
+     * 生成访问令牌（使用配置的密钥）
      *
      * @param userId   用户ID
      * @param username 用户名
      * @return JWT令牌
+     * @throws SecurityException 如果密钥未配置
      */
     public static String generateToken(Long userId, String username) {
-        return generateToken(userId, username, DEFAULT_SECRET, DEFAULT_EXPIRATION);
+        ensureSecretConfigured();
+        return generateToken(userId, username, configuredSecret, DEFAULT_EXPIRATION);
+    }
+
+    /**
+     * 确保密钥已配置
+     *
+     * @throws SecurityException 如果密钥未配置
+     */
+    private static void ensureSecretConfigured() {
+        if (!secretConfigured || configuredSecret == null) {
+            throw new SecurityException(NO_SECRET_ERROR);
+        }
     }
 
     /**
@@ -185,14 +235,16 @@ public class JwtUtils {
     }
 
     /**
-     * 生成刷新令牌
+     * 生成刷新令牌（使用配置的密钥）
      *
      * @param userId   用户ID
      * @param username 用户名
      * @return 刷新令牌
+     * @throws SecurityException 如果密钥未配置
      */
     public static String generateRefreshToken(Long userId, String username) {
-        return generateRefreshToken(userId, username, DEFAULT_SECRET);
+        ensureSecretConfigured();
+        return generateRefreshToken(userId, username, configuredSecret);
     }
 
     /**
@@ -221,13 +273,15 @@ public class JwtUtils {
     }
 
     /**
-     * 验证令牌
+     * 验证令牌（使用配置的密钥）
      *
      * @param token JWT令牌
      * @return 验证结果
+     * @throws SecurityException 如果密钥未配置
      */
     public static boolean verifyToken(String token) {
-        return verifyToken(token, DEFAULT_SECRET);
+        ensureSecretConfigured();
+        return verifyToken(token, configuredSecret);
     }
 
     /**

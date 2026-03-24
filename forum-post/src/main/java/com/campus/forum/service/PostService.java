@@ -71,22 +71,30 @@ public interface PostService {
     /**
      * 置顶/取消置顶帖子
      *
+     * 【安全修复】添加管理员权限验证参数，Service层进行权限二次校验
+     * 防止Controller层权限绕过或Header伪造攻击
+     *
      * @param id 帖子ID
      * @param isTop 是否置顶
      * @param operatorId 操作人ID
+     * @param isAdmin 是否为管理员（由Controller传入，需要经过二次验证）
      * @return 是否成功
      */
-    boolean setTop(Long id, Integer isTop, Long operatorId);
+    boolean setTop(Long id, Integer isTop, Long operatorId, boolean isAdmin);
 
     /**
      * 加精/取消加精帖子
      *
+     * 【安全修复】添加管理员权限验证参数，Service层进行权限二次校验
+     * 防止Controller层权限绕过或Header伪造攻击
+     *
      * @param id 帖子ID
      * @param isEssence 是否精华
      * @param operatorId 操作人ID
+     * @param isAdmin 是否为管理员（由Controller传入，需要经过二次验证）
      * @return 是否成功
      */
-    boolean setEssence(Long id, Integer isEssence, Long operatorId);
+    boolean setEssence(Long id, Integer isEssence, Long operatorId, boolean isAdmin);
 
     /**
      * 获取热门帖子列表

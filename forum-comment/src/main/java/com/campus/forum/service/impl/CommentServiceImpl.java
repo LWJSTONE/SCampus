@@ -64,7 +64,11 @@ public class CommentServiceImpl implements CommentService {
     private static final String REDIS_KEY_COMMENT_LIKE = "comment:like:";
     private static final String REDIS_KEY_USER_COMMENTS = "comment:user:";
     private static final String REDIS_KEY_COMMENT_LIKE_LOCK = "comment:like:lock:";
-    private static final long LOCK_EXPIRE_TIME = 3; // 锁过期时间（秒）
+    /**
+     * 分布式锁过期时间（秒）
+     * 【修复】从3秒增加到10秒，防止高并发下业务执行时间超过锁过期时间
+     */
+    private static final long LOCK_EXPIRE_TIME = 10;
     
     // 敏感词列表（实际项目中应从数据库或配置中心获取）
     private static final Set<String> SENSITIVE_WORDS = new HashSet<>(Arrays.asList(
@@ -249,6 +253,10 @@ public class CommentServiceImpl implements CommentService {
 
     /**
      * 点赞评论
+     * 
+     * 【安全修复说明】
+     * 原实现在finally块中直接删除锁，存在误删其他线程锁的风险。
+     * 修复方案：使用UUID作为锁的value，释放时通过Lua脚本验证锁持有者身份。
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -262,11 +270,13 @@ public class CommentServiceImpl implements CommentService {
         }
         
         // 2. 使用分布式锁防止并发问题
+        // 【修复】使用UUID作为锁的value，确保只能由持有者释放
         String lockKey = REDIS_KEY_COMMENT_LIKE_LOCK + commentId + ":" + userId;
+        String lockValue = java.util.UUID.randomUUID().toString();
         
         try {
-            // 尝试获取锁
-            Boolean locked = redisTemplate.opsForValue().setIfAbsent(lockKey, "1", LOCK_EXPIRE_TIME, TimeUnit.SECONDS);
+            // 尝试获取锁，使用较长的过期时间防止业务执行超时
+            Boolean locked = redisTemplate.opsForValue().setIfAbsent(lockKey, lockValue, LOCK_EXPIRE_TIME, TimeUnit.SECONDS);
             if (!Boolean.TRUE.equals(locked)) {
                 throw new BusinessException(ResultCode.BUSINESS_ERROR, "操作过于频繁，请稍后再试");
             }
@@ -319,9 +329,12 @@ public class CommentServiceImpl implements CommentService {
             log.info("评论{}成功, commentId: {}, userId: {}", isLike ? "点赞" : "取消点赞", commentId, userId);
             return isLike;
         } finally {
-            // 释放锁
+            // 【修复】安全释放锁：使用Lua脚本确保只有锁持有者才能释放锁
+            // 防止误删其他线程的锁
             try {
-                redisTemplate.delete(lockKey);
+                String luaScript = "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";
+                redisTemplate.execute(new org.springframework.data.redis.core.script.DefaultRedisScript<>(luaScript, Long.class), 
+                        java.util.Collections.singletonList(lockKey), lockValue);
             } catch (Exception e) {
                 log.warn("释放锁失败: {}", lockKey, e);
             }

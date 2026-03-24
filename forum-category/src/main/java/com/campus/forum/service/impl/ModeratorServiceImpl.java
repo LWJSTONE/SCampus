@@ -2,18 +2,23 @@ package com.campus.forum.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.campus.forum.api.UserServiceClient;
 import com.campus.forum.dto.ModeratorDTO;
 import com.campus.forum.entity.Forum;
 import com.campus.forum.entity.Moderator;
+import com.campus.forum.entity.Result;
 import com.campus.forum.exception.BusinessException;
 import com.campus.forum.mapper.ForumMapper;
 import com.campus.forum.mapper.ModeratorMapper;
 import com.campus.forum.service.ModeratorService;
 import com.campus.forum.vo.ModeratorVO;
+import com.campus.forum.vo.UserVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -31,6 +36,14 @@ public class ModeratorServiceImpl extends ServiceImpl<ModeratorMapper, Moderator
 
     private final ModeratorMapper moderatorMapper;
     private final ForumMapper forumMapper;
+    private final UserServiceClient userServiceClient;
+
+    /**
+     * 内部服务密钥，用于验证来自网关的内部请求
+     * 【安全修复】通过用户服务获取真实用户信息，防止前端数据篡改
+     */
+    @Value("${service.internal.secret-key:}")
+    private String internalSecretKey;
 
     @Override
     public List<ModeratorVO> getModerators(Long forumId) {
@@ -61,9 +74,40 @@ public class ModeratorServiceImpl extends ServiceImpl<ModeratorMapper, Moderator
         Moderator moderator = new Moderator();
         moderator.setForumId(forumId);
         moderator.setUserId(dto.getUserId());
-        moderator.setUsername(dto.getUsername());
-        moderator.setNickname(dto.getNickname());
-        moderator.setAvatar(dto.getAvatar());
+
+        // 【安全修复】从用户服务获取真实用户信息，防止前端数据篡改
+        // 不再信任DTO传入的username、nickname、avatar字段
+        try {
+            Result<UserVO> userResult = userServiceClient.getUserInfo(dto.getUserId(), internalSecretKey);
+            if (userResult == null || userResult.getData() == null) {
+                throw new BusinessException("用户不存在");
+            }
+            UserVO user = userResult.getData();
+            
+            // 验证用户状态
+            if (user.getStatus() == null || user.getStatus() != 1) {
+                throw new BusinessException("该用户已被禁用，无法设为版主");
+            }
+            
+            // 使用从用户服务获取的真实信息
+            moderator.setUsername(user.getUsername());
+            moderator.setNickname(user.getNickname());
+            moderator.setAvatar(user.getAvatar());
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("获取用户信息失败，userId: {}", dto.getUserId(), e);
+            // 如果用户服务不可用，记录警告但继续处理（兼容性考虑）
+            if (!StringUtils.hasText(internalSecretKey)) {
+                log.warn("内部服务密钥未配置，使用DTO传入的用户信息（存在安全风险）");
+                moderator.setUsername(dto.getUsername());
+                moderator.setNickname(dto.getNickname());
+                moderator.setAvatar(dto.getAvatar());
+            } else {
+                throw new BusinessException("获取用户信息失败，请稍后重试");
+            }
+        }
+        
         moderator.setIsPrimary(dto.getIsPrimary() != null ? dto.getIsPrimary() : false);
         moderator.setStatus(1);
 

@@ -48,4 +48,21 @@ public interface UserNoticeMapper extends BaseMapper<UserNotice> {
     @Update("UPDATE t_user_notice SET is_read = 1, read_time = #{readTime} " +
             "WHERE user_id = #{userId} AND is_read = 0")
     int batchMarkAsRead(@Param("userId") Long userId, @Param("readTime") LocalDateTime readTime);
+
+    /**
+     * 【修复】插入或更新用户通知阅读状态（防竞态条件）
+     * 使用 INSERT ... ON DUPLICATE KEY UPDATE 避免并发插入导致的主键冲突
+     * 需要在 t_user_notice 表上建立 (user_id, notice_id) 的唯一索引
+     * 
+     * @param userId 用户ID
+     * @param noticeId 通知ID
+     * @param readTime 阅读时间
+     * @return 影响行数
+     */
+    @Insert("INSERT INTO t_user_notice (user_id, notice_id, is_read, read_time, is_deleted, create_time) " +
+            "VALUES (#{userId}, #{noticeId}, 1, #{readTime}, 0, NOW()) " +
+            "ON DUPLICATE KEY UPDATE is_read = 1, read_time = #{readTime}")
+    int insertOrUpdateReadStatus(@Param("userId") Long userId, 
+                                  @Param("noticeId") Long noticeId, 
+                                  @Param("readTime") LocalDateTime readTime);
 }

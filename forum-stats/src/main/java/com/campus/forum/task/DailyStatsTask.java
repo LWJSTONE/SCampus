@@ -160,9 +160,43 @@ public class DailyStatsTask {
     /**
      * 每小时更新一次今日实时统计
      * 用于更新累计数据和活跃用户数
+     * 
+     * 【修复】添加分布式锁，防止多实例重复执行
      */
     @Scheduled(cron = "0 0 * * * ?")
     public void updateTodayStats() {
+        // 使用分布式锁防止多实例重复执行
+        String lockKey = "task:update:stats:lock";
+        String lockValue = java.util.UUID.randomUUID().toString();
+        
+        try {
+            // 尝试获取锁，10分钟过期（任务执行时间通常很短）
+            Boolean locked = redisTemplate.opsForValue().setIfAbsent(lockKey, lockValue, 10, TimeUnit.MINUTES);
+            if (!Boolean.TRUE.equals(locked)) {
+                log.debug("获取更新统计任务锁失败，其他实例正在执行，跳过本次任务");
+                return;
+            }
+            
+            doUpdateTodayStats();
+        } finally {
+            // 安全释放锁：使用Lua脚本确保只有锁持有者才能释放锁
+            try {
+                String luaScript = "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";
+                redisTemplate.execute(
+                        new org.springframework.data.redis.core.script.DefaultRedisScript<>(luaScript, Long.class),
+                        java.util.Collections.singletonList(lockKey),
+                        lockValue
+                );
+            } catch (Exception e) {
+                log.warn("释放更新统计任务锁失败: {}", lockKey, e);
+            }
+        }
+    }
+    
+    /**
+     * 执行今日统计数据更新的实际逻辑
+     */
+    private void doUpdateTodayStats() {
         log.info("开始更新今日统计数据...");
         
         try {
@@ -277,10 +311,12 @@ public class DailyStatsTask {
         try {
             // 使用SCAN命令增量遍历键，避免keys()阻塞Redis
             Set<String> keys = new HashSet<>();
-            Cursor<byte[]> cursor = redisTemplate.getConnectionFactory().getConnection()
-                    .scan(ScanOptions.scanOptions().match(CACHE_PREFIX + "*").count(100).build());
-            while (cursor.hasNext()) {
-                keys.add(new String(cursor.next(), StandardCharsets.UTF_8));
+            // 【修复】使用try-with-resources确保Cursor资源被正确关闭，防止Redis连接泄漏
+            try (Cursor<byte[]> cursor = redisTemplate.getConnectionFactory().getConnection()
+                    .scan(ScanOptions.scanOptions().match(CACHE_PREFIX + "*").count(100).build())) {
+                while (cursor.hasNext()) {
+                    keys.add(new String(cursor.next(), StandardCharsets.UTF_8));
+                }
             }
             if (!keys.isEmpty()) {
                 redisTemplate.delete(keys);

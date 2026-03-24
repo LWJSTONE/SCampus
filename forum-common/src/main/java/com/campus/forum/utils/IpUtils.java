@@ -5,10 +5,21 @@ import cn.hutool.http.HttpUtil;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.servlet.http.HttpServletRequest;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * IP工具类
  * 用于获取和处理IP地址信息
+ *
+ * 【安全修复】增强IP获取安全性
+ * 原问题：直接信任 X-Forwarded-For 等HTTP头，未验证IP格式，存在IP伪造风险
+ * 修复方案：
+ * 1. 添加IP格式验证，防止注入恶意IP
+ * 2. 添加可信代理IP配置，只信任来自可信代理的IP头
+ * 3. 增加安全日志记录
  *
  * @author campus
  * @since 2024-01-01
@@ -21,38 +32,106 @@ public class IpUtils {
     private static final String LOCALHOST_IPV6 = "0:0:0:0:0:0:0:1";
     private static final int IP_MAX_LENGTH = 15;
 
+    /**
+     * 可信代理IP集合（需要根据实际部署环境配置）
+     * 默认包含常见的内网代理和负载均衡器IP
+     * 生产环境应通过配置文件设置
+     */
+    private static volatile Set<String> trustedProxies = new HashSet<>(Arrays.asList(
+            "127.0.0.1",
+            "0:0:0:0:0:0:0:1",
+            "10.0.0.0/8",      // 10.0.0.0 - 10.255.255.255
+            "172.16.0.0/12",   // 172.16.0.0 - 172.31.255.255
+            "192.168.0.0/16"   // 192.168.0.0 - 192.168.255.255
+    ));
+
+    /**
+     * 是否启用可信代理验证
+     * 默认为 true，生产环境强烈建议开启
+     */
+    private static volatile boolean enableTrustedProxyCheck = true;
+
     private IpUtils() {
         // 私有构造方法，防止实例化
     }
 
     /**
-     * 获取客户端IP地址
+     * 设置可信代理IP列表
+     *
+     * @param proxies 可信代理IP集合
+     */
+    public static void setTrustedProxies(Set<String> proxies) {
+        if (proxies != null) {
+            trustedProxies = new HashSet<>(proxies);
+            log.info("已更新可信代理IP列表，共 {} 个条目", trustedProxies.size());
+        }
+    }
+
+    /**
+ * 设置是否启用可信代理验证
+     *
+     * @param enable 是否启用
+     */
+    public static void setEnableTrustedProxyCheck(boolean enable) {
+        enableTrustedProxyCheck = enable;
+        log.info("可信代理验证已{}", enable ? "启用" : "禁用");
+    }
+
+    /**
+     * 检查IP是否在可信代理列表中
+     *
+     * @param ip IP地址
+     * @return 是否为可信代理
+     */
+    public static boolean isTrustedProxy(String ip) {
+        if (StrUtil.isEmpty(ip)) {
+            return false;
+        }
+        // 直接匹配
+        if (trustedProxies.contains(ip)) {
+            return true;
+        }
+        // CIDR匹配（简化版，仅支持常见内网段）
+        if (isInternalIp(ip)) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * 获取客户端IP地址（增强安全版）
+     *
+     * 安全措施：
+     * 1. 只在请求来自可信代理时才读取代理头
+     * 2. 对获取的IP进行格式验证，防止注入
+     * 3. 记录异常IP获取情况
      *
      * @param request HttpServletRequest
-     * @return IP地址
+     * @return IP地址（已验证格式）
      */
     public static String getIpAddr(HttpServletRequest request) {
         if (request == null) {
             return UNKNOWN;
         }
-        String ip = request.getHeader("x-forwarded-for");
-        if (isEmptyIp(ip)) {
-            ip = request.getHeader("Proxy-Client-IP");
+
+        // 获取请求来源IP（直接连接的IP）
+        String remoteAddr = request.getRemoteAddr();
+
+        // 检查是否来自可信代理
+        boolean fromTrustedProxy = !enableTrustedProxyCheck || isTrustedProxy(remoteAddr);
+
+        String ip = null;
+
+        if (fromTrustedProxy) {
+            // 只有来自可信代理时才读取代理头
+            ip = getIpFromHeaders(request);
         }
+
+        // 如果没有从代理头获取到有效IP，使用直接连接IP
         if (isEmptyIp(ip)) {
-            ip = request.getHeader("X-Forwarded-For");
-        }
-        if (isEmptyIp(ip)) {
-            ip = request.getHeader("WL-Proxy-Client-IP");
-        }
-        if (isEmptyIp(ip)) {
-            ip = request.getHeader("X-Real-IP");
-        }
-        if (isEmptyIp(ip)) {
-            ip = request.getRemoteAddr();
-            // 对于通过多个代理的情况，第一个IP才是客户端真实IP
+            ip = remoteAddr;
+            // 对于本地访问，获取本机配置的IP
             if (LOCALHOST_IP.equals(ip) || LOCALHOST_IPV6.equals(ip)) {
-                // 根据网卡取本机配置的IP
                 try {
                     ip = java.net.InetAddress.getLocalHost().getHostAddress();
                 } catch (Exception e) {
@@ -61,12 +140,91 @@ public class IpUtils {
             }
         }
 
-        // 对于通过多个代理的情况，第一个IP才是客户端真实IP
-        if (ip != null && ip.length() > IP_MAX_LENGTH && ip.indexOf(",") > 0) {
-            ip = ip.substring(0, ip.indexOf(","));
+        // 处理多IP情况（取第一个有效IP）
+        ip = extractFirstValidIp(ip);
+
+        // 验证IP格式，防止注入攻击
+        if (!isValidIpFormat(ip)) {
+            log.warn("检测到无效IP格式: {}，可能存在IP伪造攻击！", ip);
+            return UNKNOWN;
         }
 
         return ip;
+    }
+
+    /**
+     * 从HTTP头获取IP（仅限可信代理场景使用）
+     *
+     * @param request HttpServletRequest
+     * @return IP地址
+     */
+    private static String getIpFromHeaders(HttpServletRequest request) {
+        String ip = null;
+
+        // 按优先级检查各个代理头
+        // X-Forwarded-For 是标准头，优先级最高
+        ip = request.getHeader("X-Forwarded-For");
+        if (isEmptyIp(ip)) {
+            ip = request.getHeader("x-forwarded-for");
+        }
+        if (isEmptyIp(ip)) {
+            ip = request.getHeader("X-Real-IP");
+        }
+        if (isEmptyIp(ip)) {
+            ip = request.getHeader("Proxy-Client-IP");
+        }
+        if (isEmptyIp(ip)) {
+            ip = request.getHeader("WL-Proxy-Client-IP");
+        }
+
+        return ip;
+    }
+
+    /**
+     * 从多IP字符串中提取第一个有效IP
+     *
+     * @param ipStr IP字符串（可能包含多个IP，逗号分隔）
+     * @return 第一个有效IP
+     */
+    private static String extractFirstValidIp(String ipStr) {
+        if (StrUtil.isEmpty(ipStr)) {
+            return ipStr;
+        }
+
+        // 处理多IP情况（X-Forwarded-For格式：client, proxy1, proxy2）
+        if (ipStr.contains(",")) {
+            String[] ips = ipStr.split(",");
+            for (String ip : ips) {
+                ip = ip.trim();
+                if (isValidIpFormat(ip)) {
+                    return ip;
+                }
+            }
+            // 如果没有有效IP，取第一个并清理
+            return ips[0].trim();
+        }
+
+        return ipStr.trim();
+    }
+
+    /**
+     * 验证IP格式是否有效（支持IPv4和IPv6）
+     *
+     * @param ip IP地址
+     * @return 是否为有效IP格式
+     */
+    private static boolean isValidIpFormat(String ip) {
+        if (StrUtil.isEmpty(ip) || UNKNOWN.equalsIgnoreCase(ip)) {
+            return false;
+        }
+        // 检查是否包含非法字符（防止注入攻击）
+        if (ip.contains("\n") || ip.contains("\r") || ip.contains("\t")
+                || ip.contains("\"") || ip.contains("'") || ip.contains("<") || ip.contains(">")) {
+            log.warn("IP地址包含非法字符: {}", ip);
+            return false;
+        }
+        // 验证IPv4或IPv6格式
+        return isValidIp(ip) || isValidIpv6(ip);
     }
 
     /**

@@ -21,7 +21,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.HashSet;
+import java.util.ArrayList;
 import java.util.stream.Collectors;
+import java.util.function.Function;
 
 /**
  * 版块服务实现类
@@ -43,18 +48,16 @@ public class ForumServiceImpl extends ServiceImpl<ForumMapper, Forum> implements
     public List<ForumVO> getAllForums() {
         log.info("获取所有版块列表");
         List<Forum> forums = forumMapper.selectAllActive();
-        return forums.stream()
-                .map(this::convertToVO)
-                .collect(Collectors.toList());
+        // 【性能优化】使用批量转换解决N+1查询问题
+        return convertToVOList(forums);
     }
 
     @Override
     public List<ForumVO> getForumsByCategory(Long categoryId) {
         log.info("获取分类下的版块列表：{}", categoryId);
         List<Forum> forums = forumMapper.selectByCategoryId(categoryId);
-        return forums.stream()
-                .map(this::convertToVO)
-                .collect(Collectors.toList());
+        // 【性能优化】使用批量转换解决N+1查询问题
+        return convertToVOList(forums);
     }
 
     @Override
@@ -175,7 +178,7 @@ public class ForumServiceImpl extends ServiceImpl<ForumMapper, Forum> implements
     }
 
     /**
-     * 转换为VO
+     * 转换为VO（单个版块，用于详情查询）
      */
     private ForumVO convertToVO(Forum forum) {
         ForumVO vo = new ForumVO();
@@ -199,6 +202,88 @@ public class ForumServiceImpl extends ServiceImpl<ForumMapper, Forum> implements
                 .findFirst()
                 .ifPresent(m -> vo.setModeratorName(m.getNickname() != null ? m.getNickname() : m.getUsername()));
 
+        return vo;
+    }
+
+    /**
+     * 批量转换为VO列表
+     * 【性能优化】解决N+1查询问题，使用批量查询后Map映射
+     * 
+     * 原实现：每个版块单独查询分类名称和版主列表，N个版块产生2N+1次查询
+     * 优化后：批量查询所有分类和版主，通过Map映射组装，仅需3次查询
+     *
+     * @param forums 版块列表
+     * @return VO列表
+     */
+    private List<ForumVO> convertToVOList(List<Forum> forums) {
+        if (forums == null || forums.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // 1. 收集所有分类ID
+        Set<Long> categoryIds = forums.stream()
+                .map(Forum::getCategoryId)
+                .filter(id -> id != null)
+                .collect(Collectors.toSet());
+
+        // 2. 批量查询分类信息并构建Map
+        Map<Long, Category> categoryMap = Collections.emptyMap();
+        if (!categoryIds.isEmpty()) {
+            List<Category> categories = categoryMapper.selectByIds(new ArrayList<>(categoryIds));
+            categoryMap = categories.stream()
+                    .collect(Collectors.toMap(Category::getId, Function.identity()));
+        }
+
+        // 3. 收集所有版块ID
+        List<Long> forumIds = forums.stream()
+                .map(Forum::getId)
+                .collect(Collectors.toList());
+
+        // 4. 批量查询版主信息并按版块ID分组
+        Map<Long, List<ModeratorVO>> moderatorsByForumId = Collections.emptyMap();
+        if (!forumIds.isEmpty()) {
+            List<Moderator> allModerators = moderatorMapper.selectByForumIds(forumIds);
+            moderatorsByForumId = allModerators.stream()
+                    .map(this::convertModeratorToVO)
+                    .collect(Collectors.groupingBy(ModeratorVO::getForumId));
+        }
+
+        // 5. 组装VO列表
+        final Map<Long, Category> finalCategoryMap = categoryMap;
+        final Map<Long, List<ModeratorVO>> finalModeratorsMap = moderatorsByForumId;
+
+        return forums.stream().map(forum -> {
+            ForumVO vo = new ForumVO();
+            BeanUtil.copyProperties(forum, vo);
+
+            // 设置分类名称
+            if (forum.getCategoryId() != null) {
+                Category category = finalCategoryMap.get(forum.getCategoryId());
+                if (category != null) {
+                    vo.setCategoryName(category.getName());
+                }
+            }
+
+            // 设置版主列表
+            List<ModeratorVO> moderators = finalModeratorsMap.getOrDefault(forum.getId(), Collections.emptyList());
+            vo.setModerators(moderators);
+
+            // 设置主版主名称
+            moderators.stream()
+                    .filter(m -> Boolean.TRUE.equals(m.getIsPrimary()))
+                    .findFirst()
+                    .ifPresent(m -> vo.setModeratorName(m.getNickname() != null ? m.getNickname() : m.getUsername()));
+
+            return vo;
+        }).collect(Collectors.toList());
+    }
+
+    /**
+     * 转换版主实体为VO
+     */
+    private ModeratorVO convertModeratorToVO(Moderator moderator) {
+        ModeratorVO vo = new ModeratorVO();
+        BeanUtil.copyProperties(moderator, vo);
         return vo;
     }
 }

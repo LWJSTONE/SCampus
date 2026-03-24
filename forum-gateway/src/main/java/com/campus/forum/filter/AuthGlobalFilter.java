@@ -25,6 +25,7 @@ import reactor.core.publisher.Mono;
 
 import javax.annotation.PostConstruct;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -93,6 +94,20 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
      */
     @Value("${app.internal-service-secret:}")
     private String internalServiceSecret;
+
+    /**
+     * 允许的CORS域名列表
+     * 【安全修复】用于动态设置 Access-Control-Allow-Origin，避免与 allowCredentials: true 冲突
+     */
+    private static final List<String> ALLOWED_ORIGINS = Arrays.asList(
+            "http://localhost:3000",
+            "http://localhost:8080",
+            "http://localhost:8081",
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:8080",
+            "http://127.0.0.1:8081"
+            // 生产环境需要添加实际的域名
+    );
 
     /**
      * 应用启动时的配置检查
@@ -238,8 +253,9 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
                 }
                 
                 // 验证签名
+                // 【安全修复】使用常量时间比较防止时序攻击
                 String expectedSignature = generateSignature(path, timestamp, internalServiceSecret);
-                if (!expectedSignature.equals(signature)) {
+                if (!constantTimeEquals(expectedSignature, signature)) {
                     log.warn("内部服务接口签名验证失败: {}, 来源IP: {}", path,
                             request.getRemoteAddress() != null ? request.getRemoteAddress().getAddress().getHostAddress() : "unknown");
                     return unauthorizedResponse(exchange, "禁止访问内部接口");
@@ -413,7 +429,14 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
         
         // 设置响应头
         response.getHeaders().add(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
-        response.getHeaders().add(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "*");
+        
+        // 【安全修复】动态设置CORS头，避免与 allowCredentials: true 冲突
+        // 使用请求来源或配置的允许域名
+        String origin = exchange.getRequest().getHeaders().getFirst(HttpHeaders.ORIGIN);
+        if (origin != null && isAllowedOrigin(origin)) {
+            response.getHeaders().add(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, origin);
+            response.getHeaders().add(HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS, "true");
+        }
         
         // 构建响应体
         Map<String, Object> result = new HashMap<>(4);
@@ -427,6 +450,35 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
         DataBuffer buffer = response.bufferFactory().wrap(bytes);
         
         return response.writeWith(Mono.just(buffer));
+    }
+
+    /**
+     * 检查来源是否在允许列表中
+     * 
+     * @param origin 请求来源
+     * @return true-允许，false-不允许
+     */
+    private boolean isAllowedOrigin(String origin) {
+        return ALLOWED_ORIGINS.contains(origin);
+    }
+
+    /**
+     * 常量时间字符串比较
+     * 
+     * <p>【安全修复】使用 MessageDigest.isEqual() 进行常量时间比较，防止时序攻击。</p>
+     * <p>时序攻击可以通过测量比较时间来逐步猜测正确值。</p>
+     * 
+     * @param expected 期望值
+     * @param actual 实际值
+     * @return true-相等，false-不相等
+     */
+    private boolean constantTimeEquals(String expected, String actual) {
+        if (expected == null || actual == null) {
+            return false;
+        }
+        byte[] expectedBytes = expected.getBytes(StandardCharsets.UTF_8);
+        byte[] actualBytes = actual.getBytes(StandardCharsets.UTF_8);
+        return MessageDigest.isEqual(expectedBytes, actualBytes);
     }
 
     /**

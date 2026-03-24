@@ -102,4 +102,20 @@ public interface ModeratorMapper extends BaseMapper<Moderator> {
      */
     @Update("UPDATE forum_moderator SET is_primary = 0, update_time = NOW() WHERE forum_id = #{forumId}")
     int clearPrimaryModerator(@Param("forumId") Long forumId);
+
+    /**
+     * 批量查询多个版块的版主列表
+     * 【性能优化】用于解决N+1查询问题，一次查询获取所有版块的版主信息
+     *
+     * @param forumIds 版块ID列表
+     * @return 所有版块的版主列表
+     */
+    @Select("<script>" +
+            "SELECT * FROM forum_moderator WHERE forum_id IN " +
+            "<foreach collection='forumIds' item='id' open='(' separator=',' close=')'>" +
+            "#{id}" +
+            "</foreach>" +
+            " AND delete_flag = 0 ORDER BY is_primary DESC, id ASC" +
+            "</script>")
+    List<Moderator> selectByForumIds(@Param("forumIds") List<Long> forumIds);
 }

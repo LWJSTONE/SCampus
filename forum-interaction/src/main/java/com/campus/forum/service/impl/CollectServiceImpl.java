@@ -200,6 +200,15 @@ public class CollectServiceImpl implements CollectService {
 
     /**
      * 更新收藏数缓存
+     * 
+     * 【风险说明】
+     * 数据库更新和Redis缓存更新不是原子操作，存在数据不一致风险。
+     * 如果数据库更新成功但缓存更新失败，会导致缓存与数据库数据不一致。
+     * 
+     * 【补偿方案】
+     * 1. 缓存设置过期时间（24小时），最终一致性由过期重新加载保证
+     * 2. 记录详细的错误日志，便于后续手动排查和修复
+     * 3. 建议实现异步补偿机制：定期从数据库同步收藏数到缓存
      */
     private void updateCollectCountCache(Long postId, int delta) {
         String key = getCollectCountKey(postId);
@@ -214,7 +223,10 @@ public class CollectServiceImpl implements CollectService {
                 redisTemplate.opsForValue().set(key, String.valueOf(count), CACHE_EXPIRE, TimeUnit.SECONDS);
             }
         } catch (Exception e) {
-            log.warn("更新收藏数缓存失败, postId={}", postId, e);
+            // 【修复】记录详细的错误日志，便于后续排查和修复
+            log.error("【缓存不一致风险】更新收藏数缓存失败, postId={}, delta={}, 需要检查数据一致性", 
+                    postId, delta, e);
+            // TODO: 考虑发送告警通知或记录到补偿队列表
         }
     }
 

@@ -164,8 +164,9 @@ public class NoticeServiceImpl implements NoticeService {
             throw new BusinessException(404, "通知不存在");
         }
         
-        // 增加阅读数
-        noticeMapper.incrementReadCount(noticeId);
+        // 【修复】增加阅读数时添加防刷机制
+        // 同一用户24小时内对同一通知只计算一次阅读数
+        incrementReadCountWithProtection(noticeId, userId);
         
         // 自动标记已读
         if (userId != null) {
@@ -181,40 +182,56 @@ public class NoticeServiceImpl implements NoticeService {
     
     /**
      * 内部标记已读方法，不包含事务注解，供其他方法内部调用
+     * 【修复】使用 INSERT ON DUPLICATE KEY UPDATE 避免竞态条件导致的主键冲突
      *
      * @param noticeId 通知ID
      * @param userId 用户ID
      */
     private void markAsReadInternal(Long noticeId, Long userId) {
-        // 查询是否已有记录
-        UserNotice userNotice = userNoticeMapper.selectOne(
-                new LambdaQueryWrapper<UserNotice>()
-                        .eq(UserNotice::getUserId, userId)
-                        .eq(UserNotice::getNoticeId, noticeId)
-        );
-        
-        if (userNotice != null) {
-            // 更新已读状态
-            if (userNotice.getIsRead() != 1) {
-                userNotice.setIsRead(1);
-                userNotice.setReadTime(LocalDateTime.now());
-                userNoticeMapper.updateById(userNotice);
-            }
-        } else {
-            // 创建新记录
-            userNotice = new UserNotice();
-            userNotice.setUserId(userId);
-            userNotice.setNoticeId(noticeId);
-            userNotice.setIsRead(1);
-            userNotice.setReadTime(LocalDateTime.now());
-            userNotice.setIsDeleted(0);
-            userNoticeMapper.insert(userNotice);
-        }
+        // 【修复】使用 INSERT ON DUPLICATE KEY UPDATE 避免竞态条件
+        // 该操作是原子的，不存在"先查询再插入/更新"的时间窗口问题
+        // 需要确保 t_user_notice 表有 (user_id, notice_id) 的唯一索引
+        LocalDateTime readTime = LocalDateTime.now();
+        userNoticeMapper.insertOrUpdateReadStatus(userId, noticeId, readTime);
         
         // 清除未读数缓存
         clearUnreadCountCache(userId);
         
         log.info("通知已自动标记为已读, noticeId: {}, userId: {}", noticeId, userId);
+    }
+    
+    /**
+     * 【修复】增加阅读数（带防刷机制）
+     * 同一用户在指定时间内对同一通知只计算一次阅读数
+     * 防止恶意刷阅读数
+     *
+     * @param noticeId 通知ID
+     * @param userId 用户ID（可为null，表示未登录用户）
+     */
+    private void incrementReadCountWithProtection(Long noticeId, Long userId) {
+        // 对于未登录用户，直接增加阅读数（使用IP等方式防刷成本较高，暂不实现）
+        if (userId == null) {
+            noticeMapper.incrementReadCount(noticeId);
+            return;
+        }
+        
+        // 对于已登录用户，使用 Redis 实现防刷
+        // 同一用户24小时内对同一通知只计算一次阅读数
+        String readKey = REDIS_KEY_NOTICE_READ + userId + ":" + noticeId;
+        try {
+            Boolean isFirstRead = redisTemplate.opsForValue()
+                    .setIfAbsent(readKey, "1", Duration.ofHours(24));
+            if (Boolean.TRUE.equals(isFirstRead)) {
+                noticeMapper.incrementReadCount(noticeId);
+                log.debug("首次阅读，增加阅读数, noticeId: {}, userId: {}", noticeId, userId);
+            } else {
+                log.debug("重复阅读，不增加阅读数, noticeId: {}, userId: {}", noticeId, userId);
+            }
+        } catch (Exception e) {
+            // Redis 异常时降级处理，仍然增加阅读数
+            log.warn("Redis防刷检查失败，降级处理, noticeId: {}, userId: {}", noticeId, userId, e);
+            noticeMapper.incrementReadCount(noticeId);
+        }
     }
 
     @Override
@@ -390,30 +407,9 @@ public class NoticeServiceImpl implements NoticeService {
             throw new BusinessException(404, "通知不存在");
         }
         
-        // 查询是否已有记录
-        UserNotice userNotice = userNoticeMapper.selectOne(
-                new LambdaQueryWrapper<UserNotice>()
-                        .eq(UserNotice::getUserId, userId)
-                        .eq(UserNotice::getNoticeId, noticeId)
-        );
-        
-        if (userNotice != null) {
-            // 更新已读状态
-            if (userNotice.getIsRead() != 1) {
-                userNotice.setIsRead(1);
-                userNotice.setReadTime(LocalDateTime.now());
-                userNoticeMapper.updateById(userNotice);
-            }
-        } else {
-            // 创建新记录
-            userNotice = new UserNotice();
-            userNotice.setUserId(userId);
-            userNotice.setNoticeId(noticeId);
-            userNotice.setIsRead(1);
-            userNotice.setReadTime(LocalDateTime.now());
-            userNotice.setIsDeleted(0);
-            userNoticeMapper.insert(userNotice);
-        }
+        // 【修复】使用 INSERT ON DUPLICATE KEY UPDATE 避免竞态条件
+        LocalDateTime readTime = LocalDateTime.now();
+        userNoticeMapper.insertOrUpdateReadStatus(userId, noticeId, readTime);
         
         // 清除未读数缓存
         clearUnreadCountCache(userId);

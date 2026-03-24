@@ -13,6 +13,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
+import com.campus.forum.exception.BusinessException;
+
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.net.URLEncoder;
@@ -260,12 +262,18 @@ public class StatsServiceImpl implements StatsService {
         }
 
         // 计算近30天总数据
+        // 【修复】添加空值检查，防止NPE
         LocalDate monthStart = today.minusDays(30);
-        vo.setTotalLikes(dailyStatsMapper.sumLikeCount(monthStart, today).longValue());
-        vo.setTotalComments(dailyStatsMapper.sumNewComments(monthStart, today).longValue());
-        vo.setTotalCollects(dailyStatsMapper.sumCollectCount(monthStart, today).longValue());
-        vo.setTotalFollows(dailyStatsMapper.sumFollowCount(monthStart, today).longValue());
-        vo.setTotalViews(dailyStatsMapper.sumViewCount(monthStart, today));
+        Integer likes = dailyStatsMapper.sumLikeCount(monthStart, today);
+        vo.setTotalLikes(likes != null ? likes.longValue() : 0L);
+        Integer comments = dailyStatsMapper.sumNewComments(monthStart, today);
+        vo.setTotalComments(comments != null ? comments.longValue() : 0L);
+        Integer collects = dailyStatsMapper.sumCollectCount(monthStart, today);
+        vo.setTotalCollects(collects != null ? collects.longValue() : 0L);
+        Integer follows = dailyStatsMapper.sumFollowCount(monthStart, today);
+        vo.setTotalFollows(follows != null ? follows.longValue() : 0L);
+        Long views = dailyStatsMapper.sumViewCount(monthStart, today);
+        vo.setTotalViews(views != null ? views : 0L);
 
         // 计算增长率（对比本月 vs 上月，都是30天的时间跨度）
         LocalDate lastMonthStart = monthStart.minusDays(30);
@@ -380,7 +388,8 @@ public class StatsServiceImpl implements StatsService {
             }
         } catch (IOException e) {
             log.error("导出报表失败", e);
-            throw new RuntimeException("导出报表失败: " + e.getMessage());
+            // 【修复】使用自定义业务异常替代RuntimeException
+            throw new BusinessException("导出报表失败: " + e.getMessage(), e);
         }
     }
 

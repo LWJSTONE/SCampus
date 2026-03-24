@@ -80,4 +80,20 @@ public interface CategoryMapper extends BaseMapper<Category> {
      */
     @Select("SELECT COUNT(*) FROM forum_forum WHERE category_id = #{categoryId} AND delete_flag = 0")
     int countForums(@Param("categoryId") Long categoryId);
+
+    /**
+     * 批量查询分类信息
+     * 【性能优化】用于解决N+1查询问题，一次查询获取多个分类信息
+     *
+     * @param categoryIds 分类ID列表
+     * @return 分类列表
+     */
+    @Select("<script>" +
+            "SELECT * FROM forum_category WHERE id IN " +
+            "<foreach collection='categoryIds' item='id' open='(' separator=',' close=')'>" +
+            "#{id}" +
+            "</foreach>" +
+            " AND delete_flag = 0" +
+            "</script>")
+    List<Category> selectByIds(@Param("categoryIds") List<Long> categoryIds);
 }

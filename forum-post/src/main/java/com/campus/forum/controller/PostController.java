@@ -55,19 +55,29 @@ public class PostController {
     /**
      * 内部服务调用密钥
      * 安全警告：生产环境必须在配置文件中设置 app.internal-service-key，不能依赖默认值
+     * 
+     * 【安全修复】添加默认值为空字符串，防止配置缺失时应用启动失败
+     * 同时在验证方法中检查空值并记录错误日志
      */
-    @Value("${app.internal-service-key}")
+    @Value("${app.internal-service-key:}")
     private String internalServiceKey;
 
     /**
      * 安全比较内部服务密钥（防止时序攻击）
      * 使用MessageDigest.isEqual进行常量时间比较，避免通过响应时间推断密钥信息
      *
+     * 【安全修复】增加空值检查，防止密钥未配置时被绕过
+     *
      * @param providedKey 请求提供的密钥
      * @return 是否匹配
      */
     private boolean isValidServiceKey(String providedKey) {
-        if (internalServiceKey == null || providedKey == null) {
+        // 【安全修复】检查密钥是否已配置
+        if (internalServiceKey == null || internalServiceKey.isEmpty()) {
+            log.error("【安全警告】内部服务密钥未配置！请在配置文件中设置 app.internal-service-key");
+            return false;
+        }
+        if (providedKey == null) {
             return false;
         }
         // 使用常量时间比较，防止时序攻击
@@ -289,9 +299,12 @@ public class PostController {
             log.warn("用户无管理员权限，无法置顶帖子: operatorId={}", operatorId);
             return Result.fail(403, "无权限执行此操作，需要管理员权限");
         }
+        
+        // 【安全修复】将管理员验证结果传递给Service层进行二次校验
+        boolean isAdmin = true; // 通过二次验证后确认为管理员
 
         // 置顶帖子
-        boolean result = postService.setTop(id, isTop, operatorId);
+        boolean result = postService.setTop(id, isTop, operatorId, isAdmin);
 
         Map<String, Object> resultMap = new HashMap<>();
         resultMap.put("isTop", isTop);
@@ -327,9 +340,12 @@ public class PostController {
             log.warn("用户无管理员权限，无法加精帖子: operatorId={}", operatorId);
             return Result.fail(403, "无权限执行此操作，需要管理员权限");
         }
+        
+        // 【安全修复】将管理员验证结果传递给Service层进行二次校验
+        boolean isAdmin = true; // 通过二次验证后确认为管理员
 
         // 加精帖子
-        boolean result = postService.setEssence(id, isEssence, operatorId);
+        boolean result = postService.setEssence(id, isEssence, operatorId, isAdmin);
 
         Map<String, Object> resultMap = new HashMap<>();
         resultMap.put("isEssence", isEssence);

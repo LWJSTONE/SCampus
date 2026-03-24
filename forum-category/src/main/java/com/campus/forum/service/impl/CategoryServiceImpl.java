@@ -145,6 +145,18 @@ public class CategoryServiceImpl extends ServiceImpl<CategoryMapper, Category> i
     @Transactional(rollbackFor = Exception.class)
     public boolean updateStatus(Long id, Integer status) {
         log.info("更新分类状态：{}，状态：{}", id, status);
+        
+        // 【安全修复】验证分类是否存在
+        Category category = getById(id);
+        if (category == null) {
+            throw new BusinessException("分类不存在");
+        }
+        
+        // 【安全修复】验证状态参数有效性
+        if (status == null || (status != 0 && status != 1)) {
+            throw new BusinessException("状态参数无效，只能为0（禁用）或1（启用）");
+        }
+        
         return categoryMapper.updateStatus(id, status) > 0;
     }
 

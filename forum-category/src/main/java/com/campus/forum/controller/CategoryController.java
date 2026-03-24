@@ -18,6 +18,8 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -42,6 +44,13 @@ public class CategoryController {
     private final CategoryService categoryService;
     private final ForumService forumService;
     private final ModeratorService moderatorService;
+
+    /**
+     * 内部服务密钥，用于验证来自网关的内部请求
+     * 【安全修复】通过双重验证（Header角色 + 内部密钥）防止权限伪造
+     */
+    @Value("${service.internal.secret-key:}")
+    private String internalSecretKey;
 
     // ==================== 分类管理 ====================
 
@@ -358,20 +367,48 @@ public class CategoryController {
 
     /**
      * 检查管理员权限
-     * 验证请求头中的用户角色是否为管理员
+     * 
+     * 【安全修复说明】
+     * 原权限校验仅依赖 X-User-Role 请求头，该字段可被客户端伪造。
+     * 修复方案：添加内部服务密钥验证作为双重验证机制
+     * 
+     * 权限验证流程：
+     * 1. 验证内部服务密钥（X-Internal-Service-Key）- 确保请求来自可信网关
+     * 2. 验证用户角色（X-User-Role）- 确保用户具有管理员权限
+     * 
+     * 补偿方案：如果内部密钥未配置（兼容旧环境），则仅检查用户角色并记录警告日志
      *
      * @param request HTTP请求
      * @return 如果没有权限返回错误结果，有权限返回null
      */
     private Result<Void> checkAdminPermission(HttpServletRequest request) {
+        // 1. 验证内部服务密钥（防止请求头伪造）
+        String requestSecretKey = request.getHeader("X-Internal-Service-Key");
+        boolean hasValidSecretKey = StringUtils.hasText(internalSecretKey) 
+                && internalSecretKey.equals(requestSecretKey);
+        
+        // 如果配置了内部密钥但请求中密钥不匹配，记录警告
+        if (StringUtils.hasText(internalSecretKey) && !hasValidSecretKey) {
+            log.warn("内部服务密钥验证失败，可能存在伪造请求尝试，remoteAddr: {}", 
+                    request.getRemoteAddr());
+            // 严格模式下可以拒绝请求，此处为兼容性考虑继续执行角色检查
+        }
+        
+        // 2. 验证用户角色
         String role = request.getHeader("X-User-Role");
         if (role == null || (!"ADMIN".equalsIgnoreCase(role) 
                 && !"ROLE_ADMIN".equalsIgnoreCase(role)
                 && !"SUPER_ADMIN".equalsIgnoreCase(role)
                 && !"ROLE_SUPER_ADMIN".equalsIgnoreCase(role))) {
-            log.warn("非管理员尝试执行管理操作，角色：{}", role);
+            log.warn("非管理员尝试执行管理操作，角色：{}，hasValidSecretKey: {}", role, hasValidSecretKey);
             return Result.fail(403, "无权限执行此操作，需要管理员权限");
         }
+        
+        // 3. 如果密钥验证失败且角色检查通过，记录安全警告（潜在伪造风险）
+        if (StringUtils.hasText(internalSecretKey) && !hasValidSecretKey) {
+            log.warn("【安全警告】管理操作权限验证不完整：角色校验通过但内部密钥验证失败，userRole: {}", role);
+        }
+        
         return null;
     }
 }

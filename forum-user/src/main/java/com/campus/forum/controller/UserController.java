@@ -89,7 +89,7 @@ public class UserController {
     @GetMapping
     @Operation(summary = "获取用户列表", description = "分页查询用户列表，支持关键词搜索")
     public Result<PageResult<UserListVO>> getUserList(
-            @Parameter(description = "查询条件") UserQueryDTO queryDTO) {
+            @Parameter(description = "查询条件") @Validated UserQueryDTO queryDTO) {
         log.info("获取用户列表，条件：{}", queryDTO);
         PageResult<UserListVO> result = userService.getUserList(queryDTO);
         return Result.success(result);
@@ -197,25 +197,31 @@ public class UserController {
     /**
      * 更新用户状态（管理员）
      *
-     * 【安全说明】
-     * 本接口的管理员权限验证依赖于HTTP Header中的X-User-Role字段。
-     * 在微服务架构中，该Header由API网关层（forum-gateway）解析JWT Token后设置，
-     * 并非直接来自客户端请求。
+     * 【安全说明 - 双重验证机制】
+     * 本接口采用双重验证机制，确保安全性：
      * 
-     * 网关层通过AuthGlobalFilter解析JWT Token，验证用户身份和角色后，
-     * 将用户ID（X-User-Id）和角色（X-User-Role）传递给下游微服务。
+     * 1. 角色验证：依赖HTTP Header中的X-User-Role字段
+     *    在微服务架构中，该Header由API网关层（forum-gateway）解析JWT Token后设置，
+     *    并非直接来自客户端请求。网关层通过AuthGlobalFilter解析JWT Token，
+     *    验证用户身份和角色后，将用户ID（X-User-Id）和角色（X-User-Role）传递给下游微服务。
      * 
-     * 因此，此接口的安全性依赖于以下前提条件：
+     * 2. 内部服务密钥验证：要求请求携带有效的X-Internal-Service-Key
+     *    这是为了防止直接绕过网关调用此接口的安全隐患。
+     *    网关转发请求时会自动添加此密钥，外部请求无法伪造。
+     * 
+     * 【重要：网络安全要求】
+     * 此接口的安全性依赖于以下前提条件：
      * 1. 所有外部请求必须经过API网关
      * 2. 服务间网络隔离，外部无法直接访问微服务端口
      * 3. 网关层正确实现了JWT Token验证和角色提取逻辑
+     * 4. 内部服务密钥妥善保管，不在代码库中暴露
      *
-     * 如果直接调用此服务（绕过网关），需要确保请求来源可信。
-     * 生产环境建议在网络层面限制只有网关可以访问此服务的API端口。
+     * 生产环境建议：在网络层面限制只有网关可以访问此服务的API端口。
      *
      * @param id     用户ID
      * @param status 状态（0-禁用，1-正常）
      * @param request HTTP请求
+     * @param serviceKey 内部服务密钥（由网关添加）
      * @return 操作结果
      */
     @PutMapping("/{id}/status")
@@ -223,10 +229,18 @@ public class UserController {
     public Result<Boolean> updateUserStatus(
             @Parameter(description = "用户ID", required = true) @PathVariable Long id,
             @Parameter(description = "状态（0-禁用，1-正常）", required = true) @RequestParam Integer status,
-            HttpServletRequest request) {
+            HttpServletRequest request,
+            @Parameter(description = "内部服务密钥") @RequestHeader(value = "X-Internal-Service-Key", required = false) String serviceKey) {
         log.info("更新用户状态，用户ID：{}，状态：{}", id, status);
         
-        // 验证管理员权限
+        // 【安全修复】双重验证机制
+        // 1. 验证内部服务密钥（由网关转发时添加，防止绕过网关直接调用）
+        if (!isValidServiceKey(serviceKey)) {
+            log.warn("管理员接口调用缺少有效的内部服务密钥");
+            return Result.fail(403, "无权限执行此操作，请求未经过网关验证");
+        }
+        
+        // 2. 验证管理员权限
         // 注意：X-User-Role由网关层解析JWT Token后设置，请确保请求经过网关验证
         String role = request.getHeader("X-User-Role");
         if (role == null || (!"ADMIN".equalsIgnoreCase(role) && !"ROLE_ADMIN".equalsIgnoreCase(role))) {
@@ -257,7 +271,7 @@ public class UserController {
     @Operation(summary = "获取粉丝列表", description = "分页获取用户的粉丝列表")
     public Result<PageResult<UserFollowVO>> getFollowers(
             @Parameter(description = "用户ID", required = true) @PathVariable Long id,
-            @Parameter(description = "查询条件") UserQueryDTO queryDTO,
+            @Parameter(description = "查询条件") @Validated UserQueryDTO queryDTO,
             @Parameter(description = "当前登录用户ID") @RequestHeader(value = "X-User-Id", required = false) Long currentUserId) {
         log.info("获取粉丝列表，用户ID：{}，当前登录用户ID：{}", id, currentUserId);
         PageResult<UserFollowVO> result = userFollowService.getFollowers(id, queryDTO, currentUserId);
@@ -276,7 +290,7 @@ public class UserController {
     @Operation(summary = "获取关注列表", description = "分页获取用户的关注列表")
     public Result<PageResult<UserFollowVO>> getFollowing(
             @Parameter(description = "用户ID", required = true) @PathVariable Long id,
-            @Parameter(description = "查询条件") UserQueryDTO queryDTO,
+            @Parameter(description = "查询条件") @Validated UserQueryDTO queryDTO,
             @Parameter(description = "当前登录用户ID") @RequestHeader(value = "X-User-Id", required = false) Long currentUserId) {
         log.info("获取关注列表，用户ID：{}，当前登录用户ID：{}", id, currentUserId);
         // 【修复】传入currentUserId参数，用于判断互关状态
@@ -331,7 +345,7 @@ public class UserController {
     @Operation(summary = "获取用户帖子", description = "分页获取用户发布的帖子列表")
     public Result<PageResult<?>> getUserPosts(
             @Parameter(description = "用户ID", required = true) @PathVariable Long id,
-            @Parameter(description = "查询条件") UserQueryDTO queryDTO) {
+            @Parameter(description = "查询条件") @Validated UserQueryDTO queryDTO) {
         log.info("获取用户帖子，用户ID：{}", id);
         // 通过Feign调用帖子服务获取用户帖子
         try {
@@ -356,7 +370,7 @@ public class UserController {
     @Operation(summary = "获取用户评论", description = "分页获取用户发表的评论列表")
     public Result<PageResult<?>> getUserComments(
             @Parameter(description = "用户ID", required = true) @PathVariable Long id,
-            @Parameter(description = "查询条件") UserQueryDTO queryDTO) {
+            @Parameter(description = "查询条件") @Validated UserQueryDTO queryDTO) {
         log.info("获取用户评论，用户ID：{}", id);
         // 通过Feign调用评论服务获取用户评论
         // 这里返回空列表作为示例，实际需要调用CommentApi
@@ -374,7 +388,7 @@ public class UserController {
     @Operation(summary = "获取用户收藏", description = "分页获取用户的收藏列表")
     public Result<PageResult<?>> getUserCollections(
             @Parameter(description = "用户ID", required = true) @PathVariable Long id,
-            @Parameter(description = "查询条件") UserQueryDTO queryDTO,
+            @Parameter(description = "查询条件") @Validated UserQueryDTO queryDTO,
             @Parameter(description = "当前登录用户ID") @RequestHeader(value = "X-User-Id", required = false) Long currentUserId) {
         log.info("获取用户收藏，用户ID：{}", id);
         

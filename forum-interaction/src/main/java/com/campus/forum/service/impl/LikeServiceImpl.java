@@ -89,6 +89,9 @@ public class LikeServiceImpl implements LikeService {
                     updateLikeCountCache(targetType, targetId, -1);
                     redisTemplate.opsForValue().set(getUserLikeKey(targetType, targetId, userId), "0", CACHE_EXPIRE, TimeUnit.SECONDS);
                     
+                    // 【修复】同步更新帖子统计数
+                    updatePostLikeStats(targetType, targetId, -1);
+                    
                     log.info("取消点赞: targetType={}, targetId={}, userId={}", targetType, targetId, userId);
                     return false;
                 } else {
@@ -99,6 +102,9 @@ public class LikeServiceImpl implements LikeService {
                     // 更新缓存
                     updateLikeCountCache(targetType, targetId, 1);
                     redisTemplate.opsForValue().set(getUserLikeKey(targetType, targetId, userId), "1", CACHE_EXPIRE, TimeUnit.SECONDS);
+                    
+                    // 【修复】同步更新帖子统计数
+                    updatePostLikeStats(targetType, targetId, 1);
                     
                     log.info("点赞成功: targetType={}, targetId={}, userId={}", targetType, targetId, userId);
                     return true;
@@ -116,6 +122,10 @@ public class LikeServiceImpl implements LikeService {
                     // 【修复】正常插入时更新缓存
                     updateLikeCountCache(targetType, targetId, 1);
                     redisTemplate.opsForValue().set(getUserLikeKey(targetType, targetId, userId), "1", CACHE_EXPIRE, TimeUnit.SECONDS);
+                    // 【修复】新点赞记录创建时同步更新帖子统计数
+                    updatePostLikeStats(targetType, targetId, 1);
+                    log.info("点赞成功: targetType={}, targetId={}, userId={}", targetType, targetId, userId);
+                    return true;
                 } catch (DuplicateKeyException e) {
                     // 【修复】并发场景：其他线程已插入，重新查询并更新状态，同时确保缓存更新
                     log.info("并发点赞检测到重复记录: targetType={}, targetId={}, userId={}", targetType, targetId, userId);
@@ -128,14 +138,19 @@ public class LikeServiceImpl implements LikeService {
                         // 【修复】更新缓存 - 之前遗漏了用户状态缓存更新
                         updateLikeCountCache(targetType, targetId, 1);
                         redisTemplate.opsForValue().set(getUserLikeKey(targetType, targetId, userId), "1", CACHE_EXPIRE, TimeUnit.SECONDS);
+                        // 【修复】同步更新帖子统计数
+                        updatePostLikeStats(targetType, targetId, 1);
+                        log.info("点赞成功(并发恢复): targetType={}, targetId={}, userId={}", targetType, targetId, userId);
+                        return true;
                     } else if (existingRecord != null && existingRecord.getDeleteFlag() == 0) {
                         // 【修复】记录已存在且状态为已点赞（其他线程先插入了），同步缓存
                         redisTemplate.opsForValue().set(getUserLikeKey(targetType, targetId, userId), "1", CACHE_EXPIRE, TimeUnit.SECONDS);
+                        log.info("点赞已存在(并发): targetType={}, targetId={}, userId={}", targetType, targetId, userId);
+                        return true;
                     }
+                    // 其他情况返回false
+                    return false;
                 }
-                
-                log.info("点赞成功: targetType={}, targetId={}, userId={}", targetType, targetId, userId);
-                return true;
             }
         } finally {
             // 安全释放锁：使用Lua脚本确保只有锁持有者才能释放锁
@@ -196,6 +211,15 @@ public class LikeServiceImpl implements LikeService {
 
     /**
      * 更新点赞数缓存
+     * 
+     * 【风险说明】
+     * 数据库更新和Redis缓存更新不是原子操作，存在数据不一致风险。
+     * 如果数据库更新成功但缓存更新失败，会导致缓存与数据库数据不一致。
+     * 
+     * 【补偿方案】
+     * 1. 缓存设置过期时间（24小时），最终一致性由过期重新加载保证
+     * 2. 记录详细的错误日志，便于后续手动排查和修复
+     * 3. 建议实现异步补偿机制：定期从数据库同步点赞数到缓存
      */
     private void updateLikeCountCache(Integer targetType, Long targetId, int delta) {
         String key = getLikeCountKey(targetType, targetId);
@@ -210,7 +234,10 @@ public class LikeServiceImpl implements LikeService {
                 redisTemplate.opsForValue().set(key, String.valueOf(count), CACHE_EXPIRE, TimeUnit.SECONDS);
             }
         } catch (Exception e) {
-            log.warn("更新点赞数缓存失败, targetType={}, targetId={}", targetType, targetId, e);
+            // 【修复】记录详细的错误日志，便于后续排查和修复
+            log.error("【缓存不一致风险】更新点赞数缓存失败, targetType={}, targetId={}, delta={}, 需要检查数据一致性", 
+                    targetType, targetId, delta, e);
+            // TODO: 考虑发送告警通知或记录到补偿队列表
         }
     }
 
@@ -256,6 +283,34 @@ public class LikeServiceImpl implements LikeService {
             // 【修复】服务不可用时应该抛出异常，而不是静默跳过验证
             // 防止对不存在的目标进行点赞操作，避免产生脏数据
             throw new BusinessException(ResultCode.SERVICE_UNAVAILABLE, "服务暂时不可用，请稍后重试");
+        }
+    }
+    
+    /**
+     * 【修复】同步更新帖子点赞统计数
+     * 
+     * 点赞/取消点赞后，需要更新帖子表中的点赞数字段，确保统计数据一致性。
+     * 
+     * @param targetType 目标类型：1-帖子，2-评论
+     * @param targetId 目标ID
+     * @param delta 变化量：+1为点赞，-1为取消点赞
+     */
+    private void updatePostLikeStats(Integer targetType, Long targetId, int delta) {
+        try {
+            // 只有点赞的是帖子时才更新帖子统计
+            if (targetType == 1) {
+                postApi.updatePostStats(targetId, "likeCount", delta);
+                log.debug("已同步更新帖子点赞数, postId: {}, delta: {}", targetId, delta);
+            }
+            // 如果是评论点赞，可以在这里添加评论统计更新逻辑（如果需要）
+            // else if (targetType == 2) {
+            //     commentApi.updateCommentStats(targetId, "likeCount", delta);
+            // }
+        } catch (Exception e) {
+            // 更新统计失败不影响主流程，但需要记录详细日志以便后续排查
+            log.error("【统计不一致风险】同步更新帖子点赞统计数失败, targetType={}, targetId={}, delta={}", 
+                    targetType, targetId, delta, e);
+            // TODO: 考虑发送告警通知或记录到补偿队列表
         }
     }
 }

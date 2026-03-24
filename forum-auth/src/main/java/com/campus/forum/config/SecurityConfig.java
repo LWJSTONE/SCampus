@@ -15,6 +15,7 @@ import org.springframework.web.filter.CorsFilter;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
+import javax.annotation.PostConstruct;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
@@ -40,9 +41,37 @@ public class SecurityConfig implements WebMvcConfigurer {
     
     /**
      * JWT密钥 - 从配置文件读取，用于验证Token
+     * 
+     * 【安全修复】移除默认值，强制要求配置强密钥
      */
     @org.springframework.beans.factory.annotation.Value("${jwt.secret}")
     private String jwtSecret;
+
+    /**
+     * 启动时校验JWT密钥配置
+     * 
+     * 【安全修复】强制要求配置强JWT密钥，防止使用弱密钥导致的安全风险
+     * 弱密钥可能导致JWT被伪造，造成身份认证绕过
+     */
+    @PostConstruct
+    public void init() {
+        if (StrUtil.isBlank(jwtSecret)) {
+            throw new IllegalStateException("【安全配置错误】生产环境必须配置JWT密钥(jwt.secret)，请勿使用空密钥");
+        }
+        if (jwtSecret.length() < 32) {
+            throw new IllegalStateException(
+                    "【安全配置错误】JWT密钥长度不足，当前" + jwtSecret.length() + "字符，生产环境必须至少32字符。" +
+                    "建议使用: openssl rand -base64 32 生成安全密钥");
+        }
+        // 检查是否使用了常见的弱密钥模式
+        String lowerSecret = jwtSecret.toLowerCase();
+        if (lowerSecret.contains("secret") || lowerSecret.contains("password") || lowerSecret.contains("123456")) {
+            throw new IllegalStateException(
+                    "【安全配置错误】JWT密钥包含常见弱密钥特征，请使用随机生成的强密钥。" +
+                    "建议使用: openssl rand -base64 32");
+        }
+        log.info("JWT密钥配置校验通过，密钥长度: {}字符", jwtSecret.length());
+    }
 
     /**
      * 白名单路径（不需要Token验证的路径）

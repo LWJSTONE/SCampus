@@ -30,6 +30,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.servlet.http.HttpServletRequest;
+import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.List;
@@ -54,6 +55,26 @@ public class AuthServiceImpl implements AuthService {
      * 最大登录失败次数
      */
     private static final int MAX_LOGIN_FAIL_COUNT = 5;
+
+    /**
+     * 安全比较两个字符串（常量时间比较）
+     * 
+     * 【安全修复】使用MessageDigest.isEqual进行常量时间比较，防止时序攻击
+     * 时序攻击者可以通过响应时间差异推断验证码的部分内容
+     * 
+     * @param str1 字符串1
+     * @param str2 字符串2
+     * @return 是否相等
+     */
+    private boolean constantTimeEquals(String str1, String str2) {
+        if (str1 == null || str2 == null) {
+            return str1 == str2;
+        }
+        // 转换为字节数组后使用常量时间比较
+        byte[] bytes1 = str1.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] bytes2 = str2.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        return MessageDigest.isEqual(bytes1, bytes2);
+    }
 
     /**
      * 账户锁定时间（分钟）
@@ -192,7 +213,8 @@ public class AuthServiceImpl implements AuthService {
             if (cachedCode == null) {
                 return Result.fail(400, "验证码已过期，请重新获取");
             }
-            if (!cachedCode.toString().equalsIgnoreCase(registerDTO.getCode().trim())) {
+            // 【安全修复】使用常量时间比较，防止时序攻击
+            if (!constantTimeEquals(cachedCode.toString().toLowerCase(), registerDTO.getCode().trim().toLowerCase())) {
                 return Result.fail(400, "验证码错误");
             }
             // 删除已使用的验证码
@@ -397,7 +419,8 @@ public class AuthServiceImpl implements AuthService {
         if (cachedCode == null) {
             return Result.fail(400, "验证码已过期，请重新获取");
         }
-        if (!cachedCode.toString().equalsIgnoreCase(resetPasswordDTO.getCode().trim())) {
+        // 【安全修复】使用常量时间比较，防止时序攻击
+        if (!constantTimeEquals(cachedCode.toString().toLowerCase(), resetPasswordDTO.getCode().trim().toLowerCase())) {
             return Result.fail(400, "验证码错误");
         }
 
@@ -443,8 +466,19 @@ public class AuthServiceImpl implements AuthService {
         authUserMapper.resetLoginFailCount(user.getId());
         log.info("已清除用户登录失败计数：userId={}", user.getId());
 
-        // 9. 使旧Token失效
+        // 【安全修复】9. 使旧Token失效并加入黑名单
+        // 密码重置后，所有已发出的Token都应失效，防止旧Token继续使用
         String tokenKey = Constants.TOKEN_PREFIX + user.getId();
+        Object existingToken = redisUtils.get(tokenKey);
+        if (existingToken != null) {
+            // 将旧Token加入黑名单，使用Token的默认过期时间
+            String oldToken = existingToken.toString();
+            String blacklistKey = Constants.CACHE_PREFIX + "token:blacklist:" + oldToken;
+            long ttl = JwtUtils.getDefaultExpirationSeconds();
+            redisUtils.set(blacklistKey, "1", ttl);
+            log.info("密码重置：已将旧Token加入黑名单，userId={}", user.getId());
+        }
+        // 删除Redis中的Token记录
         redisUtils.del(tokenKey);
 
         log.info("密码重置成功：userId={}", user.getId());
@@ -493,7 +527,8 @@ public class AuthServiceImpl implements AuthService {
         // 删除已使用的验证码
         redisUtils.del(captchaKeyRedis);
 
-        boolean result = cachedCaptcha.toString().equalsIgnoreCase(captcha.trim());
+        // 【安全修复】使用常量时间比较，防止时序攻击
+        boolean result = constantTimeEquals(cachedCaptcha.toString().toLowerCase(), captcha.trim().toLowerCase());
         if (!result) {
             log.warn("验证码错误：expected={}, actual={}", cachedCaptcha, captcha);
         }

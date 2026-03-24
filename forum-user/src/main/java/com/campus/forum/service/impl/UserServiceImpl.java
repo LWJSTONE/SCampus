@@ -276,8 +276,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     /**
      * 使指定用户的所有Token失效
      * 密码修改后调用此方法强制用户重新登录
+     * 
+     * 【安全修复】Token清除失败时抛出异常，确保事务回滚
+     * 如果Token清除失败，密码修改操作应该回滚，避免用户密码已修改但旧Token仍然有效的情况
      *
      * @param userId 用户ID
+     * @throws BusinessException 当Token清除失败时抛出
      */
     private void invalidateUserTokens(Long userId) {
         try {
@@ -296,7 +300,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             log.info("已清除用户 {} 的所有登录Token", userId);
         } catch (Exception e) {
             log.error("清除用户Token失败，用户ID: {}", userId, e);
-            // Token清除失败不影响密码修改的成功
+            // 【安全修复】Token清除失败时抛出业务异常，让事务回滚
+            // 用户需要重试密码修改操作
+            throw new BusinessException(ResultCode.BUSINESS_ERROR, "密码修改成功但Token清除失败，请重新登录。如问题持续，请联系管理员。");
         }
     }
 

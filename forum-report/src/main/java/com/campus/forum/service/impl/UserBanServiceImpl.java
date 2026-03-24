@@ -45,6 +45,18 @@ public class UserBanServiceImpl extends ServiceImpl<UserBanMapper, UserBan> impl
      * 分布式锁超时时间（秒）
      */
     private static final long LOCK_TIMEOUT_SECONDS = 10;
+    
+    /**
+     * 【高严重度问题修复】Lua脚本：原子性地释放分布式锁
+     * 脚本逻辑：如果锁的值等于期望值，则删除锁，返回1；否则返回0
+     * 这确保了 GET + DEL 操作的原子性，防止误删其他线程的锁
+     */
+    private static final String RELEASE_LOCK_SCRIPT = 
+            "if redis.call('get', KEYS[1]) == ARGV[1] then " +
+            "    return redis.call('del', KEYS[1]) " +
+            "else " +
+            "    return 0 " +
+            "end";
 
     // 禁言类型映射
     private static final Map<Integer, String> BAN_TYPE_NAMES = new HashMap<>();
@@ -135,11 +147,20 @@ public class UserBanServiceImpl extends ServiceImpl<UserBanMapper, UserBan> impl
             log.info("用户 {} 被禁言 {} 天，禁言ID: {}", userId, banDays, userBan.getId());
             return userBan.getId();
         } finally {
-            // 释放锁（只释放自己持有的锁）
+            // 【高严重度问题修复】使用Lua脚本原子性释放锁，避免GET+DEL非原子操作问题
+            // 原有问题：GET和DELETE是两个独立操作，中间可能被其他线程插入
+            // 修复方案：使用Lua脚本保证"比较值+删除"的原子性
             if (locked) {
-                String lockValue = stringRedisTemplate.opsForValue().get(lockKey);
-                if (String.valueOf(operatorId).equals(lockValue)) {
-                    stringRedisTemplate.delete(lockKey);
+                try {
+                    stringRedisTemplate.execute(
+                            new org.springframework.data.redis.core.script.DefaultRedisScript<>(RELEASE_LOCK_SCRIPT, Long.class),
+                            java.util.Collections.singletonList(lockKey),
+                            String.valueOf(operatorId)
+                    );
+                } catch (Exception e) {
+                    // 锁释放失败不影响业务，但需要记录日志
+                    // 锁会自动过期，不会造成死锁
+                    log.warn("释放禁言锁失败，锁将自动过期。lockKey={}, error={}", lockKey, e.getMessage());
                 }
             }
         }

@@ -253,7 +253,13 @@ public class PostServiceImpl implements PostService {
         String content = updateDTO.getContent() != null ? filterSensitiveWords(updateDTO.getContent()) : null;
         String title = updateDTO.getTitle() != null ? filterSensitiveWords(updateDTO.getTitle()) : null;
 
-        // 5. 更新帖子
+        // 【安全修复】5. 校验帖子类型范围（0-普通帖子 1-精华帖 2-置顶帖 3-公告）
+        // 防止恶意用户传入非法类型值
+        if (updateDTO.getType() != null && (updateDTO.getType() < 0 || updateDTO.getType() > 3)) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "帖子类型无效，有效范围：0-3");
+        }
+
+        // 6. 更新帖子
         if (updateDTO.getForumId() != null) {
             post.setForumId(updateDTO.getForumId());
         }
@@ -276,7 +282,7 @@ public class PostServiceImpl implements PostService {
 
         postMapper.updateById(post);
 
-        // 6. 更新标签
+        // 7. 更新标签
         if (updateDTO.getTagIds() != null) {
             postTagMapper.deleteByPostId(updateDTO.getId());
             if (!updateDTO.getTagIds().isEmpty()) {
@@ -284,7 +290,7 @@ public class PostServiceImpl implements PostService {
             }
         }
 
-        // 7. 更新附件
+        // 8. 更新附件
         if (updateDTO.getAttachments() != null) {
             postAttachmentMapper.deleteByPostId(updateDTO.getId());
             if (!updateDTO.getAttachments().isEmpty()) {
@@ -378,8 +384,15 @@ public class PostServiceImpl implements PostService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean setTop(Long id, Integer isTop, Long operatorId) {
-        log.info("置顶帖子, postId: {}, isTop: {}, operatorId: {}", id, isTop, operatorId);
+    public boolean setTop(Long id, Integer isTop, Long operatorId, boolean isAdmin) {
+        log.info("置顶帖子, postId: {}, isTop: {}, operatorId: {}, isAdmin: {}", id, isTop, operatorId, isAdmin);
+
+        // 【安全修复】Service层权限验证：只有管理员才能执行置顶操作
+        // 防止Controller层权限绕过或Header伪造攻击
+        if (!isAdmin) {
+            log.warn("置顶操作权限校验失败: 非管理员尝试置顶帖子, operatorId: {}, postId: {}", operatorId, id);
+            throw new BusinessException(ResultCode.FORBIDDEN, "无权限执行置顶操作，需要管理员权限");
+        }
 
         // 1. 查询帖子
         Post post = postMapper.selectById(id);
@@ -396,8 +409,15 @@ public class PostServiceImpl implements PostService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean setEssence(Long id, Integer isEssence, Long operatorId) {
-        log.info("加精帖子, postId: {}, isEssence: {}, operatorId: {}", id, isEssence, operatorId);
+    public boolean setEssence(Long id, Integer isEssence, Long operatorId, boolean isAdmin) {
+        log.info("加精帖子, postId: {}, isEssence: {}, operatorId: {}, isAdmin: {}", id, isEssence, operatorId, isAdmin);
+
+        // 【安全修复】Service层权限验证：只有管理员才能执行加精操作
+        // 防止Controller层权限绕过或Header伪造攻击
+        if (!isAdmin) {
+            log.warn("加精操作权限校验失败: 非管理员尝试加精帖子, operatorId: {}, postId: {}", operatorId, id);
+            throw new BusinessException(ResultCode.FORBIDDEN, "无权限执行加精操作，需要管理员权限");
+        }
 
         // 1. 查询帖子
         Post post = postMapper.selectById(id);

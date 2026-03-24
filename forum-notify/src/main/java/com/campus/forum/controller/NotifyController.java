@@ -53,6 +53,14 @@ public class NotifyController {
             @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") Integer size,
             HttpServletRequest request) {
         
+        // 【修复】分页参数有效性校验，防止非法参数
+        if (current == null || current < 1) {
+            current = 1;
+        }
+        if (size == null || size < 1 || size > 100) {
+            size = 10; // 默认每页10条，最大100条
+        }
+        
         log.info("获取通知列表, type: {}, current: {}, size: {}", type, current, size);
         
         // 获取当前用户ID

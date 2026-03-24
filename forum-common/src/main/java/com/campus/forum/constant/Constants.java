@@ -216,14 +216,21 @@ public class Constants {
     // ===================== 默认值 =====================
 
     /**
-     * 默认密码
-     * 【安全警告】此默认密码仅用于开发/测试环境初始化用户密码
-     * 生产环境必须：
-     * 1. 用户首次登录时强制修改密码
-     * 2. 或在部署时通过配置文件设置强密码
-     * 3. 禁止在生产环境直接使用此默认密码
+     * 【安全修复】已移除硬编码默认密码
+     *
+     * 原安全问题：硬编码的弱密码 "123456" 可被攻击者利用
+     * 修复方案：
+     * 1. 移除 DEFAULT_PASSWORD 常量
+     * 2. 使用 PasswordUtils.generateRandomPassword() 生成随机初始密码
+     * 3. 要求用户首次登录时强制修改密码
+     *
+     * 初始化用户密码的正确方式：
+     * - 开发/测试环境：使用随机生成的临时密码
+     * - 生产环境：通过配置文件设置或发送邮件/短信邀请用户设置密码
+     *
+     * @see com.campus.forum.utils.PasswordUtils#generateRandomPassword(int)
      */
-    public static final String DEFAULT_PASSWORD = "123456";
+    // 已移除 DEFAULT_PASSWORD = "123456" - 禁止使用弱默认密码
 
     /**
      * 默认头像

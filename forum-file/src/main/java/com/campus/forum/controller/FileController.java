@@ -168,10 +168,18 @@ public class FileController {
 
     /**
      * 获取文件列表
+     * 修复：添加权限控制，非管理员只能查询自己的文件
      */
     @GetMapping("/list")
-    @Operation(summary = "获取文件列表", description = "分页获取文件列表")
-    public Result<PageResult<FileVO>> list(FileQueryDTO queryDTO) {
+    @Operation(summary = "获取文件列表", description = "分页获取文件列表（非管理员只能查看自己的文件）")
+    public Result<PageResult<FileVO>> list(FileQueryDTO queryDTO, HttpServletRequest request) {
+        // 修复：非管理员只能查询自己的文件
+        if (!isAdmin(request)) {
+            Long userId = getUserIdFromRequest(request);
+            if (userId != null) {
+                queryDTO.setUploaderId(userId);
+            }
+        }
         PageResult<FileVO> result = fileService.getFileList(queryDTO);
         return Result.success(result);
     }

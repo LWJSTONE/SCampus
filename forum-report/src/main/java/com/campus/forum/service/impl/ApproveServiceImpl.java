@@ -65,6 +65,12 @@ public class ApproveServiceImpl extends ServiceImpl<ApproveMapper, Approve> impl
             throw new BusinessException("审核记录不存在");
         }
         
+        // 【高严重度问题修复】添加状态值合法性校验
+        // 合法状态值：0-待审核，1-审核通过，2-审核拒绝
+        if (handleDTO.getStatus() == null || handleDTO.getStatus() < 0 || handleDTO.getStatus() > 2) {
+            throw new BusinessException("审核状态不合法，有效值为：0(待审核)、1(审核通过)、2(审核拒绝)");
+        }
+
         // 乐观锁保护：通过SQL的WHERE status = 0条件实现并发控制
         // 不需要在这里检查状态，因为SQL更新会自动判断
         // 如果记录已被其他管理员处理，updateApproveStatus将返回0

@@ -9,6 +9,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.campus.forum.config.FileConfigProperties;
 import com.campus.forum.dto.FileQueryDTO;
 import com.campus.forum.entity.File;
 import com.campus.forum.entity.PageResult;
@@ -41,7 +42,7 @@ import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -58,6 +59,9 @@ public class FileServiceImpl extends ServiceImpl<FileMapper, File> implements Fi
 
     private final FileMapper fileMapper;
 
+    // 文件配置属性（修复：使用 @ConfigurationProperties 替代 @Value，正确读取 YAML 列表格式）
+    private final FileConfigProperties fileConfig;
+
     // MinIO配置
     @Value("${minio.endpoint}")
     private String minioEndpoint;
@@ -71,31 +75,14 @@ public class FileServiceImpl extends ServiceImpl<FileMapper, File> implements Fi
     @Value("${minio.bucket-name}")
     private String minioBucketName;
 
-    // 本地存储配置
-    @Value("${file.storage.type:LOCAL}")
-    private String storageType;
-
-    @Value("${file.storage.local-path:/data/files}")
-    private String localStoragePath;
-
-    @Value("${file.storage.url-prefix:http://localhost:9010/files}")
-    private String urlPrefix;
-
-    @Value("${file.max-size:52428800}")
-    private Long maxFileSize;
-
-    @Value("${file.allowed-types:}")
-    private String allowedTypes;
-
-    @Value("${file.image-types:}")
-    private String imageTypes;
-
     private MinioClient minioClient;
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd");
 
     @PostConstruct
     public void init() {
+        // 修复：使用 fileConfig 获取存储类型
+        String storageType = fileConfig.getStorage().getType();
         if ("MINIO".equalsIgnoreCase(storageType)) {
             try {
                 minioClient = MinioClient.builder()
@@ -119,8 +106,8 @@ public class FileServiceImpl extends ServiceImpl<FileMapper, File> implements Fi
         } else {
             // 创建本地存储目录
             try {
-                Files.createDirectories(Paths.get(localStoragePath));
-                log.info("本地存储目录初始化成功: {}", localStoragePath);
+                Files.createDirectories(Paths.get(fileConfig.getStorage().getLocalPath()));
+                log.info("本地存储目录初始化成功: {}", fileConfig.getStorage().getLocalPath());
             } catch (IOException e) {
                 log.error("创建本地存储目录失败: {}", e.getMessage());
             }
@@ -155,6 +142,7 @@ public class FileServiceImpl extends ServiceImpl<FileMapper, File> implements Fi
             String filePath = datePath + "/" + fileName;
 
             String fileUrl;
+            String storageType = fileConfig.getStorage().getType();
             if ("MINIO".equalsIgnoreCase(storageType)) {
                 fileUrl = uploadToMinio(file, filePath);
             } else {
@@ -176,8 +164,9 @@ public class FileServiceImpl extends ServiceImpl<FileMapper, File> implements Fi
     @Transactional(rollbackFor = Exception.class)
     public FileVO uploadImage(MultipartFile file, Long uploaderId, String bizType, Long bizId) {
         // 验证是否为图片
+        // 修复：使用 fileConfig 获取图片类型列表（正确读取 YAML 列表格式）
         String contentType = file.getContentType();
-        List<String> imageTypeList = Arrays.asList(imageTypes.split(","));
+        List<String> imageTypeList = fileConfig.getImageTypes();
         if (StrUtil.isBlank(contentType) || !imageTypeList.contains(contentType.trim())) {
             throw new BusinessException("只能上传图片文件");
         }
@@ -187,6 +176,12 @@ public class FileServiceImpl extends ServiceImpl<FileMapper, File> implements Fi
     @Override
     @Transactional(rollbackFor = Exception.class)
     public List<FileVO> uploadBatch(List<MultipartFile> files, Long uploaderId, String bizType, Long bizId) {
+        // 修复：添加批量上传数量限制，防止恶意大量文件上传
+        int maxBatchCount = fileConfig.getBatch().getMaxCount();
+        if (files != null && files.size() > maxBatchCount) {
+            throw new BusinessException("一次最多上传 " + maxBatchCount + " 个文件");
+        }
+        
         List<FileVO> result = new ArrayList<>();
         for (MultipartFile file : files) {
             result.add(upload(file, uploaderId, bizType, bizId));
@@ -224,7 +219,7 @@ public class FileServiceImpl extends ServiceImpl<FileMapper, File> implements Fi
                         .build());
                 content = IoUtil.readBytes(inputStream);
             } else {
-                Path path = Paths.get(localStoragePath, file.getFilePath());
+                Path path = Paths.get(fileConfig.getStorage().getLocalPath(), file.getFilePath());
                 content = Files.readAllBytes(path);
             }
 
@@ -265,7 +260,7 @@ public class FileServiceImpl extends ServiceImpl<FileMapper, File> implements Fi
                         .build());
                 content = IoUtil.readBytes(inputStream);
             } else {
-                Path path = Paths.get(localStoragePath, file.getFilePath());
+                Path path = Paths.get(fileConfig.getStorage().getLocalPath(), file.getFilePath());
                 content = Files.readAllBytes(path);
             }
 
@@ -333,7 +328,7 @@ public class FileServiceImpl extends ServiceImpl<FileMapper, File> implements Fi
                     .object(file.getFilePath())
                     .build());
         } else {
-            Path path = Paths.get(localStoragePath, file.getFilePath());
+            Path path = Paths.get(fileConfig.getStorage().getLocalPath(), file.getFilePath());
             Files.deleteIfExists(path);
         }
     }
@@ -394,19 +389,23 @@ public class FileServiceImpl extends ServiceImpl<FileMapper, File> implements Fi
     /**
      * 验证文件
      * 增强安全性：同时验证Content-Type和文件头魔数，防止文件伪装攻击
+     * 修复：使用 fileConfig 获取配置（正确读取 YAML 列表格式）
      */
     private void validateFile(MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new BusinessException("文件不能为空");
         }
 
-        if (file.getSize() > maxFileSize) {
+        // 修复：使用 fileConfig 获取最大文件大小
+        if (file.getSize() > fileConfig.getMaxSize()) {
             throw new BusinessException("文件大小超过限制");
         }
 
+        // 修复：使用 fileConfig 获取允许的文件类型列表（正确读取 YAML 列表格式）
         String contentType = file.getContentType();
-        if (StrUtil.isNotBlank(allowedTypes)) {
-            List<String> allowedTypeList = Arrays.asList(allowedTypes.split(","));
+        List<String> allowedTypeList = fileConfig.getAllowedTypes();
+        // 只有配置了允许类型才进行校验
+        if (!allowedTypeList.isEmpty()) {
             if (StrUtil.isBlank(contentType) || !allowedTypeList.contains(contentType.trim())) {
                 throw new BusinessException("不支持的文件类型");
             }
@@ -688,8 +687,10 @@ public class FileServiceImpl extends ServiceImpl<FileMapper, File> implements Fi
 
     /**
      * 上传到本地存储
+     * 修复：使用 fileConfig 获取本地存储路径和URL前缀
      */
     private String uploadToLocal(MultipartFile file, String filePath) throws Exception {
+        String localStoragePath = fileConfig.getStorage().getLocalPath();
         Path fullPath = Paths.get(localStoragePath, filePath);
         
         // 安全检查：验证规范化路径是否仍在允许的目录内
@@ -703,7 +704,7 @@ public class FileServiceImpl extends ServiceImpl<FileMapper, File> implements Fi
         Files.createDirectories(normalizedPath.getParent());
         Files.copy(file.getInputStream(), normalizedPath);
         
-        return urlPrefix + "/" + filePath;
+        return fileConfig.getStorage().getUrlPrefix() + "/" + filePath;
     }
 
     /**

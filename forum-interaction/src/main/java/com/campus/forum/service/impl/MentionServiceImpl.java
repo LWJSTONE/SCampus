@@ -6,10 +6,16 @@ import com.campus.forum.mapper.MentionMapper;
 import com.campus.forum.service.MentionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @提及服务实现类
@@ -23,6 +29,10 @@ import java.util.List;
 public class MentionServiceImpl implements MentionService {
 
     private final MentionMapper mentionMapper;
+    private final StringRedisTemplate redisTemplate;
+    
+    private static final String MENTION_LOCK_PREFIX = "mention:lock:";
+    private static final long LOCK_EXPIRE_TIME = 5; // 锁过期时间（秒）
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -47,27 +57,58 @@ public class MentionServiceImpl implements MentionService {
             return null;
         }
         
-        // 防止重复提及（同一用户在同一目标中被重复@）
-        int existingCount = mentionMapper.countExistingMention(fromUserId, toUserId, targetType, targetId);
-        if (existingCount > 0) {
-            log.debug("已存在相同的提及记录，跳过创建: fromUserId={}, toUserId={}, targetType={}, targetId={}", 
-                    fromUserId, toUserId, targetType, targetId);
-            return null;
+        // 【修复】使用分布式锁防止并发重复提及
+        // 锁的粒度：发起用户+被提及用户+目标类型+目标ID
+        String lockKey = MENTION_LOCK_PREFIX + fromUserId + ":" + toUserId + ":" + targetType + ":" + targetId;
+        String lockValue = UUID.randomUUID().toString();
+        
+        try {
+            // 尝试获取锁
+            Boolean locked = redisTemplate.opsForValue().setIfAbsent(lockKey, lockValue, LOCK_EXPIRE_TIME, TimeUnit.SECONDS);
+            if (!Boolean.TRUE.equals(locked)) {
+                log.debug("获取提及锁失败，可能存在并发请求: lockKey={}", lockKey);
+                // 并发请求，返回null跳过
+                return null;
+            }
+            
+            // 防止重复提及（同一用户在同一目标中被重复@）
+            int existingCount = mentionMapper.countExistingMention(fromUserId, toUserId, targetType, targetId);
+            if (existingCount > 0) {
+                log.debug("已存在相同的提及记录，跳过创建: fromUserId={}, toUserId={}, targetType={}, targetId={}", 
+                        fromUserId, toUserId, targetType, targetId);
+                return null;
+            }
+            
+            Mention mention = new Mention();
+            mention.setTargetType(targetType);
+            mention.setTargetId(targetId);
+            mention.setToUserId(toUserId);
+            mention.setFromUserId(fromUserId);
+            mention.setIsRead(0);
+            
+            // 【修复】处理数据库唯一约束并发插入的情况
+            try {
+                mentionMapper.insert(mention);
+            } catch (DuplicateKeyException e) {
+                log.info("并发插入检测到重复提及记录: fromUserId={}, toUserId={}, targetType={}, targetId={}", 
+                        fromUserId, toUserId, targetType, targetId);
+                return null;
+            }
+            
+            log.info("创建@提及: targetType={}, targetId={}, toUserId={}, fromUserId={}", 
+                    targetType, targetId, toUserId, fromUserId);
+            
+            return mention.getId();
+        } finally {
+            // 【修复】安全释放锁：使用Lua脚本确保只有锁持有者才能释放锁
+            try {
+                String luaScript = "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";
+                redisTemplate.execute(new DefaultRedisScript<>(luaScript, Long.class), 
+                        Collections.singletonList(lockKey), lockValue);
+            } catch (Exception e) {
+                log.warn("释放提及锁失败: {}", lockKey, e);
+            }
         }
-        
-        Mention mention = new Mention();
-        mention.setTargetType(targetType);
-        mention.setTargetId(targetId);
-        mention.setToUserId(toUserId);
-        mention.setFromUserId(fromUserId);
-        mention.setIsRead(0);
-        
-        mentionMapper.insert(mention);
-        
-        log.info("创建@提及: targetType={}, targetId={}, toUserId={}, fromUserId={}", 
-                targetType, targetId, toUserId, fromUserId);
-        
-        return mention.getId();
     }
 
     @Override

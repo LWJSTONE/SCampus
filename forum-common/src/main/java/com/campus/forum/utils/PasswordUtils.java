@@ -69,15 +69,37 @@ public class PasswordUtils {
     }
 
     /**
-     * MD5加密（不推荐用于密码存储，仅用于数据签名等场景）
+     * MD5加密
+     *
+     * ⚠️⚠️⚠️ 【严重安全警告】⚠️⚠️⚠️
+     * 此方法【严格禁止】用于密码存储！
+     *
+     * MD5 已被证明不安全，存在以下漏洞：
+     * 1. 碰撞攻击：可找到不同输入产生相同输出
+     * 2. 彩虹表攻击：常见密码的MD5已被大量收集
+     * 3. 快速计算：现代硬件可每秒计算数十亿次MD5
+     *
+     * 允许的使用场景（仅限非安全敏感的数据签名）：
+     * - 文件完整性校验
+     * - 非敏感数据去重
+     * - 缓存键生成（非密码相关）
+     *
+     * 如需密码加密，请使用：
+     * - encode() 方法（BCrypt）
+     * - 或其他安全的密码哈希算法（Argon2, scrypt）
      *
      * @param input 输入字符串
      * @return MD5加密后的字符串
+     * @deprecated 请勿用于任何安全敏感场景，特别是密码存储。请使用 {@link #encode(String)} 方法。
      */
+    @Deprecated(since = "2024", forRemoval = false)
     public static String md5(String input) {
         if (input == null) {
             return null;
         }
+        // 记录警告日志，便于追踪不当使用
+        log.warn("MD5方法被调用，请确保此方法不用于密码存储！调用堆栈: {}",
+                Thread.currentThread().getStackTrace()[2]);
         try {
             MessageDigest md = MessageDigest.getInstance("MD5");
             byte[] messageDigest = md.digest(input.getBytes());
@@ -99,14 +121,29 @@ public class PasswordUtils {
     /**
      * MD5加盐加密
      *
+     * ⚠️⚠️⚠️ 【严重安全警告】⚠️⚠️⚠️
+     * 此方法【严格禁止】用于密码存储！
+     *
+     * 即使加盐，MD5 仍然不安全：
+     * 1. MD5算法本身存在碰撞漏洞
+     * 2. 缺少迭代计算，易受GPU/ASIC攻击
+     * 3. 简单加盐方式不够安全
+     *
+     * 如需密码加密，请使用 encode() 方法（BCrypt），它内置了安全的盐值处理。
+     *
      * @param input 输入字符串
      * @param salt  盐值
      * @return MD5加盐加密后的字符串
+     * @deprecated 请勿用于密码存储。请使用 {@link #encode(String)} 方法。
      */
+    @Deprecated(since = "2024", forRemoval = false)
     public static String md5WithSalt(String input, String salt) {
         if (input == null || salt == null) {
             return null;
         }
+        // 记录警告日志
+        log.warn("MD5加盐方法被调用，请确保此方法不用于密码存储！调用堆栈: {}",
+                Thread.currentThread().getStackTrace()[2]);
         return md5(input + salt);
     }
 

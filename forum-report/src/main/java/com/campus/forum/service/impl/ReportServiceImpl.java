@@ -190,78 +190,83 @@ public class ReportServiceImpl extends ServiceImpl<ReportMapper, Report> impleme
         // 根据处理结果确定状态：无违规(0)设为驳回(3)，其他设为已处理(2)
         int newStatus = (handleDTO.getResult() != null && handleDTO.getResult() == 0) ? 3 : 2;
         
-        // 【修复】使用乐观锁更新状态，只有状态为"待处理(0)"时才能更新
+        // 【高严重度问题修复】调整执行顺序：先执行处罚操作，最后更新状态
+        // 这样可以确保：如果处罚操作失败，事务回滚，状态不会被更新
+        // 避免出现"状态已变更但处罚未执行"的不一致情况
+        
+        // 根据处理结果执行相应操作
+        Integer handleResult = handleDTO.getResult();
+        
+        if (handleResult != null) {
+            switch (handleResult) {
+                case 0: // 无违规
+                    log.info("举报 {} 处理结果：无违规，已驳回", id);
+                    break;
+                case 1: // 警告
+                    // TODO: 发送警告通知给被举报用户
+                    log.info("举报 {} 处理结果：警告用户 {}", id, report.getReportedUserId());
+                    break;
+                case 2: // 删除内容
+                    // 【修复】删除操作失败时抛出异常，触发事务回滚
+                    deleteReportedContent(report);
+                    log.info("举报 {} 处理结果：删除内容 {}", id, report.getTargetId());
+                    break;
+                case 3: // 禁言
+                    if (handleDTO.getBanDays() != null && handleDTO.getBanDays() > 0) {
+                        // 检查被举报用户ID是否有效
+                        if (report.getReportedUserId() == null) {
+                            log.error("禁言失败：被举报用户ID为空，举报ID: {}", id);
+                            throw new BusinessException("禁言失败：被举报用户ID为空");
+                        }
+                        UserBanDTO banDTO = new UserBanDTO();
+                        banDTO.setUserId(report.getReportedUserId());
+                        banDTO.setReportId(report.getId());
+                        banDTO.setBanDays(handleDTO.getBanDays());
+                        banDTO.setReason("违反社区规定");
+                        userBanService.banUser(banDTO, handlerId);
+                        log.info("举报 {} 处理结果：禁言用户 {} 天数 {}", id, report.getReportedUserId(), handleDTO.getBanDays());
+                    }
+                    break;
+                case 4: // 封号
+                    // 调用用户服务封禁账号
+                    if (report.getReportedUserId() == null) {
+                        log.error("封号失败：被举报用户ID为空，举报ID: {}", id);
+                        throw new BusinessException("封号失败：被举报用户ID为空");
+                    }
+                    try {
+                        Result<?> banResult = userApi.banUser(report.getReportedUserId());
+                        if (banResult == null || banResult.getCode() != 200) {
+                            log.error("封号失败: userId={}, result={}", report.getReportedUserId(), banResult);
+                            throw new BusinessException("封号失败，请联系管理员");
+                        }
+                        log.info("举报 {} 处理结果：封号用户 {}", id, report.getReportedUserId());
+                    } catch (BusinessException e) {
+                        throw e;
+                    } catch (Exception e) {
+                        log.error("调用用户服务封号失败, userId={}", report.getReportedUserId(), e);
+                        throw new BusinessException("封号服务暂时不可用，请稍后重试");
+                    }
+                    break;
+                default:
+                    log.warn("举报 {} 处理结果未知：{}", id, handleResult);
+            }
+        }
+        
+        // 【修复】所有处罚操作执行成功后，再更新状态
+        // 使用乐观锁更新状态，只有状态为"待处理(0)"时才能更新
         // SQL已添加 WHERE status = 0 条件，防止并发处理
         int result = reportMapper.updateHandleStatus(id, newStatus, handlerId, 
                 handleDTO.getResult(), handleDTO.getRemark());
         
-        // 【修复】乐观锁更新失败，说明已被其他线程处理
+        // 乐观锁更新失败，说明已被其他线程处理
+        // 注意：此时处罚操作已执行，但由于事务未提交，会自动回滚
         if (result <= 0) {
-            log.warn("举报 {} 处理失败，可能已被其他管理员处理", id);
+            log.warn("举报 {} 状态更新失败，可能已被其他管理员处理，处罚操作将回滚", id);
             throw new BusinessException("该举报已被处理或状态已变更，请刷新页面后重试");
         }
         
-        // 根据处理结果执行相应操作
-            Integer handleResult = handleDTO.getResult();
-            
-            if (handleResult != null) {
-                switch (handleResult) {
-                    case 0: // 无违规
-                        log.info("举报 {} 处理结果：无违规，已驳回", id);
-                        break;
-                    case 1: // 警告
-                        // TODO: 发送警告通知给被举报用户
-                        log.info("举报 {} 处理结果：警告用户 {}", id, report.getReportedUserId());
-                        break;
-                    case 2: // 删除内容
-                        // TODO: 调用相应服务删除被举报的内容
-                        deleteReportedContent(report);
-                        log.info("举报 {} 处理结果：删除内容 {}", id, report.getTargetId());
-                        break;
-                    case 3: // 禁言
-                        if (handleDTO.getBanDays() != null && handleDTO.getBanDays() > 0) {
-                            // 检查被举报用户ID是否有效
-                            if (report.getReportedUserId() == null) {
-                                log.error("禁言失败：被举报用户ID为空，举报ID: {}", id);
-                                throw new BusinessException("禁言失败：被举报用户ID为空");
-                            }
-                            UserBanDTO banDTO = new UserBanDTO();
-                            banDTO.setUserId(report.getReportedUserId());
-                            banDTO.setReportId(report.getId());
-                            banDTO.setBanDays(handleDTO.getBanDays());
-                            banDTO.setReason("违反社区规定");
-                            userBanService.banUser(banDTO, handlerId);
-                            log.info("举报 {} 处理结果：禁言用户 {} 天数 {}", id, report.getReportedUserId(), handleDTO.getBanDays());
-                        }
-                        break;
-                    case 4: // 封号
-                        // 调用用户服务封禁账号
-                        if (report.getReportedUserId() == null) {
-                            log.error("封号失败：被举报用户ID为空，举报ID: {}", id);
-                            throw new BusinessException("封号失败：被举报用户ID为空");
-                        }
-                        try {
-                            Result<?> banResult = userApi.banUser(report.getReportedUserId());
-                            if (banResult == null || banResult.getCode() != 200) {
-                                log.error("封号失败: userId={}, result={}", report.getReportedUserId(), banResult);
-                                throw new BusinessException("封号失败，请联系管理员");
-                            }
-                            log.info("举报 {} 处理结果：封号用户 {}", id, report.getReportedUserId());
-                        } catch (BusinessException e) {
-                            throw e;
-                        } catch (Exception e) {
-                            log.error("调用用户服务封号失败, userId={}", report.getReportedUserId(), e);
-                            throw new BusinessException("封号服务暂时不可用，请稍后重试");
-                        }
-                        break;
-                    default:
-                        log.warn("举报 {} 处理结果未知：{}", id, handleResult);
-                }
-            }
-            
-            log.info("举报 {} 处理完成，处理结果: {}, 状态: {}", id, handleDTO.getResult(), newStatus == 3 ? "已驳回" : "已处理");
-            return true;
-        }
+        log.info("举报 {} 处理完成，处理结果: {}, 状态: {}", id, handleDTO.getResult(), newStatus == 3 ? "已驳回" : "已处理");
+        return true;
     }
     
     /**
@@ -269,42 +274,42 @@ public class ReportServiceImpl extends ServiceImpl<ReportMapper, Report> impleme
      * 
      * 根据举报类型调用相应的服务删除内容
      * 帖子和评论执行逻辑删除，用户类型则记录警告日志
+     * 【高严重度问题修复】删除失败时抛出异常，触发事务回滚，确保状态一致性
      *
      * @param report 举报记录
+     * @throws BusinessException 删除失败时抛出
      */
     private void deleteReportedContent(Report report) {
         try {
             switch (report.getReportType()) {
                 case 1: // 帖子
-                    // 调用帖子服务删除帖子
                     Result<?> deletePostResult = postApi.deletePost(report.getTargetId());
-                    if (deletePostResult != null && deletePostResult.getCode() == 200) {
-                        log.info("删除被举报帖子成功: postId={}", report.getTargetId());
-                    } else {
-                        log.warn("删除被举报帖子失败: postId={}, result={}", report.getTargetId(), deletePostResult);
+                    if (deletePostResult == null || deletePostResult.getCode() != 200) {
+                        log.error("删除被举报帖子失败: postId={}, result={}", report.getTargetId(), deletePostResult);
+                        throw new BusinessException("删除帖子失败，请稍后重试");
                     }
+                    log.info("删除被举报帖子成功: postId={}", report.getTargetId());
                     break;
                 case 2: // 评论
-                    // 调用评论服务删除评论
                     Result<?> deleteCommentResult = commentApi.deleteComment(report.getTargetId());
-                    if (deleteCommentResult != null && deleteCommentResult.getCode() == 200) {
-                        log.info("删除被举报评论成功: commentId={}", report.getTargetId());
-                    } else {
-                        log.warn("删除被举报评论失败: commentId={}, result={}", report.getTargetId(), deleteCommentResult);
+                    if (deleteCommentResult == null || deleteCommentResult.getCode() != 200) {
+                        log.error("删除被举报评论失败: commentId={}, result={}", report.getTargetId(), deleteCommentResult);
+                        throw new BusinessException("删除评论失败，请稍后重试");
                     }
+                    log.info("删除被举报评论成功: commentId={}", report.getTargetId());
                     break;
                 case 3: // 用户
                     // 用户类型不应该删除内容，而是应该封号
-                    // 这里记录警告日志，实际封号操作应该在 handleReport 的 case 4 中处理
-                    log.warn("举报类型为用户，不应删除内容，应考虑封号处理。reportId={}, reportedUserId={}", 
-                            report.getId(), report.getReportedUserId());
-                    break;
+                    throw new BusinessException("用户类型举报应使用封号处理，不应删除内容");
                 default:
-                    log.warn("未知的举报类型: reportId={}, reportType={}", report.getId(), report.getReportType());
+                    throw new BusinessException("未知的举报类型: " + report.getReportType());
             }
+        } catch (BusinessException e) {
+            // 业务异常直接抛出，让调用方处理
+            throw e;
         } catch (Exception e) {
-            log.error("删除被举报内容失败, reportId: {}, targetId: {}", report.getId(), report.getTargetId(), e);
-            // 删除内容失败不影响举报处理结果，但需要记录日志便于后续人工处理
+            log.error("删除被举报内容时发生异常, reportId: {}, targetId: {}", report.getId(), report.getTargetId(), e);
+            throw new BusinessException("删除内容服务暂时不可用，请稍后重试");
         }
     }
 
