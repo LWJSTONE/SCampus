@@ -31,4 +31,16 @@ public class CommentApiFallback implements CommentApi {
         log.error("调用评论服务失败，获取帖子评论数，帖子ID: {}", postId);
         return Result.fail("评论服务不可用，请稍后重试");
     }
+
+    @Override
+    public Result<Boolean> deleteComment(Long id) {
+        log.error("调用评论服务失败，删除评论，评论ID: {}", id);
+        return Result.fail("评论服务不可用，请稍后重试");
+    }
+
+    @Override
+    public Result<Page<CommentDTO>> getCommentsByUserId(Long userId, int page, int size) {
+        log.error("调用评论服务失败，获取用户评论列表，用户ID: {}, 页码: {}, 每页大小: {}", userId, page, size);
+        return Result.fail("评论服务不可用，请稍后重试");
+    }
 }

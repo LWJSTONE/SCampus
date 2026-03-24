@@ -114,4 +114,13 @@ public class Result<T> implements Serializable {
     public static <T> Result<T> fail(ResultCode resultCode) {
         return new Result<>(resultCode.getCode(), resultCode.getMessage(), null);
     }
+
+    /**
+     * 判断是否成功
+     *
+     * @return true-成功，false-失败
+     */
+    public boolean isSuccess() {
+        return this.code != null && this.code == 200;
+    }
 }

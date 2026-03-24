@@ -56,4 +56,18 @@ public interface CommentApi {
      */
     @GetMapping("/api/internal/comment/post/{postId}/count")
     Result<Integer> getCommentCountByPostId(@PathVariable("postId") Long postId);
+
+    /**
+     * Get comments by user ID
+     *
+     * @param userId User ID
+     * @param page   Page number
+     * @param size   Page size
+     * @return Comment list
+     */
+    @GetMapping("/api/internal/comment/user/{userId}")
+    Result<Page<CommentDTO>> getCommentsByUserId(
+            @PathVariable("userId") Long userId,
+            @RequestParam("page") int page,
+            @RequestParam("size") int size);
 }

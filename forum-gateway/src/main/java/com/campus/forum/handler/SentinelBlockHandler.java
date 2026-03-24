@@ -45,7 +45,7 @@ public class SentinelBlockHandler implements BlockRequestHandler {
     public Mono<ServerResponse> handleRequest(ServerWebExchange exchange, Throwable ex) {
         // 获取请求信息
         String path = exchange.getRequest().getURI().getPath();
-        String method = exchange.getRequest().getMethodValue();
+        String method = exchange.getRequest().getMethod().name();
         
         // 记录限流日志
         log.warn("Sentinel限流触发: {} {} - {}", method, path, ex.getMessage());

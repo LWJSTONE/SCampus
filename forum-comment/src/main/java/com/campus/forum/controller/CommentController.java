@@ -458,4 +458,140 @@ public class CommentController {
         
         return escaped;
     }
+
+    // ==================== 内部API（供其他服务调用） ====================
+
+    /**
+     * 内部API：根据ID获取评论信息
+     *
+     * @param id 评论ID
+     * @param serviceKey 内部服务密钥
+     * @return 评论信息
+     */
+    @GetMapping("/internal/{id}")
+    @Operation(summary = "内部API-获取评论信息", description = "供其他服务调用的内部接口")
+    public Result<CommentVO> getCommentByIdInternal(
+            @Parameter(description = "评论ID") @PathVariable Long id,
+            @Parameter(description = "内部服务密钥") @RequestHeader(value = "X-Internal-Service-Key", required = false) String serviceKey) {
+        // 验证内部服务密钥（使用常量时间比较，防止时序攻击）
+        if (!isValidServiceKey(serviceKey)) {
+            log.warn("内部API调用鉴权失败，serviceKey: {}", serviceKey);
+            return Result.fail(403, "无权限访问内部API");
+        }
+        
+        log.info("内部API调用：获取评论信息, commentId: {}", id);
+        
+        CommentVO comment = commentService.getCommentDetail(id, null);
+        return Result.success(comment);
+    }
+
+    /**
+     * 内部API：删除评论
+     *
+     * @param id 评论ID
+     * @param serviceKey 内部服务密钥
+     * @return 操作结果
+     */
+    @DeleteMapping("/internal/{id}")
+    @Operation(summary = "内部API-删除评论", description = "供其他服务调用的内部接口")
+    public Result<Boolean> deleteCommentInternal(
+            @Parameter(description = "评论ID") @PathVariable Long id,
+            @Parameter(description = "内部服务密钥") @RequestHeader(value = "X-Internal-Service-Key", required = false) String serviceKey) {
+        // 验证内部服务密钥
+        if (!isValidServiceKey(serviceKey)) {
+            log.warn("内部API调用鉴权失败，serviceKey: {}", serviceKey);
+            return Result.fail(403, "无权限访问内部API");
+        }
+        
+        log.info("内部API调用：删除评论, commentId: {}", id);
+        
+        // 逻辑删除评论（使用系统用户ID 0）
+        boolean result = commentService.deleteComment(id, 0L);
+        return Result.success(result);
+    }
+
+    /**
+     * 内部API：获取帖子的评论列表
+     *
+     * @param postId 帖子ID
+     * @param page 当前页
+     * @param size 每页大小
+     * @param serviceKey 内部服务密钥
+     * @return 评论列表
+     */
+    @GetMapping("/internal/post/{postId}")
+    @Operation(summary = "内部API-获取帖子评论列表", description = "供其他服务调用的内部接口")
+    public Result<IPage<CommentVO>> getCommentsByPostIdInternal(
+            @Parameter(description = "帖子ID") @PathVariable Long postId,
+            @Parameter(description = "当前页") @RequestParam(defaultValue = "1") int page,
+            @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") int size,
+            @Parameter(description = "内部服务密钥") @RequestHeader(value = "X-Internal-Service-Key", required = false) String serviceKey) {
+        // 验证内部服务密钥
+        if (!isValidServiceKey(serviceKey)) {
+            log.warn("内部API调用鉴权失败，serviceKey: {}", serviceKey);
+            return Result.fail(403, "无权限访问内部API");
+        }
+        
+        log.info("内部API调用：获取帖子评论列表, postId: {}, page: {}, size: {}", postId, page, size);
+        
+        CommentQueryDTO queryDTO = new CommentQueryDTO();
+        queryDTO.setPostId(postId);
+        queryDTO.setCurrent(page);
+        queryDTO.setSize(size);
+        
+        IPage<CommentVO> commentPage = commentService.getCommentsByPostId(postId, queryDTO, null);
+        return Result.success(commentPage);
+    }
+
+    /**
+     * 内部API：获取帖子评论数
+     *
+     * @param postId 帖子ID
+     * @param serviceKey 内部服务密钥
+     * @return 评论数
+     */
+    @GetMapping("/internal/post/{postId}/count")
+    @Operation(summary = "内部API-获取帖子评论数", description = "供其他服务调用的内部接口")
+    public Result<Integer> getCommentCountByPostIdInternal(
+            @Parameter(description = "帖子ID") @PathVariable Long postId,
+            @Parameter(description = "内部服务密钥") @RequestHeader(value = "X-Internal-Service-Key", required = false) String serviceKey) {
+        // 验证内部服务密钥
+        if (!isValidServiceKey(serviceKey)) {
+            log.warn("内部API调用鉴权失败，serviceKey: {}", serviceKey);
+            return Result.fail(403, "无权限访问内部API");
+        }
+        
+        log.info("内部API调用：获取帖子评论数, postId: {}", postId);
+        
+        int count = commentService.countByPostId(postId);
+        return Result.success(count);
+    }
+
+    /**
+     * 内部API：获取用户评论列表
+     *
+     * @param userId 用户ID
+     * @param page 当前页
+     * @param size 每页大小
+     * @param serviceKey 内部服务密钥
+     * @return 评论列表
+     */
+    @GetMapping("/internal/user/{userId}")
+    @Operation(summary = "内部API-获取用户评论列表", description = "供其他服务调用的内部接口")
+    public Result<IPage<CommentVO>> getCommentsByUserIdInternal(
+            @Parameter(description = "用户ID") @PathVariable Long userId,
+            @Parameter(description = "当前页") @RequestParam(defaultValue = "1") int page,
+            @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") int size,
+            @Parameter(description = "内部服务密钥") @RequestHeader(value = "X-Internal-Service-Key", required = false) String serviceKey) {
+        // 验证内部服务密钥
+        if (!isValidServiceKey(serviceKey)) {
+            log.warn("内部API调用鉴权失败，serviceKey: {}", serviceKey);
+            return Result.fail(403, "无权限访问内部API");
+        }
+        
+        log.info("内部API调用：获取用户评论列表, userId: {}, page: {}, size: {}", userId, page, size);
+        
+        IPage<CommentVO> commentPage = commentService.getCommentsByUserId(userId, page, size, null);
+        return Result.success(commentPage);
+    }
 }

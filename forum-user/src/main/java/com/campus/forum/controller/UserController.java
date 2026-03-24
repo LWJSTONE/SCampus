@@ -3,6 +3,9 @@ package com.campus.forum.controller;
 import com.campus.forum.api.post.PostApi;
 import com.campus.forum.api.post.PostDTO;
 import com.campus.forum.api.comment.CommentApi;
+import com.campus.forum.api.comment.CommentDTO;
+import com.campus.forum.api.interaction.InteractionApi;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.campus.forum.dto.PasswordUpdateDTO;
 import com.campus.forum.dto.UserQueryDTO;
@@ -27,6 +30,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -52,6 +56,7 @@ public class UserController {
     private final UserFollowService userFollowService;
     private final PostApi postApi;
     private final CommentApi commentApi;
+    private final InteractionApi interactionApi;
 
     /**
      * 内部服务调用密钥
@@ -383,7 +388,14 @@ public class UserController {
             @Parameter(description = "查询条件") @Validated UserQueryDTO queryDTO) {
         log.info("获取用户评论，用户ID：{}", id);
         // 通过Feign调用评论服务获取用户评论
-        // 这里返回空列表作为示例，实际需要调用CommentApi
+        try {
+            Result<Page<CommentDTO>> result = commentApi.getCommentsByUserId(id, queryDTO.getCurrent(), queryDTO.getSize());
+            if (result != null && result.getData() != null) {
+                return Result.success(PageResult.of(result.getData()));
+            }
+        } catch (Exception e) {
+            log.error("调用评论服务失败", e);
+        }
         return Result.success(new PageResult<>());
     }
 
@@ -408,7 +420,26 @@ public class UserController {
         }
         
         // 通过Feign调用交互服务获取用户收藏
-        // 这里返回空列表作为示例，实际需要调用InteractionApi
+        try {
+            Result<IPage<?>> result = interactionApi.getCollectList(
+                    queryDTO.getCurrent(), 
+                    queryDTO.getSize(), 
+                    id, 
+                    internalServiceKey);
+            if (result != null && result.getData() != null) {
+                IPage<?> page = result.getData();
+                // 使用静态方法创建PageResult避免泛型类型问题
+                PageResult<Object> pageResult = new PageResult<>(
+                        page.getCurrent(), 
+                        page.getSize(), 
+                        page.getTotal(), 
+                        (List<Object>) page.getRecords()
+                );
+                return Result.success(pageResult);
+            }
+        } catch (Exception e) {
+            log.error("调用交互服务失败", e);
+        }
         return Result.success(new PageResult<>());
     }
 

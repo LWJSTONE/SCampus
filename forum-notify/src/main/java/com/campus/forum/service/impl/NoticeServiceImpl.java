@@ -18,6 +18,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.Cursor;
+import org.springframework.data.redis.core.ScanOptions;
+import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -535,10 +538,10 @@ public class NoticeServiceImpl implements NoticeService {
             // 使用scan命令遍历并删除所有匹配的key，避免使用keys命令阻塞Redis
             String pattern = REDIS_KEY_UNREAD_COUNT + "*";
             java.util.Set<String> keys = redisTemplate.execute(
-                    (org.springframework.data.redis.connection.RedisCallback<java.util.Set<String>>) connection -> {
+                    (RedisCallback<java.util.Set<String>>) connection -> {
                         java.util.Set<String> matchedKeys = new java.util.HashSet<>();
-                        org.springframework.data.redis.core.Cursor<byte[]> cursor = connection.scan(
-                                org.springframework.data.redis.core.ScanOptions.scanOptions()
+                        Cursor<byte[]> cursor = connection.scan(
+                                ScanOptions.scanOptions()
                                         .match(pattern)
                                         .count(1000)
                                         .build()

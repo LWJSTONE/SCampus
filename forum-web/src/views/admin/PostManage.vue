@@ -194,7 +194,7 @@ async function handleApprove(row: PostVO) {
   operatingId.value = row.id
   operatingType.value = 'approve'
   try {
-    await auditPost(row.id, 1) // status=1 表示已发布
+    await auditPost(row.id, 2) // status=2 表示审核通过（后端定义：2-审核通过，3-审核拒绝）
     ElMessage.success('审核通过')
     fetchPosts()
   } catch (e: any) {

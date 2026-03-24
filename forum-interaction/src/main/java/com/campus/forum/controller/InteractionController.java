@@ -24,6 +24,8 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.servlet.http.HttpServletRequest;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -54,6 +56,13 @@ public class InteractionController {
      */
     @Value("${jwt.secret:}")
     private String jwtSecret;
+
+    /**
+     * 内部服务调用密钥
+     * 用于验证来自其他微服务的内部API调用
+     */
+    @Value("${app.internal-service-key:}")
+    private String internalServiceKey;
 
     // ==================== 点赞相关接口 ====================
 
@@ -344,5 +353,95 @@ public class InteractionController {
             throw new BusinessException(ResultCode.UNAUTHORIZED);
         }
         return userId;
+    }
+
+    // ==================== 内部API（供其他服务调用） ====================
+
+    /**
+     * 内部API：获取用户收藏列表
+     *
+     * @param current    当前页
+     * @param size       每页大小
+     * @param userId     用户ID
+     * @param serviceKey 内部服务密钥
+     * @return 收藏列表
+     */
+    @GetMapping("/collect/list/internal")
+    @Operation(summary = "内部API-获取收藏列表", description = "供其他服务调用的内部接口")
+    public Result<IPage<CollectVO>> getCollectListInternal(
+            @Parameter(description = "当前页") @RequestParam(defaultValue = "1") Integer current,
+            @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") Integer size,
+            @Parameter(description = "用户ID") @RequestHeader(value = "X-User-Id") Long userId,
+            @Parameter(description = "内部服务密钥") @RequestHeader(value = "X-Internal-Service-Key", required = false) String serviceKey) {
+        
+        // 验证内部服务密钥
+        if (!isValidServiceKey(serviceKey)) {
+            log.warn("内部API调用鉴权失败，serviceKey: {}", serviceKey);
+            return Result.fail(403, "无权限访问内部API");
+        }
+        
+        log.info("内部API调用：获取用户收藏列表, userId: {}, current: {}, size: {}", userId, current, size);
+        
+        // 分页参数边界校验
+        if (current == null || current < 1) {
+            current = Constants.DEFAULT_PAGE_NUM;
+        }
+        if (size == null || size < 1) {
+            size = Constants.DEFAULT_PAGE_SIZE;
+        }
+        if (size > Constants.MAX_PAGE_SIZE) {
+            size = Constants.MAX_PAGE_SIZE;
+        }
+        
+        IPage<CollectVO> collectPage = collectService.getCollectList(userId, current, size);
+        return Result.success(collectPage);
+    }
+
+    /**
+     * 内部API：检查用户是否已收藏帖子
+     *
+     * @param postId     帖子ID
+     * @param userId     用户ID
+     * @param serviceKey 内部服务密钥
+     * @return 是否已收藏
+     */
+    @GetMapping("/collect/check/internal")
+    @Operation(summary = "内部API-检查收藏状态", description = "供其他服务调用的内部接口")
+    public Result<Boolean> checkCollectInternal(
+            @Parameter(description = "帖子ID") @RequestParam Long postId,
+            @Parameter(description = "用户ID") @RequestHeader(value = "X-User-Id") Long userId,
+            @Parameter(description = "内部服务密钥") @RequestHeader(value = "X-Internal-Service-Key", required = false) String serviceKey) {
+        
+        // 验证内部服务密钥
+        if (!isValidServiceKey(serviceKey)) {
+            log.warn("内部API调用鉴权失败，serviceKey: {}", serviceKey);
+            return Result.fail(403, "无权限访问内部API");
+        }
+        
+        log.info("内部API调用：检查收藏状态, postId: {}, userId: {}", postId, userId);
+        
+        boolean isCollected = collectService.isCollected(postId, userId);
+        return Result.success(isCollected);
+    }
+
+    /**
+     * 安全验证内部服务密钥（防止时序攻击）
+     * 
+     * @param providedKey 请求提供的密钥
+     * @return 是否匹配
+     */
+    private boolean isValidServiceKey(String providedKey) {
+        // 检查密钥是否已配置
+        if (internalServiceKey == null || internalServiceKey.isEmpty()) {
+            log.error("【安全警告】内部服务密钥未配置！请在配置文件中设置 app.internal-service-key");
+            return false;
+        }
+        if (providedKey == null) {
+            return false;
+        }
+        // 使用常量时间比较，防止时序攻击
+        byte[] expectedBytes = internalServiceKey.getBytes(StandardCharsets.UTF_8);
+        byte[] providedBytes = providedKey.getBytes(StandardCharsets.UTF_8);
+        return MessageDigest.isEqual(expectedBytes, providedBytes);
     }
 }

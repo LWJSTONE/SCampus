@@ -21,6 +21,12 @@ public class PostApiFallback implements PostApi {
     }
 
     @Override
+    public Result<Boolean> deletePost(Long id) {
+        log.error("调用帖子服务失败，删除帖子，帖子ID: {}", id);
+        return Result.fail("帖子服务不可用，请稍后重试");
+    }
+
+    @Override
     public Result<Boolean> updatePostStats(Long id, String field, int delta) {
         log.error("调用帖子服务失败，更新帖子统计，帖子ID: {}, 字段: {}, 增量: {}", id, field, delta);
         return Result.fail("帖子服务不可用，请稍后重试");
