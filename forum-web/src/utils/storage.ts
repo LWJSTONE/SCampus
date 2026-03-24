@@ -7,12 +7,16 @@
  * localStorage 存储
  * @param key 键名
  * @param value 值
+ * @returns 是否存储成功
  */
-export function setLocal(key: string, value: any): void {
+export function setLocal(key: string, value: any): boolean {
   try {
     localStorage.setItem(key, JSON.stringify(value))
+    return true
   } catch (error) {
-    console.error('存储数据失败：', error)
+    // 隐私模式下 localStorage 可能不可用
+    console.warn('存储数据失败（可能是隐私模式）：', error)
+    return false
   }
 }
 
@@ -27,7 +31,8 @@ export function getLocal<T = any>(key: string, defaultValue?: T): T | null {
     if (value === null) return defaultValue ?? null
     return JSON.parse(value) as T
   } catch (error) {
-    console.error('读取数据失败：', error)
+    // 隐私模式下 localStorage 可能不可用，或者 JSON 解析失败
+    console.warn('读取数据失败：', error)
     return defaultValue ?? null
   }
 }
@@ -37,26 +42,37 @@ export function getLocal<T = any>(key: string, defaultValue?: T): T | null {
  * @param key 键名
  */
 export function removeLocal(key: string): void {
-  localStorage.removeItem(key)
+  try {
+    localStorage.removeItem(key)
+  } catch (error) {
+    console.warn('删除数据失败：', error)
+  }
 }
 
 /**
  * localStorage 清空
  */
 export function clearLocal(): void {
-  localStorage.clear()
+  try {
+    localStorage.clear()
+  } catch (error) {
+    console.warn('清空数据失败：', error)
+  }
 }
 
 /**
  * sessionStorage 存储
  * @param key 键名
  * @param value 值
+ * @returns 是否存储成功
  */
-export function setSession(key: string, value: any): void {
+export function setSession(key: string, value: any): boolean {
   try {
     sessionStorage.setItem(key, JSON.stringify(value))
+    return true
   } catch (error) {
-    console.error('存储数据失败：', error)
+    console.warn('存储数据失败（可能是隐私模式）：', error)
+    return false
   }
 }
 
@@ -71,7 +87,7 @@ export function getSession<T = any>(key: string, defaultValue?: T): T | null {
     if (value === null) return defaultValue ?? null
     return JSON.parse(value) as T
   } catch (error) {
-    console.error('读取数据失败：', error)
+    console.warn('读取数据失败：', error)
     return defaultValue ?? null
   }
 }
@@ -81,12 +97,20 @@ export function getSession<T = any>(key: string, defaultValue?: T): T | null {
  * @param key 键名
  */
 export function removeSession(key: string): void {
-  sessionStorage.removeItem(key)
+  try {
+    sessionStorage.removeItem(key)
+  } catch (error) {
+    console.warn('删除数据失败：', error)
+  }
 }
 
 /**
  * sessionStorage 清空
  */
 export function clearSession(): void {
-  sessionStorage.clear()
+  try {
+    sessionStorage.clear()
+  } catch (error) {
+    console.warn('清空数据失败：', error)
+  }
 }

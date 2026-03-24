@@ -169,6 +169,11 @@ async function fetchCollections() {
     collections.value = []
     return
   }
+  // 验证用户ID有效性
+  if (!isValidUserId.value || userId.value <= 0) {
+    collections.value = []
+    return
+  }
   try {
     // 使用封装好的 API 函数获取收藏列表
     const res = await getUserCollections(userId.value, { page: 1, size: 10 })
@@ -182,7 +187,10 @@ async function fetchCollections() {
     }))
   } catch (e: any) {
     console.error('获取收藏失败:', e)
-    ElMessage.error(e?.message || '获取收藏列表失败')
+    // 只在非401错误时显示错误提示（401会在request.ts中统一处理）
+    if (e?.response?.status !== 401) {
+      ElMessage.error(e?.message || '获取收藏列表失败')
+    }
     collections.value = []
   }
 }

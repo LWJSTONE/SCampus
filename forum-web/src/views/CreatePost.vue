@@ -51,11 +51,11 @@
 
         <el-form-item>
           <el-tooltip :content="forums.length === 0 ? '暂无可用版块，请联系管理员' : ''" placement="top">
-            <el-button type="primary" :loading="submitting" :disabled="forums.length === 0" @click="handleSubmit">
+            <el-button type="primary" :loading="submitting" :disabled="forums.length === 0 || submitting" @click="handleSubmit">
               发布
             </el-button>
           </el-tooltip>
-          <el-button @click="handleCancel">取消</el-button>
+          <el-button :disabled="submitting" @click="handleCancel">取消</el-button>
         </el-form-item>
       </el-form>
     </el-card>
