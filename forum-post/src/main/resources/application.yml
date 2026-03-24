@@ -1,8 +1,8 @@
 # ==================== 服务基础配置 ====================
 server:
   port: 9004
-  servlet:
-    context-path: /post
+  # 注意：移除context-path配置，因为Controller已定义完整路径/api/v1/posts
+  # 如需添加context-path，需要同步修改网关路由配置
   tomcat:
     uri-encoding: UTF-8
     max-threads: 200
