@@ -12,6 +12,7 @@ import com.campus.forum.dto.UserQueryDTO;
 import com.campus.forum.dto.UserUpdateDTO;
 import com.campus.forum.entity.PageResult;
 import com.campus.forum.entity.Result;
+import com.campus.forum.entity.User;
 import com.campus.forum.service.UserFollowService;
 import com.campus.forum.service.UserService;
 import com.campus.forum.vo.UserDetailVO;
@@ -463,6 +464,92 @@ public class UserController {
     // ==================== 内部API（供其他服务调用） ====================
 
     /**
+     * 内部API：根据ID获取用户信息
+     * 供其他服务调用，返回用户基本信息
+     *
+     * @param id 用户ID
+     * @param serviceKey 内部服务密钥
+     * @return 用户信息DTO
+     */
+    @GetMapping("/internal/{id}")
+    @Operation(summary = "内部API-获取用户信息", description = "供其他服务调用的内部接口，根据ID获取用户信息")
+    public Result<com.campus.forum.api.user.UserDTO> getUserByIdInternal(
+            @Parameter(description = "用户ID") @PathVariable Long id,
+            @Parameter(description = "内部服务密钥") @RequestHeader(value = "X-Internal-Service-Key", required = false) String serviceKey) {
+        // 验证内部服务密钥
+        if (!isValidServiceKey(serviceKey)) {
+            log.warn("内部API调用鉴权失败，serviceKey: {}", serviceKey);
+            return Result.fail(403, "无权限访问内部API");
+        }
+        log.info("内部API调用：获取用户信息，用户ID: {}", id);
+        
+        User user = userService.getById(id);
+        if (user == null) {
+            return Result.fail(404, "用户不存在");
+        }
+        
+        // 转换为UserDTO
+        com.campus.forum.api.user.UserDTO userDTO = convertToUserDTO(user);
+        return Result.success(userDTO);
+    }
+
+    /**
+     * 内部API：根据用户名获取用户信息
+     * 供其他服务调用，返回用户基本信息
+     *
+     * @param username 用户名
+     * @param serviceKey 内部服务密钥
+     * @return 用户信息DTO
+     */
+    @GetMapping("/internal/username/{username}")
+    @Operation(summary = "内部API-根据用户名获取用户信息", description = "供其他服务调用的内部接口，根据用户名获取用户信息")
+    public Result<com.campus.forum.api.user.UserDTO> getUserByUsernameInternal(
+            @Parameter(description = "用户名") @PathVariable String username,
+            @Parameter(description = "内部服务密钥") @RequestHeader(value = "X-Internal-Service-Key", required = false) String serviceKey) {
+        // 验证内部服务密钥
+        if (!isValidServiceKey(serviceKey)) {
+            log.warn("内部API调用鉴权失败，serviceKey: {}", serviceKey);
+            return Result.fail(403, "无权限访问内部API");
+        }
+        log.info("内部API调用：根据用户名获取用户信息，用户名: {}", username);
+        
+        User user = userService.getByUsername(username);
+        if (user == null) {
+            return Result.fail(404, "用户不存在");
+        }
+        
+        // 转换为UserDTO
+        com.campus.forum.api.user.UserDTO userDTO = convertToUserDTO(user);
+        return Result.success(userDTO);
+    }
+
+    /**
+     * 内部API：更新用户状态
+     * 供其他服务调用
+     *
+     * @param id 用户ID
+     * @param status 状态值
+     * @param serviceKey 内部服务密钥
+     * @return 操作结果
+     */
+    @PutMapping("/internal/{id}/status")
+    @Operation(summary = "内部API-更新用户状态", description = "供其他服务调用的内部接口，更新用户状态")
+    public Result<Boolean> updateUserStatusInternal(
+            @Parameter(description = "用户ID") @PathVariable Long id,
+            @Parameter(description = "状态值") @RequestParam Integer status,
+            @Parameter(description = "内部服务密钥") @RequestHeader(value = "X-Internal-Service-Key", required = false) String serviceKey) {
+        // 验证内部服务密钥
+        if (!isValidServiceKey(serviceKey)) {
+            log.warn("内部API调用鉴权失败，serviceKey: {}", serviceKey);
+            return Result.fail(403, "无权限访问内部API");
+        }
+        log.info("内部API调用：更新用户状态，用户ID: {}, 状态: {}", id, status);
+        
+        boolean result = userService.updateStatus(id, status);
+        return Result.success(result);
+    }
+
+    /**
      * 内部API：增加用户帖子数
      * 【修复】路径从绝对路径改为相对路径，避免与类级别路径冲突
      *
@@ -699,5 +786,32 @@ public class UserController {
         }
         
         return null;
+    }
+    
+    /**
+     * 将User实体转换为UserDTO
+     *
+     * @param user 用户实体
+     * @return UserDTO
+     */
+    private com.campus.forum.api.user.UserDTO convertToUserDTO(User user) {
+        if (user == null) {
+            return null;
+        }
+        
+        com.campus.forum.api.user.UserDTO dto = new com.campus.forum.api.user.UserDTO();
+        dto.setId(user.getId());
+        dto.setUsername(user.getUsername());
+        dto.setNickname(user.getNickname());
+        dto.setAvatar(user.getAvatar());
+        dto.setEmail(user.getEmail());
+        dto.setPhone(user.getPhone());
+        dto.setGender(user.getGender());
+        dto.setBio(user.getBio());
+        dto.setStatus(user.getStatus());
+        dto.setCreateTime(user.getCreateTime());
+        dto.setUpdateTime(user.getUpdateTime());
+        
+        return dto;
     }
 }

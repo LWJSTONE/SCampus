@@ -22,7 +22,7 @@ public interface CommentApi {
      * @param id Comment ID
      * @return Comment info
      */
-    @GetMapping("/api/internal/comment/{id}")
+    @GetMapping("/api/v1/comments/internal/{id}")
     Result<CommentDTO> getCommentById(@PathVariable("id") Long id);
 
     /**
@@ -31,7 +31,7 @@ public interface CommentApi {
      * @param id Comment ID
      * @return Result
      */
-    @DeleteMapping("/api/internal/comment/{id}")
+    @DeleteMapping("/api/v1/comments/internal/{id}")
     Result<Boolean> deleteComment(@PathVariable("id") Long id);
 
     /**
@@ -42,7 +42,7 @@ public interface CommentApi {
      * @param size   Page size
      * @return Comment list
      */
-    @GetMapping("/api/internal/comment/post/{postId}")
+    @GetMapping("/api/v1/comments/internal/post/{postId}")
     Result<Page<CommentDTO>> getCommentsByPostId(
             @PathVariable("postId") Long postId,
             @RequestParam("page") int page,
@@ -54,7 +54,7 @@ public interface CommentApi {
      * @param postId Post ID
      * @return Comment count
      */
-    @GetMapping("/api/internal/comment/post/{postId}/count")
+    @GetMapping("/api/v1/comments/internal/post/{postId}/count")
     Result<Integer> getCommentCountByPostId(@PathVariable("postId") Long postId);
 
     /**
@@ -65,7 +65,7 @@ public interface CommentApi {
      * @param size   Page size
      * @return Comment list
      */
-    @GetMapping("/api/internal/comment/user/{userId}")
+    @GetMapping("/api/v1/comments/internal/user/{userId}")
     Result<Page<CommentDTO>> getCommentsByUserId(
             @PathVariable("userId") Long userId,
             @RequestParam("page") int page,

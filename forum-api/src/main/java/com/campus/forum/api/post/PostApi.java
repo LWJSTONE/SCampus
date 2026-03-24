@@ -23,7 +23,7 @@ public interface PostApi {
      * @param id Post ID
      * @return Post info
      */
-    @GetMapping("/api/internal/post/{id}")
+    @GetMapping("/api/v1/posts/internal/{id}")
     Result<PostDTO> getPostById(@PathVariable("id") Long id);
 
     /**
@@ -32,7 +32,7 @@ public interface PostApi {
      * @param id Post ID
      * @return Result
      */
-    @DeleteMapping("/api/internal/post/{id}")
+    @DeleteMapping("/api/v1/posts/internal/{id}")
     Result<Boolean> deletePost(@PathVariable("id") Long id);
 
     /**
@@ -43,7 +43,7 @@ public interface PostApi {
      * @param delta Delta (positive to increase, negative to decrease)
      * @return Result
      */
-    @PostMapping("/api/internal/post/{id}/stats")
+    @PostMapping("/api/v1/posts/internal/{id}/stats")
     Result<Boolean> updatePostStats(@PathVariable("id") Long id,
                                     @RequestParam("field") String field,
                                     @RequestParam("delta") int delta);
@@ -56,7 +56,7 @@ public interface PostApi {
      * @param size   Page size
      * @return Post list
      */
-    @GetMapping("/api/internal/post/user/{userId}")
+    @GetMapping("/api/v1/posts/internal/user/{userId}")
     Result<Page<PostDTO>> getPostsByUserId(
             @PathVariable("userId") Long userId,
             @RequestParam("page") int page,

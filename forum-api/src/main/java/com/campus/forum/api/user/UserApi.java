@@ -21,7 +21,7 @@ public interface UserApi {
      * @param id User ID
      * @return User info
      */
-    @GetMapping("/api/internal/user/{id}")
+    @GetMapping("/api/v1/users/internal/{id}")
     Result<UserDTO> getUserById(@PathVariable("id") Long id);
 
     /**
@@ -30,7 +30,7 @@ public interface UserApi {
      * @param username Username
      * @return User info
      */
-    @GetMapping("/api/internal/user/username/{username}")
+    @GetMapping("/api/v1/users/internal/username/{username}")
     Result<UserDTO> getUserByUsername(@PathVariable("username") String username);
 
     /**
@@ -40,7 +40,7 @@ public interface UserApi {
      * @param status User status
      * @return Result
      */
-    @PutMapping("/api/internal/user/{id}/status")
+    @PutMapping("/api/v1/users/internal/{id}/status")
     Result<Boolean> updateUserStatus(@PathVariable("id") Long id, @RequestParam("status") Integer status);
 
     /**
@@ -49,7 +49,7 @@ public interface UserApi {
      * @param id User ID
      * @return Result
      */
-    @PutMapping("/api/internal/user/{id}/post-count/increment")
+    @PutMapping("/api/v1/users/internal/{id}/post-count/increment")
     Result<Boolean> incrementPostCount(@PathVariable("id") Long id);
 
     /**
@@ -58,7 +58,7 @@ public interface UserApi {
      * @param id User ID
      * @return Result
      */
-    @PutMapping("/api/internal/user/{id}/post-count/decrement")
+    @PutMapping("/api/v1/users/internal/{id}/post-count/decrement")
     Result<Boolean> decrementPostCount(@PathVariable("id") Long id);
 
     /**
@@ -67,7 +67,7 @@ public interface UserApi {
      * @param id User ID
      * @return Result
      */
-    @PutMapping("/api/internal/user/{id}/comment-count/increment")
+    @PutMapping("/api/v1/users/internal/{id}/comment-count/increment")
     Result<Boolean> incrementCommentCount(@PathVariable("id") Long id);
 
     /**
@@ -76,7 +76,7 @@ public interface UserApi {
      * @param id User ID
      * @return Result
      */
-    @PutMapping("/api/internal/user/{id}/comment-count/decrement")
+    @PutMapping("/api/v1/users/internal/{id}/comment-count/decrement")
     Result<Boolean> decrementCommentCount(@PathVariable("id") Long id);
 
     /**
@@ -85,7 +85,7 @@ public interface UserApi {
      * @param id User ID
      * @return Result
      */
-    @PutMapping("/api/internal/user/{id}/ban")
+    @PutMapping("/api/v1/users/internal/{id}/ban")
     Result<Boolean> banUser(@PathVariable("id") Long id);
 
     /**
@@ -94,6 +94,6 @@ public interface UserApi {
      * @param id User ID
      * @return Result
      */
-    @PutMapping("/api/internal/user/{id}/unban")
+    @PutMapping("/api/v1/users/internal/{id}/unban")
     Result<Boolean> unbanUser(@PathVariable("id") Long id);
 }
