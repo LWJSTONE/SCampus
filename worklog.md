@@ -614,3 +614,105 @@
 5. **Token管理**: 优化失败处理逻辑
 6. **统计接口**: 添加管理员权限控制
 
+---
+
+## Task ID: 按钮审查修复 - 2026-03-24
+### Work Task
+从前端的每一个按钮开始逐级向后审查，将所有问题修复
+
+### Work Summary
+
+#### 前端修复
+
+##### 1. UserSettings.vue
+**问题: 密码复杂度验证不一致**
+- 原代码只有长度验证，缺少与登录/注册页面一致的密码复杂度验证
+- **修复方案**: 添加密码复杂度验证规则
+  - 添加正则验证: `/^(?=.*[a-zA-Z])(?=.*\d).+$/`
+  - 错误提示: "密码必须包含字母和数字"
+
+##### 2. UserManage.vue
+**问题: 编辑表单无必填项验证**
+- 原代码昵称字段只有长度验证，没有必填验证
+- **修复方案**: 添加必填验证
+  - 添加 `{ required: true, message: '请输入昵称', trigger: 'blur' }`
+
+##### 3. CategoryPosts.vue
+**问题: 模板中直接使用$router.push**
+- 在模板中直接调用 `$router.push()` 可能导致错误无法捕获
+- **修复方案**: 使用方法包装路由跳转
+  - 添加 `navigateToPost(postId: number)` 方法
+  - 添加错误处理 `router.push().catch()`
+
+##### 4. NotFound.vue
+**问题: 模板中直接使用$router.push**
+- 同上，直接在模板中使用路由跳转
+- **修复方案**: 使用方法包装路由跳转
+  - 添加 `goHome()` 方法
+  - 添加错误处理和必要的导入
+
+##### 5. types/index.ts
+**问题: LoginDTO.username定义为必填**
+- 实际支持用户名或邮箱二选一登录，但类型定义要求username必填
+- **修复方案**: 将username改为可选字段
+  - `username?: string` - 用户名登录时使用
+  - 添加 `email?: string` - 邮箱登录时使用
+  - 添加注释说明二选一
+
+#### 后端修复
+
+##### 1. PostController.java
+**问题: 缺失前端调用的接口**
+- 前端 `post.ts` 调用了 `move`、`close`、`audit` 接口，后端未实现
+- **修复方案**: 添加缺失的接口
+  - `PUT /{id}/move` - 移动帖子到其他版块
+  - `PUT /{id}/close` - 关闭/打开帖子
+  - `PUT /{id}/audit` - 审核帖子通过/拒绝
+  - 所有接口都添加了管理员权限验证
+
+##### 2. PostService.java / PostServiceImpl.java
+**问题: 缺失接口对应的服务方法**
+- **修复方案**: 添加服务方法实现
+  - `movePost(Long id, Long forumId, Long operatorId)` - 移动帖子
+  - `updatePostStatus(Long id, Integer status, Long operatorId)` - 更新帖子状态
+  - `auditPost(Long id, Integer status, String reason, Long operatorId)` - 审核帖子
+
+##### 3. 所有Controller - javax.servlet更新
+**问题: 使用过时的javax.servlet API**
+- Spring Boot 3.x 应使用 jakarta.servlet
+- **修复方案**: 批量替换
+  - `import javax.servlet.*` → `import jakarta.servlet.*`
+  - 涉及16个Java文件
+
+### 修改文件清单
+| 文件 | 修改类型 | 修改说明 |
+|------|----------|----------|
+| UserSettings.vue | 验证规则 | 添加密码复杂度验证 |
+| UserManage.vue | 验证规则 | 添加昵称必填验证 |
+| CategoryPosts.vue | 方法重构 | 路由跳转方法封装 |
+| NotFound.vue | 方法重构 | 路由跳转方法封装 |
+| types/index.ts | 类型修改 | LoginDTO.username改为可选 |
+| PostController.java | 接口新增 | 添加move/close/audit接口 |
+| PostService.java | 接口新增 | 添加服务方法声明 |
+| PostServiceImpl.java | 方法实现 | 实现新增的服务方法 |
+| 16个Java文件 | 导入修改 | javax.servlet → jakarta.servlet |
+
+### 提交信息
+```
+fix: 从前端按钮开始逐级审查修复问题
+
+前端修复:
+- UserSettings.vue: 添加密码复杂度验证
+- UserManage.vue: 添加昵称必填验证
+- CategoryPosts.vue: 使用方法包装路由跳转
+- NotFound.vue: 使用方法包装路由跳转
+- types/index.ts: LoginDTO.username改为可选
+
+后端修复:
+- PostController: 添加缺失的move/close/audit接口
+- PostService/PostServiceImpl: 实现新方法
+- 所有Controller: javax.servlet → jakarta.servlet
+```
+
+
+
