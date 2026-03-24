@@ -160,7 +160,7 @@
  */
 import { ref, reactive, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, FormInstance, FormRules, type FormItemRule } from 'element-plus'
+import { ElMessage, FormInstance, FormRules } from 'element-plus'
 import { School } from '@element-plus/icons-vue'
 import { register, sendEmailCode } from '@/api/auth'
 
@@ -260,6 +260,9 @@ const showAgreement = (type: 'user' | 'privacy') => {
  * 发送验证码
  */
 const handleSendCode = async () => {
+  // 防止重复点击
+  if (sendingCode.value || countdown.value > 0) return
+  
   // 验证邮箱
   const email = registerForm.email?.trim() || ''
   if (!email) {
@@ -278,7 +281,7 @@ const handleSendCode = async () => {
   try {
     // 使用trim后的邮箱
     await sendEmailCode(email)
-    ElMessage.success('验证码已发送')
+    ElMessage.success('验证码已发送，请查收邮箱')
 
     // 开始倒计时
     countdown.value = 60
@@ -293,7 +296,9 @@ const handleSendCode = async () => {
     }, 1000)
   } catch (error: any) {
     console.error('发送验证码失败：', error)
-    ElMessage.error(error?.message || '发送验证码失败，请稍后重试')
+    // 优化错误提示
+    const errorMsg = error?.message || '发送验证码失败，请稍后重试'
+    ElMessage.error(errorMsg)
   } finally {
     sendingCode.value = false
   }
@@ -303,10 +308,19 @@ const handleSendCode = async () => {
  * 处理注册
  */
 const handleRegister = async () => {
+  // 防止重复提交
+  if (loading.value) return
+  
   // 表单验证
   const valid = await formRef.value?.validate().catch(() => false)
   if (valid === false) {
     ElMessage.warning('请检查表单')
+    return
+  }
+
+  // 额外验证：确认密码一致性（双重保障）
+  if (registerForm.password !== registerForm.confirmPassword) {
+    ElMessage.warning('两次输入的密码不一致')
     return
   }
 
@@ -317,13 +331,22 @@ const handleRegister = async () => {
     // 用户名trim处理，防止前后空格问题
     const username = registerForm.username.trim()
     const email = registerForm.email.trim()
+    const code = registerForm.code.trim()
+    
+    // 前端再次验证用户名格式（防御性编程）
+    if (username.length < 3 || username.length > 20) {
+      throw new Error('用户名长度为 3 到 20 个字符')
+    }
+    if (!usernamePattern.test(username)) {
+      throw new Error('用户名只能包含字母、数字、下划线和中文')
+    }
     
     await register({
       username,
       password: registerForm.password,
       confirmPassword: registerForm.confirmPassword,
       email,
-      code: registerForm.code,
+      code,
     })
 
     ElMessage.success('注册成功，请登录')
@@ -336,10 +359,13 @@ const handleRegister = async () => {
       confirmPassword: '',
       agreement: false
     })
-    router.push('/login')
+    // 使用replace防止用户返回到注册页
+    router.replace('/login')
   } catch (error: any) {
     console.error('注册失败：', error)
-    ElMessage.error(error?.message || '注册失败，请稍后重试')
+    // 优化错误提示，避免暴露敏感信息
+    const errorMsg = error?.message || '注册失败，请稍后重试'
+    ElMessage.error(errorMsg)
   } finally {
     loading.value = false
   }

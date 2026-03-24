@@ -125,8 +125,9 @@ async function fetchNotices() {
     const res = await getNoticeList(queryParams)
     notices.value = res.records || res.list || []
     total.value = res.total || 0
-  } catch (e) {
+  } catch (e: any) {
     console.error('获取公告列表失败:', e)
+    ElMessage.error(e?.message || '获取公告列表失败')
     notices.value = []
     total.value = 0
   } finally {

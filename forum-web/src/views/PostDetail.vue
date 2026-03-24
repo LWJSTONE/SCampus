@@ -403,7 +403,7 @@ async function handleLike() {
 
   liking.value = true
   try {
-    const result = await likePost(postId)
+    const result = await likePost(postId.value)
     if (postDetail.value) {
       // 兼容后端返回的字段名 isLike 或 isLiked
       const isLiked = result.isLike !== undefined ? result.isLike : result.isLiked
@@ -442,7 +442,7 @@ async function handleCollect() {
 
   collecting.value = true
   try {
-    const result = await collectPost(postId)
+    const result = await collectPost(postId.value)
     if (postDetail.value) {
       // 兼容后端返回的字段名 isCollect 或 isCollected
       const isCollected = result.isCollect !== undefined ? result.isCollect : result.isCollected

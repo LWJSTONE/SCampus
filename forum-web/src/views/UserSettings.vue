@@ -8,7 +8,7 @@
       <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
         <el-form-item label="头像">
           <el-avatar :size="60" :src="form.avatar">
-            {{ form.nickname?.charAt(0) }}
+            {{ (form.nickname || '??').charAt(0) }}
           </el-avatar>
           <el-upload
             class="avatar-upload"
@@ -99,6 +99,9 @@ const saving = ref(false)
 const savingPwd = ref(false)
 const uploadingAvatar = ref(false)
 
+// 存储原始用户信息，用于检测变化
+const originalForm = ref<Partial<UserUpdateDTO>>({})
+
 const form = reactive<Partial<UserUpdateDTO>>({
   nickname: '',
   bio: '',
@@ -116,7 +119,19 @@ const pwdForm = reactive({
 
 const rules: FormRules = {
   nickname: [
-    { min: 2, max: 20, message: '昵称长度为2-20个字符', trigger: 'blur' }
+    { min: 2, max: 20, message: '昵称长度为2-20个字符', trigger: 'blur' },
+    { 
+      validator: (_, value, callback) => {
+        if (value && value.trim() !== value) {
+          callback(new Error('昵称首尾不能包含空格'))
+        } else if (value && value.trim().length < 2) {
+          callback(new Error('昵称不能全为空格'))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'blur'
+    }
   ]
 }
 
@@ -146,10 +161,18 @@ async function fetchUserInfo() {
   try {
     const user = await getCurrentUserInfo()
     Object.assign(form, user)
+    // 保存原始数据用于后续比较
+    originalForm.value = { ...form }
   } catch (e: any) {
     console.error('获取用户信息失败:', e)
     ElMessage.error(e?.message || '获取用户信息失败')
   }
+}
+
+// 检查表单是否有变化
+function hasFormChanges(): boolean {
+  const fields: (keyof UserUpdateDTO)[] = ['nickname', 'bio', 'major', 'grade', 'gender']
+  return fields.some(field => form[field] !== originalForm.value[field])
 }
 
 // 头像上传前验证
@@ -175,7 +198,6 @@ async function handleAvatarUpload(options: UploadRequestOptions) {
   // 验证用户是否已登录
   if (!userStore.userInfo?.id) {
     ElMessage.error('用户信息获取失败，请重新登录')
-    uploadingAvatar.value = false
     return
   }
 
@@ -225,6 +247,12 @@ async function handleSave() {
     return
   }
 
+  // 检查是否有实际变化
+  if (!hasFormChanges()) {
+    ElMessage.info('没有需要保存的更改')
+    return
+  }
+
   saving.value = true
   try {
     // 只发送需要更新的字段
@@ -236,6 +264,8 @@ async function handleSave() {
       gender: form.gender
     }
     await updateUser(userStore.userInfo.id, updateData)
+    // 更新原始数据
+    originalForm.value = { ...form }
     // 更新 store 中的用户信息
     userStore.updateUserInfo(updateData)
     ElMessage.success('保存成功')

@@ -289,6 +289,11 @@ public class PostController {
 
         log.info("置顶帖子, postId: {}, isTop: {}", id, isTop);
 
+        // 【修复】验证参数有效性
+        if (isTop != 0 && isTop != 1) {
+            return Result.fail(400, "参数无效，isTop只能是0（取消置顶）或1（置顶）");
+        }
+
         // 获取当前用户ID（需要管理员权限）
         Long operatorId = getCurrentUserId(request);
         if (operatorId == null) {
@@ -329,6 +334,11 @@ public class PostController {
             HttpServletRequest request) {
 
         log.info("加精帖子, postId: {}, isEssence: {}", id, isEssence);
+
+        // 【修复】验证参数有效性
+        if (isEssence != 0 && isEssence != 1) {
+            return Result.fail(400, "参数无效，isEssence只能是0（取消加精）或1（加精）");
+        }
 
         // 获取当前用户ID（需要管理员权限）
         Long operatorId = getCurrentUserId(request);
@@ -482,7 +492,7 @@ public class PostController {
     @GetMapping("/hot")
     @Operation(summary = "获取热门帖子", description = "获取热门帖子列表")
     public Result<List<PostListVO>> getHotPosts(
-            @Parameter(description = "数量限制") @RequestParam(defaultValue = "10") Integer limit,
+            @Parameter(description = "数量限制") @RequestParam(defaultValue = "10") @Min(value = 1, message = "数量限制最小值为1") @Max(value = 50, message = "数量限制最大值为50") Integer limit,
             HttpServletRequest request) {
 
         log.info("获取热门帖子, limit: {}", limit);

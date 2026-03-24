@@ -22,7 +22,7 @@
         </span>
         <span class="time">{{ formatTime(localComment.createTime) }}</span>
       </div>
-      <div class="comment-text">{{ localComment.content }}</div>
+      <div class="comment-text">{{ localComment.content || '评论内容不可用' }}</div>
       <div class="comment-actions">
         <el-button link size="small" @click="handleReply">
           <el-icon><ChatDotRound /></el-icon>
@@ -59,7 +59,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { likeComment } from '@/api/comment'
 import type { CommentVO } from '@/types'
@@ -111,8 +111,30 @@ function handleReply() {
   emit('reply', localComment.value)
 }
 
-function handleDelete() {
-  emit('delete', localComment.value.id)
+// 处理删除评论 - 需要确认
+async function handleDelete() {
+  // 验证用户是否已登录
+  if (!userStore.isLoggedIn) {
+    ElMessage.warning('请先登录')
+    return
+  }
+  
+  // 弹出确认框
+  try {
+    await ElMessageBox.confirm(
+      '确定要删除这条评论吗？删除后将无法恢复。',
+      '删除确认',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    // 用户确认后，发出删除事件
+    emit('delete', localComment.value.id)
+  } catch {
+    // 用户取消删除，不做任何操作
+  }
 }
 
 async function handleLike() {

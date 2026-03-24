@@ -208,7 +208,7 @@ function showForgotPassword() {
   forgotForm.code = ''
   forgotForm.newPassword = ''
   forgotForm.confirmPassword = ''
-  forgotCountdown = 0 // 重置倒计时
+  forgotCountdown.value = 0 // 重置倒计时
   // 清除表单验证状态
   forgotFormRef.value?.clearValidate()
 }
@@ -265,6 +265,9 @@ async function sendForgotCode() {
 }
 
 async function handleResetPassword() {
+  // 防止重复提交
+  if (resettingPassword.value) return
+  
   // 表单验证
   const valid = await forgotFormRef.value?.validate().catch(() => false)
   if (!valid) {
@@ -275,13 +278,19 @@ async function handleResetPassword() {
   resettingPassword.value = true
   try {
     await resetPassword({
-      email: forgotForm.email,
-      code: forgotForm.code,
+      email: forgotForm.email.trim(),
+      code: forgotForm.code.trim(),
       password: forgotForm.newPassword,
-      username: forgotForm.username
+      username: forgotForm.username.trim()
     })
     ElMessage.success('密码重置成功，请登录')
     forgotPasswordVisible.value = false
+    // 清空表单
+    forgotForm.username = ''
+    forgotForm.email = ''
+    forgotForm.code = ''
+    forgotForm.newPassword = ''
+    forgotForm.confirmPassword = ''
   } catch (e: any) {
     console.error('重置密码失败:', e)
     ElMessage.error(e?.message || '重置密码失败，请检查信息是否正确')
@@ -302,6 +311,9 @@ async function refreshCaptcha() {
 }
 
 async function handleLogin() {
+  // 防止重复提交
+  if (loading.value) return
+  
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) {
     ElMessage.warning('请检查表单')
@@ -312,6 +324,11 @@ async function handleLogin() {
   try {
     // 用户名trim处理，防止前后空格导致的登录问题
     const username = loginForm.username.trim()
+    
+    // 前端再次验证用户名格式（防御性编程）
+    if (username.length < 3 || username.length > 20) {
+      throw new Error('用户名长度为 3 到 20 个字符')
+    }
     
     await userStore.login({
       username,
@@ -326,20 +343,27 @@ async function handleLogin() {
     // 跳转到之前的页面或首页，验证redirect是否为有效路由
     const redirect = route.query.redirect as string
     // 验证redirect路径：必须以'/'开头且不包含危险的URL注入
+    // 只允许相对路径，防止开放重定向攻击
     const isValidRedirect = redirect && 
       redirect.startsWith('/') && 
-      !redirect.includes('//') && 
-      !redirect.includes('javascript:') &&
+      !redirect.startsWith('//') && 
+      !redirect.includes('\\') &&
+      !redirect.toLowerCase().includes('javascript:') &&
+      !redirect.toLowerCase().includes('data:') &&
       redirect.length < 200
     
-    router.push(isValidRedirect ? redirect : '/')
+    // 使用replace防止用户返回到登录页
+    router.replace(isValidRedirect ? redirect : '/')
   } catch (e: any) {
     // 登录失败后清空密码和验证码，防止密码泄露
     loginForm.password = ''
     loginForm.captcha = ''
     refreshCaptcha()
     console.error('登录失败:', e)
-    ElMessage.error(e?.message || '登录失败，请检查用户名和密码')
+    // 避免暴露敏感的错误信息
+    const errorMsg = e?.message || '登录失败，请检查用户名和密码'
+    // 过滤可能包含敏感信息的错误
+    ElMessage.error(errorMsg.includes('密码') ? '用户名或密码错误' : errorMsg)
   } finally {
     loading.value = false
   }

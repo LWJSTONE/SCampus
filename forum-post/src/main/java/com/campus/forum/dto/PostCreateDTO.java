@@ -3,9 +3,11 @@ package com.campus.forum.dto;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
-import javax.validation.constraints.NotBlank;
-import javax.validation.constraints.NotNull;
-import javax.validation.constraints.Size;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import java.io.Serializable;
 import java.util.List;
 
@@ -56,6 +58,8 @@ public class PostCreateDTO implements Serializable {
      * 帖子类型（0-普通帖子 1-精华帖 2-置顶帖 3-公告）
      */
     @Schema(description = "帖子类型（0-普通帖子 1-精华帖 2-置顶帖 3-公告）", defaultValue = "0")
+    @Min(value = 0, message = "帖子类型无效，有效范围：0-3")
+    @Max(value = 3, message = "帖子类型无效，有效范围：0-3")
     private Integer type = 0;
 
     /**
@@ -86,6 +90,8 @@ public class PostCreateDTO implements Serializable {
      * 来源类型（0-PC端 1-APP端 2-小程序）
      */
     @Schema(description = "来源类型（0-PC端 1-APP端 2-小程序）", defaultValue = "0")
+    @Min(value = 0, message = "来源类型无效，有效范围：0-2")
+    @Max(value = 2, message = "来源类型无效，有效范围：0-2")
     private Integer sourceType = 0;
 
     /**

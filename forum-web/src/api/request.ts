@@ -7,6 +7,15 @@ import router from '@/router'
 // API基础URL配置
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1'
 
+// 安全的localStorage操作辅助函数（避免在隐私模式下出错）
+function safeSetStorage(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value)
+  } catch (e) {
+    console.warn('localStorage写入失败:', e)
+  }
+}
+
 // 响应数据接口
 export interface Result<T = any> {
   code: number
@@ -123,7 +132,7 @@ service.interceptors.response.use(
                 cancelButtonText: '取消',
                 type: 'warning'
               }).then(() => {
-                router.push({ name: 'Login' })
+                router.replace({ name: 'Login' })
               }).catch(() => {
                 // 用户取消
               }).finally(() => {
@@ -164,12 +173,12 @@ service.interceptors.response.use(
               throw new Error('刷新Token失败：未获取到新的访问令牌')
             }
 
-            // 更新store中的token
+            // 更新store中的token（使用安全存储函数）
             userStore.token = accessToken
             userStore.refreshToken = newRefreshToken || refreshTokenValue
-            localStorage.setItem('token', accessToken)
+            safeSetStorage('token', accessToken)
             if (newRefreshToken) {
-              localStorage.setItem('refreshToken', newRefreshToken)
+              safeSetStorage('refreshToken', newRefreshToken)
             }
 
             // 通知所有等待的请求使用新Token
@@ -191,7 +200,7 @@ service.interceptors.response.use(
                 cancelButtonText: '取消',
                 type: 'warning'
               }).then(() => {
-                router.push({ name: 'Login' })
+                router.replace({ name: 'Login' })
               }).catch(() => {
                 // 用户取消
               }).finally(() => {
@@ -214,12 +223,18 @@ service.interceptors.response.use(
           ElMessage.error('服务器内部错误')
           break
         default:
-          ElMessage.error(error.message || '请求失败')
+          // 避免暴露敏感的错误信息
+          const safeErrorMessage = error.message?.includes('Network Error') 
+            ? '网络连接失败，请检查网络' 
+            : (error.message || '请求失败')
+          ElMessage.error(safeErrorMessage)
       }
-    } else if (error.message.includes('timeout')) {
-      ElMessage.error('请求超时')
+    } else if (error.message?.includes('timeout')) {
+      ElMessage.error('请求超时，请稍后重试')
+    } else if (error.message?.includes('Network Error')) {
+      ElMessage.error('网络连接失败，请检查网络设置')
     } else {
-      ElMessage.error('网络错误，请检查网络连接')
+      ElMessage.error('请求失败，请稍后重试')
     }
 
     return Promise.reject(error)

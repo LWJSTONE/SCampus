@@ -3,8 +3,10 @@ package com.campus.forum.dto;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
-import javax.validation.constraints.NotNull;
-import javax.validation.constraints.Size;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import java.io.Serializable;
 import java.util.List;
 
@@ -59,6 +61,8 @@ public class PostUpdateDTO implements Serializable {
      * 帖子类型
      */
     @Schema(description = "帖子类型（0-普通帖子 1-精华帖 2-置顶帖 3-公告）")
+    @Min(value = 0, message = "帖子类型无效，有效范围：0-3")
+    @Max(value = 3, message = "帖子类型无效，有效范围：0-3")
     private Integer type;
 
     /**

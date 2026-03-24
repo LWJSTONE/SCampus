@@ -53,6 +53,13 @@ export function updatePassword(id: number, data: { oldPassword: string; newPassw
   if (data.oldPassword === data.newPassword) {
     throw new Error('新密码不能与旧密码相同')
   }
+  // 验证新密码复杂度（与前端一致）
+  if (data.newPassword.length < 6 || data.newPassword.length > 20) {
+    throw new Error('密码长度为6-20个字符')
+  }
+  if (!/^(?=.*[a-zA-Z])(?=.*\d).+$/.test(data.newPassword)) {
+    throw new Error('密码必须包含字母和数字')
+  }
   // confirmPassword 只在前端验证使用，不需要传给后端
   const { confirmPassword, ...requestData } = data
   return request.put(`/users/${id}/password`, requestData)

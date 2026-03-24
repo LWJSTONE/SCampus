@@ -10,7 +10,7 @@
     <el-card v-else-if="user" class="profile-card">
       <div class="profile-header">
         <el-avatar :size="80" :src="user.avatar">
-          {{ user.nickname?.charAt(0) || user.username?.charAt(0) }}
+          {{ (user.nickname || user.username || '?').charAt(0) }}
         </el-avatar>
         <div class="profile-info">
           <h1>{{ user.nickname || user.username }}</h1>
@@ -30,8 +30,15 @@
       </div>
     </el-card>
 
-    <el-card class="content-card" v-if="!loading">
-      <el-tabs v-model="activeTab" @tab-change="handleTabChange">
+    <!-- 用户不存在时的提示 -->
+    <el-card v-else class="profile-card">
+      <el-empty description="用户不存在或已被删除">
+        <el-button type="primary" @click="router.push('/')">返回首页</el-button>
+      </el-empty>
+    </el-card>
+
+    <el-card class="content-card" v-if="user && !loading">
+      <el-tabs v-model="activeTab" @tab-change="handleTabChange as any">
         <el-tab-pane label="帖子" name="posts">
           <div v-if="postsLoading" class="loading-container">
             <el-skeleton :rows="3" animated />

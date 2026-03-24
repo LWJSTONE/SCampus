@@ -85,10 +85,18 @@ export const useUserStore = defineStore('user', () => {
   // 登录
   async function login(loginData: LoginDTO) {
     const res = await loginApi(loginData)
+    
+    // 验证返回的token是否有效
+    if (!res.accessToken) {
+      throw new Error('登录失败：未获取到访问令牌')
+    }
+    
     token.value = res.accessToken
-    refreshToken.value = res.refreshToken
+    refreshToken.value = res.refreshToken || ''
     safeSetStorage('token', res.accessToken)
-    safeSetStorage('refreshToken', res.refreshToken)
+    if (res.refreshToken) {
+      safeSetStorage('refreshToken', res.refreshToken)
+    }
 
     // 获取用户信息
     await fetchUserInfo()
@@ -124,6 +132,13 @@ export const useUserStore = defineStore('user', () => {
     }
     try {
       const info = await getCurrentUser()
+      
+      // 验证返回的用户信息
+      if (!info || !info.id) {
+        console.warn('获取用户信息返回无效数据')
+        return null
+      }
+      
       userInfo.value = info
       return info
     } catch (e: any) {
@@ -149,13 +164,21 @@ export const useUserStore = defineStore('user', () => {
       const info = await fetchUserInfo()
       return info !== null
     }
+    // 验证token是否仍然有效（可选：可以添加token过期检查）
     return true
   }
 
   // 更新用户信息
   function updateUserInfo(info: Partial<UserInfoVO>) {
     if (userInfo.value) {
-      userInfo.value = { ...userInfo.value, ...info }
+      // 深度合并，确保嵌套对象也被正确处理
+      userInfo.value = { 
+        ...userInfo.value, 
+        ...info,
+        // 保留roles和permissions的原始引用（如果没有更新）
+        roles: info.roles || userInfo.value.roles,
+        permissions: info.permissions || userInfo.value.permissions
+      }
     }
   }
 

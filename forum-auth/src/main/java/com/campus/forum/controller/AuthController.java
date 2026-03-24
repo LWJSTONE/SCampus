@@ -1,5 +1,6 @@
 package com.campus.forum.controller;
 
+import com.campus.forum.dto.EmailCodeDTO;
 import com.campus.forum.dto.LoginDTO;
 import com.campus.forum.dto.RefreshTokenDTO;
 import com.campus.forum.dto.RegisterDTO;
@@ -188,17 +189,40 @@ public class AuthController {
      * 
      * <p>发送邮箱验证码，用于注册或重置密码</p>
      *
-     * @param request 包含邮箱地址的请求体
+     * @param emailCodeDTO 包含邮箱地址的请求DTO
      * @return 操作结果
      */
     @PostMapping("/email/code")
     @Operation(summary = "发送邮箱验证码", description = "发送邮箱验证码，用于注册或重置密码验证")
     public Result<Void> sendEmailCode(
-            @Parameter(description = "邮箱地址", required = true) 
-            @RequestBody java.util.Map<String, String> request) {
-        String email = request.get("email");
-        log.info("发送邮箱验证码请求：email={}", email);
+            @Parameter(description = "邮箱验证码请求DTO", required = true) 
+            @Validated @RequestBody EmailCodeDTO emailCodeDTO) {
+        String email = emailCodeDTO.getEmail();
+        log.info("发送邮箱验证码请求：email={}", maskEmail(email));
         return authService.sendEmailCode(email);
+    }
+
+    /**
+     * 邮箱脱敏处理
+     * 保留前缀的前几个字符，中间用*替代，保留@后的域名
+     *
+     * @param email 原始邮箱
+     * @return 脱敏后的邮箱
+     */
+    private String maskEmail(String email) {
+        if (email == null || email.isEmpty()) {
+            return email;
+        }
+        int atIndex = email.indexOf('@');
+        if (atIndex <= 0) {
+            return email;
+        }
+        String prefix = email.substring(0, atIndex);
+        String suffix = email.substring(atIndex);
+        if (prefix.length() <= 2) {
+            return prefix.charAt(0) + "***" + suffix;
+        }
+        return prefix.substring(0, 2) + "***" + suffix;
     }
 
     /**

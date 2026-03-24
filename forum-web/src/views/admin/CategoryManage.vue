@@ -90,7 +90,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, nextTick } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { getCategoryList, createCategory, updateCategory, deleteCategory, createForum, updateForum, deleteForum } from '@/api/category'
 import type { CategoryVO } from '@/types'
@@ -210,6 +210,10 @@ function handleAdd() {
     sort: 0
   })
   dialogVisible.value = true
+  // 清除表单验证状态
+  nextTick(() => {
+    categoryFormRef.value?.clearValidate()
+  })
 }
 
 function handleEdit(row: CategoryTreeVO) {
@@ -222,6 +226,10 @@ function handleEdit(row: CategoryTreeVO) {
     sort: row.sort || row.sortOrder || 0
   })
   dialogVisible.value = true
+  // 清除表单验证状态
+  nextTick(() => {
+    categoryFormRef.value?.clearValidate()
+  })
 }
 
 async function handleSubmit() {
@@ -264,6 +272,10 @@ function handleAddForum(row: CategoryTreeVO) {
     description: ''
   })
   forumDialogVisible.value = true
+  // 清除表单验证状态
+  nextTick(() => {
+    forumFormRef.value?.clearValidate()
+  })
 }
 
 function handleEditForum(row: CategoryTreeVO) {
@@ -276,6 +288,10 @@ function handleEditForum(row: CategoryTreeVO) {
     description: row.description || ''
   })
   forumDialogVisible.value = true
+  // 清除表单验证状态
+  nextTick(() => {
+    forumFormRef.value?.clearValidate()
+  })
 }
 
 async function submitForum() {
