@@ -1,5 +1,6 @@
 package com.campus.forum.controller;
 
+import com.campus.forum.api.UserServiceClient;
 import com.campus.forum.dto.PostCreateDTO;
 import com.campus.forum.dto.PostQueryDTO;
 import com.campus.forum.dto.PostUpdateDTO;
@@ -44,6 +45,12 @@ import java.util.Map;
 public class PostController {
 
     private final PostService postService;
+
+    /**
+     * 用户服务客户端（用于二次验证）
+     * 在关键操作时通过Feign调用用户服务验证用户角色
+     */
+    private final UserServiceClient userServiceClient;
 
     /**
      * 内部服务调用密钥
@@ -154,8 +161,11 @@ public class PostController {
         // 获取当前用户ID
         Long currentUserId = getCurrentUserId(request);
 
+        // 【修复】获取用户IP地址（用于浏览量防刷）
+        String ipAddress = IpUtils.getIpAddr(request);
+
         // 查询帖子详情
-        PostDetailVO detail = postService.getPostDetail(id, currentUserId);
+        PostDetailVO detail = postService.getPostDetail(id, currentUserId, ipAddress);
 
         return Result.success(detail);
     }
@@ -274,8 +284,8 @@ public class PostController {
             return Result.fail(401, "请先登录");
         }
 
-        // 验证管理员权限
-        if (!isAdmin(request)) {
+        // 【修复】验证管理员权限 - 使用二次验证防止HTTP Header伪造
+        if (!verifyAdminWithSecondCheck(request)) {
             log.warn("用户无管理员权限，无法置顶帖子: operatorId={}", operatorId);
             return Result.fail(403, "无权限执行此操作，需要管理员权限");
         }
@@ -312,8 +322,8 @@ public class PostController {
             return Result.fail(401, "请先登录");
         }
 
-        // 验证管理员权限
-        if (!isAdmin(request)) {
+        // 【修复】验证管理员权限 - 使用二次验证防止HTTP Header伪造
+        if (!verifyAdminWithSecondCheck(request)) {
             log.warn("用户无管理员权限，无法加精帖子: operatorId={}", operatorId);
             return Result.fail(403, "无权限执行此操作，需要管理员权限");
         }
@@ -548,23 +558,22 @@ public class PostController {
     }
 
     /**
-     * 检查当前用户是否为管理员
+     * 检查当前用户是否为管理员（快速检查，基于HTTP Header）
      *
-     * 【安全说明】
+     * 【安全说明 - 重要】
      * 本方法的管理员权限验证依赖于HTTP Header中的X-User-Role字段。
      * 在微服务架构中，该Header由API网关层（forum-gateway）解析JWT Token后设置，
      * 并非直接来自客户端请求。
      *
-     * 网关层通过AuthGlobalFilter解析JWT Token，验证用户身份和角色后，
-     * 将用户ID（X-User-Id）和角色（X-User-Role）传递给下游微服务。
+     * 【安全风险】
+     * 如果攻击者能够绕过网关直接访问微服务端口，可以伪造X-User-Role头
+     * 获取管理员权限。因此，本方法仅用于非关键操作的快速权限检查。
      *
-     * 因此，此方法的安全性依赖于以下前提条件：
+     * 【缓解措施】
      * 1. 所有外部请求必须经过API网关
      * 2. 服务间网络隔离，外部无法直接访问微服务端口
      * 3. 网关层正确实现了JWT Token验证和角色提取逻辑
-     *
-     * 如果直接调用此服务（绕过网关），需要确保请求来源可信。
-     * 生产环境建议在网络层面限制只有网关可以访问此服务的API端口。
+     * 4. 关键操作（置顶、加精、删除等）使用 verifyAdminWithSecondCheck 进行二次验证
      *
      * @param request HTTP请求
      * @return true-管理员，false-非管理员
@@ -578,6 +587,55 @@ public class PostController {
             return "ADMIN".equalsIgnoreCase(role) || "ROLE_ADMIN".equalsIgnoreCase(role);
         }
         return false;
+    }
+
+    /**
+     * 验证用户是否为管理员（带二次验证）
+     *
+     * 【安全说明】
+     * 此方法用于关键操作（置顶、加精、删除等）的权限验证。
+     * 除了检查HTTP Header外，还会通过Feign调用用户服务进行二次验证，
+     * 确保用户角色的真实性，防止HTTP Header伪造攻击。
+     *
+     * 【二次验证流程】
+     * 1. 首先检查HTTP Header中的角色（快速检查）
+     * 2. 如果Header显示为管理员，则调用用户服务验证真实角色
+     * 3. 只有两步验证都通过才返回true
+     *
+     * 【降级策略】
+     * 如果用户服务不可用，会记录警告日志并返回false（安全优先）
+     *
+     * @param request HTTP请求
+     * @return true-管理员，false-非管理员
+     */
+    private boolean verifyAdminWithSecondCheck(HttpServletRequest request) {
+        // 第一步：快速检查HTTP Header
+        if (!isAdmin(request)) {
+            return false;
+        }
+
+        // 第二步：通过用户服务进行二次验证
+        Long userId = getCurrentUserId(request);
+        if (userId == null) {
+            log.warn("二次验证失败：无法获取用户ID");
+            return false;
+        }
+
+        try {
+            // 调用用户服务验证管理员角色
+            Result<Boolean> result = userServiceClient.verifyAdmin(userId, internalServiceKey);
+            if (result != null && result.isSuccess() && Boolean.TRUE.equals(result.getData())) {
+                log.info("管理员二次验证成功, userId: {}", userId);
+                return true;
+            } else {
+                log.warn("管理员二次验证失败：角色不匹配, userId: {}, result: {}", userId, result);
+                return false;
+            }
+        } catch (Exception e) {
+            // 用户服务不可用时，采用安全优先策略：拒绝操作
+            log.error("管理员二次验证失败：用户服务不可用, userId: {}", userId, e);
+            return false;
+        }
     }
 
     // ==================== 内部API（供其他服务调用） ====================
@@ -602,8 +660,8 @@ public class PostController {
         
         log.info("内部API调用：获取帖子信息, postId: {}", id);
 
-        // 查询帖子
-        PostDetailVO detail = postService.getPostDetail(id, null);
+        // 查询帖子（内部API调用，不记录浏览量防刷）
+        PostDetailVO detail = postService.getPostDetail(id, null, null);
 
         // 转换为简化VO
         PostListVO listVO = new PostListVO();

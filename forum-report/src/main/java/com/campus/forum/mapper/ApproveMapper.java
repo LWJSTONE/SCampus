@@ -56,10 +56,14 @@ public interface ApproveMapper extends BaseMapper<Approve> {
 
     /**
      * 更新审核状态
+     * 
+     * 使用乐观锁机制：添加 WHERE status = 0 条件
+     * 只有待审核状态的记录才能被更新，防止多个管理员同时审核同一记录
+     * 返回值为更新影响的行数，0表示记录已被其他管理员处理
      */
     @Update("UPDATE t_approve SET status = #{status}, auditor_id = #{auditorId}, " +
             "audit_remark = #{auditRemark}, audit_time = NOW() " +
-            "WHERE id = #{id}")
+            "WHERE id = #{id} AND status = 0")
     int updateApproveStatus(@Param("id") Long id,
                             @Param("status") Integer status,
                             @Param("auditorId") Long auditorId,

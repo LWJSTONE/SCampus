@@ -57,7 +57,12 @@ public class PostServiceImpl implements PostService {
     private static final String REDIS_KEY_POST_COUNT = "post:count:user:";
     private static final String REDIS_KEY_POST_LIKE_LOCK = "post:like:lock:";
     private static final String REDIS_KEY_POST_COLLECT_LOCK = "post:collect:lock:";
+    // 【修复】浏览量防刷相关key
+    private static final String REDIS_KEY_POST_VIEWED_USER = "post:viewed:user:";  // 已浏览用户记录
+    private static final String REDIS_KEY_POST_VIEWED_IP = "post:viewed:ip:";      // 已浏览IP记录
     private static final long LOCK_EXPIRE_TIME = 3; // 锁过期时间（秒）
+    // 【修复】防刷时间窗口：同一用户/IP在此时间内重复浏览不计入
+    private static final long VIEW_ANTI_SPAM_HOURS = 24;
 
     // 敏感词列表（实际项目应从配置中心获取）
     private static final Set<String> SENSITIVE_WORDS = new HashSet<>(Arrays.asList(
@@ -83,7 +88,7 @@ public class PostServiceImpl implements PostService {
     }
 
     @Override
-    public PostDetailVO getPostDetail(Long id, Long currentUserId) {
+    public PostDetailVO getPostDetail(Long id, Long currentUserId, String ipAddress) {
         log.info("获取帖子详情, id: {}, currentUserId: {}", id, currentUserId);
 
         // 查询帖子
@@ -145,8 +150,9 @@ public class PostServiceImpl implements PostService {
             detailVO.setIsAuthor(post.getUserId().equals(currentUserId));
         }
 
-        // 异步增加浏览量
-        incrementViewCount(id);
+        // 【修复】增加浏览量（带防刷机制）
+        // 同一用户/IP在24小时内只计一次浏览
+        incrementViewCountWithAntiSpam(id, currentUserId, ipAddress);
 
         return detailVO;
     }
@@ -207,8 +213,13 @@ public class PostServiceImpl implements PostService {
         }
 
         // 8. 更新用户帖子数缓存
+        // 【修复】为Redis key设置过期时间（24小时），避免缓存永久存在
         String countKey = REDIS_KEY_POST_COUNT + userId;
-        redisTemplate.opsForValue().increment(countKey);
+        Long newCount = redisTemplate.opsForValue().increment(countKey);
+        if (newCount != null && newCount == 1) {
+            // 如果是新建的key，设置过期时间
+            redisTemplate.expire(countKey, Duration.ofHours(24));
+        }
 
         log.info("帖子发布成功, postId: {}", postId);
         return postId;
@@ -316,13 +327,21 @@ public class PostServiceImpl implements PostService {
         cleanupPostInteractionData(id);
 
         // 7. 更新用户帖子数缓存
+        // 【修复】添加更健壮的计数同步逻辑
         String countKey = REDIS_KEY_POST_COUNT + post.getUserId();
         String count = redisTemplate.opsForValue().get(countKey);
         if (count != null) {
+            // 缓存存在，直接递减
             long currentCount = Long.parseLong(count);
             if (currentCount > 0) {
                 redisTemplate.opsForValue().decrement(countKey);
             }
+        } else {
+            // 【修复】缓存不存在时，从数据库重新获取并设置缓存
+            // 这确保了即使缓存过期，计数也能正确同步
+            int actualCount = postMapper.countByUserId(post.getUserId());
+            redisTemplate.opsForValue().set(countKey, String.valueOf(actualCount), Duration.ofHours(24));
+            log.info("Redis缓存不存在，从数据库重新同步帖子计数, userId: {}, count: {}", post.getUserId(), actualCount);
         }
 
         log.info("帖子删除成功, postId: {}", id);
@@ -464,6 +483,71 @@ public class PostServiceImpl implements PostService {
             }
         } catch (Exception e) {
             log.warn("Redis浏览量计数失败, postId: {}", id, e);
+        }
+    }
+
+    /**
+     * 【修复】增加浏览量（带防刷机制）
+     * 同一用户/IP在指定时间窗口内（默认24小时）只计一次浏览
+     *
+     * 防刷策略：
+     * 1. 已登录用户：使用用户ID作为唯一标识
+     * 2. 未登录用户：使用IP地址作为唯一标识
+     * 3. 使用Redis Set记录已浏览的用户/IP，设置过期时间
+     *
+     * @param id 帖子ID
+     * @param userId 用户ID（可为null，未登录用户使用IP标识）
+     * @param ipAddress 用户IP地址（用于未登录用户的防刷）
+     * @return 是否成功计入浏览量（true-新浏览，false-重复浏览被过滤）
+     */
+    @Override
+    public boolean incrementViewCountWithAntiSpam(Long id, Long userId, String ipAddress) {
+        try {
+            // 构建浏览记录的key
+            String viewedKey;
+            String identifier;
+
+            if (userId != null) {
+                // 已登录用户：使用用户ID作为标识
+                viewedKey = REDIS_KEY_POST_VIEWED_USER + id;
+                identifier = userId.toString();
+            } else if (ipAddress != null && !ipAddress.isEmpty()) {
+                // 未登录用户：使用IP地址作为标识
+                viewedKey = REDIS_KEY_POST_VIEWED_IP + id;
+                identifier = ipAddress;
+            } else {
+                // 既没有用户ID也没有IP，无法防刷，直接计数
+                log.warn("无法获取用户标识，跳过防刷检查, postId: {}", id);
+                incrementViewCount(id);
+                return true;
+            }
+
+            // 检查是否已在防刷时间窗口内浏览过
+            Boolean hasViewed = redisTemplate.opsForSet().isMember(viewedKey, identifier);
+            if (Boolean.TRUE.equals(hasViewed)) {
+                // 已浏览过，不计入新浏览
+                log.debug("重复浏览被过滤, postId: {}, identifier: {}", id, identifier);
+                return false;
+            }
+
+            // 添加到已浏览记录
+            redisTemplate.opsForSet().add(viewedKey, identifier);
+            // 设置整个Set的过期时间（如果key是新建的）
+            Long size = redisTemplate.opsForSet().size(viewedKey);
+            if (size != null && size == 1) {
+                redisTemplate.expire(viewedKey, Duration.ofHours(VIEW_ANTI_SPAM_HOURS));
+            }
+
+            // 增加浏览量
+            incrementViewCount(id);
+            log.debug("浏览量增加成功, postId: {}, identifier: {}", id, identifier);
+            return true;
+
+        } catch (Exception e) {
+            log.warn("浏览量防刷检查失败，降级为直接计数, postId: {}", id, e);
+            // 防刷检查失败时，降级为直接计数（保证功能可用）
+            incrementViewCount(id);
+            return true;
         }
     }
 

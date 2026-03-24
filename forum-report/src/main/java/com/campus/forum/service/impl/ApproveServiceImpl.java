@@ -65,9 +65,9 @@ public class ApproveServiceImpl extends ServiceImpl<ApproveMapper, Approve> impl
             throw new BusinessException("审核记录不存在");
         }
         
-        if (approve.getStatus() != 0) {
-            throw new BusinessException("该内容已审核");
-        }
+        // 乐观锁保护：通过SQL的WHERE status = 0条件实现并发控制
+        // 不需要在这里检查状态，因为SQL更新会自动判断
+        // 如果记录已被其他管理员处理，updateApproveStatus将返回0
 
         int result = approveMapper.updateApproveStatus(id, handleDTO.getStatus(), 
                 auditorId, handleDTO.getAuditRemark());
@@ -77,7 +77,9 @@ public class ApproveServiceImpl extends ServiceImpl<ApproveMapper, Approve> impl
             return true;
         }
         
-        return false;
+        // 更新失败，说明记录已被其他管理员处理
+        log.warn("审核 {} 失败，可能已被其他管理员处理", id);
+        throw new BusinessException("该内容已被其他管理员审核");
     }
 
     @Override

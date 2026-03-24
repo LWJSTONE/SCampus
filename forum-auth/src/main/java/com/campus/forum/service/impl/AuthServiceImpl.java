@@ -264,7 +264,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public Result<TokenVO> refreshToken(RefreshTokenDTO refreshTokenDTO) {
+    public Result<TokenVO> refreshToken(RefreshTokenDTO refreshTokenDTO, String oldAccessToken) {
         log.info("刷新Token请求");
 
         String refreshToken = refreshTokenDTO.getRefreshToken();
@@ -283,13 +283,13 @@ public class AuthServiceImpl implements AuthService {
             return Result.fail(401, "刷新令牌无效或已过期");
         }
 
-        // 2. 检查是否为刷新令牌
+        // 3. 检查是否为刷新令牌
         String tokenType = JwtUtils.decodeToken(refreshToken).getClaim("type").asString();
         if (!"refresh".equals(tokenType)) {
             return Result.fail(400, "无效的刷新令牌");
         }
 
-        // 3. 获取用户信息（验证签名）
+        // 4. 获取用户信息（验证签名）
         Long userId = JwtUtils.getUserId(refreshToken, jwtSecret);
         String username = JwtUtils.getUsername(refreshToken, jwtSecret);
 
@@ -297,32 +297,41 @@ public class AuthServiceImpl implements AuthService {
             return Result.fail(401, "刷新令牌无效");
         }
 
-        // 4. 查询用户状态
+        // 5. 查询用户状态
         AuthUser user = authUserMapper.selectById(userId);
         if (user == null || user.getStatus() != Constants.STATUS_ENABLE) {
             return Result.fail(401, "用户状态异常");
         }
 
-        // 5. 查询用户角色
+        // 6. 查询用户角色
         List<String> roleCodes = authUserMapper.selectRoleCodesByUserId(userId);
         String role = (roleCodes != null && !roleCodes.isEmpty()) ? roleCodes.get(0) : "USER";
 
-        // 6. 生成新的访问令牌（包含角色信息）
+        // 7. 生成新的访问令牌（包含角色信息）
         String newAccessToken = JwtUtils.generateToken(userId, username, role, jwtSecret,
                 accessTokenExpiration * 1000);
         
-        // 7. 生成新的刷新令牌，使旧的失效
+        // 8. 生成新的刷新令牌，使旧的失效
         String newRefreshToken = JwtUtils.generateRefreshToken(userId, username, jwtSecret);
         
         // 将旧的刷新令牌加入黑名单
         String oldRefreshKey = Constants.CACHE_PREFIX + "refresh:blacklist:" + refreshToken;
         redisUtils.set(oldRefreshKey, "1", Constants.REFRESH_TOKEN_EXPIRE_TIME);
 
-        // 8. 更新Redis中的Token
+        // 【安全修复】将旧的Access Token加入黑名单，防止Token被重复使用
+        if (StrUtil.isNotBlank(oldAccessToken)) {
+            String oldAccessBlacklistKey = Constants.CACHE_PREFIX + "token:blacklist:" + oldAccessToken;
+            // 使用Token的剩余有效期作为黑名单过期时间
+            long ttl = JwtUtils.getDefaultExpirationSeconds();
+            redisUtils.set(oldAccessBlacklistKey, "1", ttl);
+            log.info("旧Access Token已加入黑名单：userId={}", userId);
+        }
+
+        // 9. 更新Redis中的Token
         String tokenKey = Constants.TOKEN_PREFIX + userId;
         redisUtils.set(tokenKey, newAccessToken, Constants.TOKEN_EXPIRE_TIME);
 
-        // 9. 构建返回结果
+        // 10. 构建返回结果
         TokenVO tokenVO = new TokenVO();
         tokenVO.setAccessToken(newAccessToken);
         tokenVO.setRefreshToken(newRefreshToken);
@@ -429,7 +438,12 @@ public class AuthServiceImpl implements AuthService {
             return Result.fail("密码重置失败，请稍后再试");
         }
 
-        // 8. 使旧Token失效
+        // 【安全修复】8. 清除登录失败计数和锁定状态
+        // 密码重置后应清除登录失败次数，允许用户重新登录
+        authUserMapper.resetLoginFailCount(user.getId());
+        log.info("已清除用户登录失败计数：userId={}", user.getId());
+
+        // 9. 使旧Token失效
         String tokenKey = Constants.TOKEN_PREFIX + user.getId();
         redisUtils.del(tokenKey);
 

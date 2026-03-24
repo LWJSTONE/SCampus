@@ -284,8 +284,8 @@ public class UserFollowServiceImpl extends ServiceImpl<UserFollowMapper, UserFol
     }
 
     @Override
-    public PageResult<UserFollowVO> getFollowing(Long userId, UserQueryDTO queryDTO) {
-        log.info("获取关注列表，用户ID：{}", userId);
+    public PageResult<UserFollowVO> getFollowing(Long userId, UserQueryDTO queryDTO, Long currentUserId) {
+        log.info("获取关注列表，用户ID：{}，当前登录用户ID：{}", userId, currentUserId);
         
         // 构建分页对象
         Page<UserFollow> page = queryDTO.toPage();
@@ -308,14 +308,22 @@ public class UserFollowServiceImpl extends ServiceImpl<UserFollowMapper, UserFol
                 .collect(Collectors.toMap(User::getId, Function.identity()));
         
         // 转换为VO
+        // 【修复】添加互关状态判断：判断当前用户是否被关注对象反向关注
+        final Long finalCurrentUserId = currentUserId;
         List<UserFollowVO> voList = followPage.getRecords().stream()
                 .map(follow -> {
                     User user = userMap.get(follow.getFollowingId());
                     if (user != null) {
                         UserFollowVO vo = convertToVO(user);
                         vo.setFollowTime(follow.getCreateTime());
-                        // 已关注列表中的用户都是已关注的
-                        vo.setFollowed(true);
+                        // 判断互关状态：当前用户是否被关注对象反向关注
+                        // 如果当前用户已登录，检查该关注对象是否关注了当前用户
+                        if (finalCurrentUserId != null) {
+                            // 判断关注对象是否关注了当前用户（互关）
+                            vo.setFollowed(isFollowing(follow.getFollowingId(), finalCurrentUserId));
+                        } else {
+                            vo.setFollowed(false);
+                        }
                         return vo;
                     }
                     return null;

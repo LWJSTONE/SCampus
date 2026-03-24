@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios'
+import type { AxiosInstance, AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } from 'axios'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import router from '@/router'
@@ -45,8 +45,27 @@ service.interceptors.request.use(
   }
 )
 
-// 401错误处理标记，防止多个弹窗
+// ============ Token刷新机制 ============
+// 防止多个请求同时刷新Token
 let isRefreshing = false
+// 存储等待重试的请求队列
+let refreshSubscribers: Array<(token: string) => void> = []
+
+// 订阅Token刷新完成事件
+function subscribeTokenRefresh(callback: (token: string) => void) {
+  refreshSubscribers.push(callback)
+}
+
+// 通知所有订阅者Token已刷新
+function onRefreshed(token: string) {
+  refreshSubscribers.forEach(callback => callback(token))
+  refreshSubscribers = []
+}
+
+// Token刷新失败，清除订阅队列
+function onRefreshFailed() {
+  refreshSubscribers = []
+}
 
 // 响应拦截器
 service.interceptors.response.use(
@@ -67,32 +86,99 @@ service.interceptors.response.use(
     ElMessage.error(res.message || '请求失败')
     return Promise.reject(new Error(res.message || '请求失败'))
   },
-  (error) => {
+  async (error) => {
     console.error('响应错误:', error)
+
+    const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
 
     if (error.response) {
       const status = error.response.status
 
       switch (status) {
         case 401:
-          // Token过期或未登录 - 使用防抖机制防止多个弹窗
-          if (!isRefreshing) {
-            isRefreshing = true
+          // Token过期或未登录
+          // 检查是否有refreshToken，以及是否已经重试过
+          const userStore = useUserStore()
+          const refreshTokenValue = userStore.refreshToken
+
+          // 如果没有refreshToken或已经重试过，直接跳转登录
+          if (!refreshTokenValue || originalRequest._retry) {
+            // 刷新失败或没有refreshToken，跳转登录页
+            if (!isRefreshing) {
+              isRefreshing = true
+              userStore.clearAuth()
+              ElMessageBox.confirm('登录状态已过期，请重新登录', '提示', {
+                confirmButtonText: '重新登录',
+                cancelButtonText: '取消',
+                type: 'warning'
+              }).then(() => {
+                router.push({ name: 'Login' })
+              }).catch(() => {
+                // 用户取消
+              }).finally(() => {
+                isRefreshing = false
+              })
+            }
+            return Promise.reject(error)
+          }
+
+          // 标记此请求已重试
+          originalRequest._retry = true
+
+          // 如果正在刷新Token，将请求加入队列等待
+          if (isRefreshing) {
+            return new Promise((resolve) => {
+              subscribeTokenRefresh((newToken: string) => {
+                // 使用新Token重新发起请求
+                originalRequest.headers.Authorization = `Bearer ${newToken}`
+                resolve(service(originalRequest))
+              })
+            })
+          }
+
+          // 开始刷新Token
+          isRefreshing = true
+
+          try {
+            // 调用刷新Token接口
+            const response = await axios.post('/api/v1/auth/refresh', {
+              refreshToken: refreshTokenValue
+            })
+
+            const { accessToken, refreshToken: newRefreshToken } = response.data.data || response.data
+
+            // 更新store中的token
+            userStore.token = accessToken
+            userStore.refreshToken = newRefreshToken
+            localStorage.setItem('token', accessToken)
+            localStorage.setItem('refreshToken', newRefreshToken)
+
+            // 通知所有等待的请求使用新Token
+            onRefreshed(accessToken)
+
+            // 使用新Token重试原请求
+            originalRequest.headers.Authorization = `Bearer ${accessToken}`
+            return service(originalRequest)
+          } catch (refreshError) {
+            // 刷新Token失败
+            onRefreshFailed()
+            userStore.clearAuth()
+
             ElMessageBox.confirm('登录状态已过期，请重新登录', '提示', {
               confirmButtonText: '重新登录',
               cancelButtonText: '取消',
               type: 'warning'
             }).then(() => {
-              const userStore = useUserStore()
-              userStore.logout()
               router.push({ name: 'Login' })
             }).catch(() => {
               // 用户取消
-            }).finally(() => {
-              isRefreshing = false
             })
+
+            return Promise.reject(refreshError)
+          } finally {
+            isRefreshing = false
           }
-          break
+
         case 403:
           ElMessage.error('没有权限访问')
           break

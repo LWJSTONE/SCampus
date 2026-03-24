@@ -295,15 +295,23 @@ public class FileServiceImpl extends ServiceImpl<FileMapper, File> implements Fi
         }
 
         try {
-            // 删除物理文件
-            if ("MINIO".equalsIgnoreCase(file.getStorageType())) {
-                minioClient.removeObject(RemoveObjectArgs.builder()
-                        .bucket(minioBucketName)
-                        .object(file.getFilePath())
-                        .build());
+            // 修复：秒传逻辑与删除逻辑数据一致性问题
+            // 使用引用计数机制，只有当没有任何引用时才删除物理文件
+            String fileMd5 = file.getFileMd5();
+            if (StrUtil.isNotBlank(fileMd5)) {
+                // 统计引用同一物理文件的记录数量
+                int refCount = fileMapper.countByMd5(fileMd5);
+                
+                // 只有当引用计数为1（仅当前记录）时，才删除物理文件
+                if (refCount <= 1) {
+                    log.info("删除物理文件，文件MD5: {}, 引用计数: {}", fileMd5, refCount);
+                    deletePhysicalFile(file);
+                } else {
+                    log.info("跳过物理文件删除，文件MD5: {}, 引用计数: {}", fileMd5, refCount);
+                }
             } else {
-                Path path = Paths.get(localStoragePath, file.getFilePath());
-                Files.deleteIfExists(path);
+                // 没有MD5值的情况（旧数据），直接删除物理文件
+                deletePhysicalFile(file);
             }
 
             // 删除数据库记录
@@ -311,6 +319,22 @@ public class FileServiceImpl extends ServiceImpl<FileMapper, File> implements Fi
         } catch (Exception e) {
             log.error("文件删除失败: {}", e.getMessage());
             throw new BusinessException("文件删除失败");
+        }
+    }
+    
+    /**
+     * 删除物理文件
+     * 修复：将删除物理文件的逻辑抽取为独立方法，提高代码可读性
+     */
+    private void deletePhysicalFile(File file) throws Exception {
+        if ("MINIO".equalsIgnoreCase(file.getStorageType())) {
+            minioClient.removeObject(RemoveObjectArgs.builder()
+                    .bucket(minioBucketName)
+                    .object(file.getFilePath())
+                    .build());
+        } else {
+            Path path = Paths.get(localStoragePath, file.getFilePath());
+            Files.deleteIfExists(path);
         }
     }
 

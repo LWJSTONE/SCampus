@@ -120,4 +120,14 @@ public interface AuthUserMapper extends BaseMapper<AuthUser> {
     int incrementLoginFailCountAndLockIfNeeded(@Param("userId") Long userId, 
                                                 @Param("maxFailCount") int maxFailCount, 
                                                 @Param("lockTime") LocalDateTime lockTime);
+
+    /**
+     * 【安全修复】重置登录失败计数和锁定状态
+     * 用于密码重置后清除登录失败计数，允许用户重新登录
+     *
+     * @param userId 用户ID
+     * @return 影响行数
+     */
+    @Update("UPDATE sys_user SET login_fail_count = 0, lock_time = NULL, status = 1 WHERE id = #{userId}")
+    int resetLoginFailCount(@Param("userId") Long userId);
 }

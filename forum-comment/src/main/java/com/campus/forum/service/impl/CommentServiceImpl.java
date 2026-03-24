@@ -224,15 +224,11 @@ public class CommentServiceImpl implements CommentService {
             throw new BusinessException(ResultCode.COMMENT_NO_PERMISSION);
         }
         
-        // 3. 获取子评论数量
-        int subCommentCount = 0;
-        if (comment.getReplyCount() != null && comment.getReplyCount() > 0) {
-            subCommentCount = comment.getReplyCount();
-            
-            // 4. 逻辑删除所有子评论
-            commentMapper.deleteByParentId(commentId);
-            log.info("删除子评论, parentId: {}, count: {}", commentId, subCommentCount);
-        }
+        // 3. 删除所有子评论并获取实际删除数量
+        // 【修复】使用 deleteByParentId 方法的返回值作为实际删除的子评论数量
+        // 而非 replyCount 字段，确保统计准确性
+        int subCommentCount = commentMapper.deleteByParentId(commentId);
+        log.info("删除子评论, parentId: {}, actualCount: {}", commentId, subCommentCount);
         
         // 5. 逻辑删除当前评论
         comment.setDeleteFlag(1);
@@ -504,8 +500,8 @@ public class CommentServiceImpl implements CommentService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean auditComment(Long commentId, Integer status, String remark) {
-        log.info("审核评论, commentId: {}, status: {}, remark: {}", commentId, status, remark);
+    public boolean auditComment(Long commentId, Integer status, String remark, Long auditorId) {
+        log.info("审核评论, commentId: {}, status: {}, remark: {}, auditorId: {}", commentId, status, remark, auditorId);
         
         // 1. 查询评论
         Comment comment = commentMapper.selectById(commentId);
@@ -515,6 +511,14 @@ public class CommentServiceImpl implements CommentService {
         
         // 2. 更新审核状态
         comment.setAuditStatus(status);
+        // 【修复】设置审核时间和审核人ID
+        comment.setAuditTime(LocalDateTime.now());
+        comment.setAuditorId(auditorId);
+        // 设置审核备注
+        if (remark != null && !remark.isEmpty()) {
+            comment.setAuditRemark(remark);
+        }
+        
         // 如果审核不通过，设置评论状态为屏蔽
         if (status == 2) {
             comment.setStatus(2); // 2表示被系统屏蔽
@@ -524,7 +528,7 @@ public class CommentServiceImpl implements CommentService {
         
         int result = commentMapper.updateById(comment);
         
-        log.info("审核评论完成, commentId: {}, status: {}", commentId, status);
+        log.info("审核评论完成, commentId: {}, status: {}, auditorId: {}", commentId, status, auditorId);
         return result > 0;
     }
 
@@ -553,8 +557,9 @@ public class CommentServiceImpl implements CommentService {
             throw e; // 重新抛出业务异常
         } catch (Exception e) {
             log.error("验证帖子存在性失败, postId: {}", createDTO.getPostId(), e);
-            // 服务调用失败时，为了用户体验，允许评论提交，但记录警告
-            log.warn("帖子服务不可用，跳过帖子验证: {}", e.getMessage());
+            // 【修复】帖子服务不可用时，抛出异常阻止评论提交
+            // 避免在不存在的帖子上创建评论，造成数据不一致
+            throw new BusinessException(ResultCode.SERVICE_UNAVAILABLE, "帖子服务暂时不可用，请稍后再试");
         }
         
         if (StrUtil.isBlank(createDTO.getContent())) {

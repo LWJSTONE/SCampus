@@ -88,6 +88,19 @@ public class NoticeServiceImpl implements NoticeService {
             );
         }
         
+        // 【修复】过滤生效时间范围：只返回当前时间在生效时间范围内的通知
+        LocalDateTime now = LocalDateTime.now();
+        wrapper.and(w -> w
+                .isNull(Notice::getEffectiveStartTime)
+                .or()
+                .le(Notice::getEffectiveStartTime, now)
+        );
+        wrapper.and(w -> w
+                .isNull(Notice::getEffectiveEndTime)
+                .or()
+                .ge(Notice::getEffectiveEndTime, now)
+        );
+        
         // 排序：置顶优先，然后按发布时间倒序
         wrapper.orderByDesc(Notice::getIsTop)
                .orderByDesc(Notice::getPublishTime);
@@ -257,6 +270,21 @@ public class NoticeServiceImpl implements NoticeService {
             throw new BusinessException(404, "通知不存在");
         }
         
+        // 【修复】校验生效时间范围
+        // 需要考虑只更新其中一个时间字段的情况，使用最终值进行比较
+        LocalDateTime effectiveStartTime = updateDTO.getEffectiveStartTime() != null 
+                ? updateDTO.getEffectiveStartTime() 
+                : notice.getEffectiveStartTime();
+        LocalDateTime effectiveEndTime = updateDTO.getEffectiveEndTime() != null 
+                ? updateDTO.getEffectiveEndTime() 
+                : notice.getEffectiveEndTime();
+        
+        if (effectiveStartTime != null && effectiveEndTime != null) {
+            if (effectiveStartTime.isAfter(effectiveEndTime)) {
+                throw new BusinessException(400, "生效开始时间不能晚于结束时间");
+            }
+        }
+        
         // 更新字段
         if (StrUtil.isNotBlank(updateDTO.getTitle())) {
             notice.setTitle(updateDTO.getTitle());
@@ -307,6 +335,13 @@ public class NoticeServiceImpl implements NoticeService {
         // 逻辑删除
         notice.setDeleteFlag(1);
         noticeMapper.updateById(notice);
+        
+        // 【修复】同步清理 t_user_notice 表中的关联记录
+        userNoticeMapper.delete(
+                new LambdaQueryWrapper<UserNotice>()
+                        .eq(UserNotice::getNoticeId, noticeId)
+        );
+        log.info("已清理通知关联的用户阅读记录, noticeId: {}", noticeId);
         
         log.info("通知删除成功, noticeId: {}", noticeId);
         return true;

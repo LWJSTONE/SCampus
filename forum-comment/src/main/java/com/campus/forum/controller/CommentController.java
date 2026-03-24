@@ -318,8 +318,14 @@ public class CommentController {
             return Result.fail(403, "权限不足，只有管理员可以审核评论");
         }
         
+        // 【修复】获取审核人ID
+        Long auditorId = getCurrentUserId(request);
+        if (auditorId == null) {
+            return Result.fail(401, "无法获取审核人信息");
+        }
+        
         // 审核评论
-        boolean result = commentService.auditComment(id, status, remark);
+        boolean result = commentService.auditComment(id, status, remark, auditorId);
         
         return Result.success("审核完成", result);
     }

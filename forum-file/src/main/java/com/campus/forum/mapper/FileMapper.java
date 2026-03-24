@@ -42,4 +42,11 @@ public interface FileMapper extends BaseMapper<File> {
      * 根据上传者ID查询文件列表
      */
     List<File> selectByUploaderId(@Param("uploaderId") Long uploaderId);
+
+    /**
+     * 根据MD5统计引用数量（用于秒传逻辑中判断是否可删除物理文件）
+     * 修复：秒传逻辑与删除逻辑数据一致性问题
+     * 当多个文件记录引用同一物理文件时，只有引用计数为0才能删除物理文件
+     */
+    int countByMd5(@Param("fileMd5") String fileMd5);
 }

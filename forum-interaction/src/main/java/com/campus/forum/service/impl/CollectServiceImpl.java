@@ -110,8 +110,11 @@ public class CollectServiceImpl implements CollectService {
                 
                 try {
                     collectMapper.insert(collect);
+                    // 【修复】正常插入时更新缓存
+                    updateCollectCountCache(postId, 1);
+                    redisTemplate.opsForValue().set(getUserCollectKey(postId, userId), "1", CACHE_EXPIRE, TimeUnit.SECONDS);
                 } catch (DuplicateKeyException e) {
-                    // 并发场景：其他线程已插入，重新查询并更新状态
+                    // 【修复】并发场景：其他线程已插入，重新查询并更新状态，同时确保缓存更新
                     log.info("并发收藏检测到重复记录: postId={}, userId={}", postId, userId);
                     // 重新查询记录状态
                     Collect existingRecord = collectMapper.selectOne(wrapper);
@@ -120,12 +123,14 @@ public class CollectServiceImpl implements CollectService {
                         existingRecord.setDeleteFlag(0);
                         existingRecord.setFolderId(folderId);
                         collectMapper.updateById(existingRecord);
+                        // 【修复】更新缓存 - 之前遗漏了用户状态缓存更新
+                        updateCollectCountCache(postId, 1);
+                        redisTemplate.opsForValue().set(getUserCollectKey(postId, userId), "1", CACHE_EXPIRE, TimeUnit.SECONDS);
+                    } else if (existingRecord != null && existingRecord.getDeleteFlag() == 0) {
+                        // 【修复】记录已存在且状态为已收藏（其他线程先插入了），同步缓存
+                        redisTemplate.opsForValue().set(getUserCollectKey(postId, userId), "1", CACHE_EXPIRE, TimeUnit.SECONDS);
                     }
                 }
-                
-                // 更新缓存
-                updateCollectCountCache(postId, 1);
-                redisTemplate.opsForValue().set(getUserCollectKey(postId, userId), "1", CACHE_EXPIRE, TimeUnit.SECONDS);
                 
                 log.info("收藏成功: postId={}, userId={}", postId, userId);
                 return true;
@@ -238,11 +243,13 @@ public class CollectServiceImpl implements CollectService {
                 throw new BusinessException(ResultCode.POST_NOT_FOUND, "帖子不存在或已删除");
             }
         } catch (BusinessException e) {
+            // 业务异常直接抛出，阻止对不存在目标的操作
             throw e;
         } catch (Exception e) {
             log.error("验证帖子存在性失败, postId={}", postId, e);
-            // 如果远程服务调用失败，记录日志但不阻止操作（服务降级处理）
-            // 生产环境可以根据实际需求决定是否抛出异常
+            // 【修复】服务不可用时应该抛出异常，而不是静默跳过验证
+            // 防止对不存在的目标进行收藏操作，避免产生脏数据
+            throw new BusinessException(ResultCode.SERVICE_UNAVAILABLE, "服务暂时不可用，请稍后重试");
         }
     }
 }

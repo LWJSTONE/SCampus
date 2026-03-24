@@ -107,22 +107,36 @@ public class FileController {
 
     /**
      * 下载文件
+     * 修复：添加登录验证，确保只有已登录用户才能下载文件
      */
     @GetMapping("/{id}/download")
-    @Operation(summary = "下载文件", description = "根据ID下载文件")
+    @Operation(summary = "下载文件", description = "根据ID下载文件（需要登录）")
     public ResponseEntity<byte[]> download(
             @Parameter(description = "文件ID") @PathVariable Long id,
-            HttpServletResponse response) {
+            HttpServletResponse response,
+            HttpServletRequest request) {
+        // 修复：验证用户是否已登录
+        Long userId = getUserIdFromRequest(request);
+        if (userId == null) {
+            throw new RuntimeException("请先登录后再下载文件");
+        }
         return fileService.download(id, response);
     }
 
     /**
      * 预览文件（图片等）
+     * 修复：添加登录验证，确保只有已登录用户才能预览文件
      */
     @GetMapping("/{id}/preview")
-    @Operation(summary = "预览文件", description = "预览文件（如图片）")
+    @Operation(summary = "预览文件", description = "预览文件（如图片）（需要登录）")
     public ResponseEntity<byte[]> preview(
-            @Parameter(description = "文件ID") @PathVariable Long id) {
+            @Parameter(description = "文件ID") @PathVariable Long id,
+            HttpServletRequest request) {
+        // 修复：验证用户是否已登录
+        Long userId = getUserIdFromRequest(request);
+        if (userId == null) {
+            throw new RuntimeException("请先登录后再预览文件");
+        }
         return fileService.preview(id);
     }
 

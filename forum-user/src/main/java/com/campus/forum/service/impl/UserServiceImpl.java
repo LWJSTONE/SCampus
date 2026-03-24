@@ -229,6 +229,11 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             throw new BusinessException(ResultCode.USER_NOT_FOUND);
         }
         
+        // 【修复】检查用户状态，被封禁用户不能修改密码
+        if (user.getStatus() == null || user.getStatus() != 1) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR, "账户已被禁用，无法修改密码");
+        }
+        
         // 验证原密码
         if (!BCrypt.checkpw(passwordDTO.getOldPassword(), user.getPassword())) {
             throw new BusinessException(ResultCode.OLD_PASSWORD_ERROR);
@@ -243,6 +248,11 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         // 验证密码强度：必须包含字母和数字
         if (!newPassword.matches("^(?=.*[a-zA-Z])(?=.*\\d).+$")) {
             throw new BusinessException(ResultCode.BUSINESS_ERROR, "密码必须包含字母和数字");
+        }
+        
+        // 【修复】检查新密码是否与原密码相同
+        if (BCrypt.checkpw(newPassword, user.getPassword())) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR, "新密码不能与原密码相同");
         }
         
         // 验证两次密码是否一致

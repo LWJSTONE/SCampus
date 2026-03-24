@@ -113,8 +113,11 @@ public class LikeServiceImpl implements LikeService {
                 
                 try {
                     likeMapper.insert(like);
+                    // 【修复】正常插入时更新缓存
+                    updateLikeCountCache(targetType, targetId, 1);
+                    redisTemplate.opsForValue().set(getUserLikeKey(targetType, targetId, userId), "1", CACHE_EXPIRE, TimeUnit.SECONDS);
                 } catch (DuplicateKeyException e) {
-                    // 并发场景：其他线程已插入，重新查询并更新状态
+                    // 【修复】并发场景：其他线程已插入，重新查询并更新状态，同时确保缓存更新
                     log.info("并发点赞检测到重复记录: targetType={}, targetId={}, userId={}", targetType, targetId, userId);
                     // 重新查询记录状态
                     Like existingRecord = likeMapper.selectOne(wrapper);
@@ -122,12 +125,14 @@ public class LikeServiceImpl implements LikeService {
                         // 记录存在但已取消，恢复点赞
                         existingRecord.setDeleteFlag(0);
                         likeMapper.updateById(existingRecord);
+                        // 【修复】更新缓存 - 之前遗漏了用户状态缓存更新
+                        updateLikeCountCache(targetType, targetId, 1);
+                        redisTemplate.opsForValue().set(getUserLikeKey(targetType, targetId, userId), "1", CACHE_EXPIRE, TimeUnit.SECONDS);
+                    } else if (existingRecord != null && existingRecord.getDeleteFlag() == 0) {
+                        // 【修复】记录已存在且状态为已点赞（其他线程先插入了），同步缓存
+                        redisTemplate.opsForValue().set(getUserLikeKey(targetType, targetId, userId), "1", CACHE_EXPIRE, TimeUnit.SECONDS);
                     }
                 }
-                
-                // 更新缓存
-                updateLikeCountCache(targetType, targetId, 1);
-                redisTemplate.opsForValue().set(getUserLikeKey(targetType, targetId, userId), "1", CACHE_EXPIRE, TimeUnit.SECONDS);
                 
                 log.info("点赞成功: targetType={}, targetId={}, userId={}", targetType, targetId, userId);
                 return true;

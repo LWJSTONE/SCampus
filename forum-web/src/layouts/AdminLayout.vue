@@ -1,5 +1,10 @@
 <template>
-  <el-container class="admin-layout">
+  <!-- 权限检查：使用v-if控制渲染，避免页面闪烁 -->
+  <div v-if="!authChecked" class="auth-loading">
+    <el-icon class="is-loading" :size="32"><Loading /></el-icon>
+    <span>正在验证权限...</span>
+  </div>
+  <el-container v-else-if="hasPermission" class="admin-layout">
     <!-- 侧边栏 -->
     <el-aside :width="isCollapse ? '64px' : '220px'" class="sidebar">
       <div class="logo">
@@ -107,12 +112,19 @@
       </el-main>
     </el-container>
   </el-container>
+  <!-- 无权限提示 -->
+  <div v-else class="no-permission">
+    <el-icon :size="48"><WarningFilled /></el-icon>
+    <p>您没有访问管理后台的权限</p>
+    <el-button type="primary" @click="router.push('/')">返回首页</el-button>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { Loading, WarningFilled } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 
 const router = useRouter()
@@ -135,19 +147,47 @@ function handleCommand(command: string) {
   }
 }
 
-// 检查管理员权限
-onMounted(() => {
+// ============ 权限检查逻辑优化 ============
+// 使用响应式变量控制渲染，避免页面闪烁
+const authChecked = ref(false)
+const hasPermission = ref(false)
+
+/**
+ * 检查管理员权限
+ * 修复：在setup阶段立即检查权限，使用v-if控制渲染
+ * 避免onMounted中检查导致的页面闪烁问题
+ */
+async function checkPermission() {
+  // 如果没有登录，跳转登录页
   if (!userStore.isLoggedIn) {
     ElMessage.warning('请先登录')
     router.push('/login')
     return
   }
-  if (!userStore.isAdmin) {
-    ElMessage.error('您没有访问管理后台的权限')
-    router.push('/')
-    return
+
+  // 如果还没有用户信息，尝试获取
+  if (!userStore.userInfo) {
+    try {
+      await userStore.fetchUserInfo()
+    } catch (e) {
+      ElMessage.error('获取用户信息失败')
+      router.push('/login')
+      return
+    }
   }
-})
+
+  // 检查是否是管理员
+  if (!userStore.isAdmin) {
+    hasPermission.value = false
+  } else {
+    hasPermission.value = true
+  }
+
+  authChecked.value = true
+}
+
+// 组件创建时立即检查权限（而不是onMounted）
+checkPermission()
 </script>
 
 <style scoped lang="scss">
@@ -217,5 +257,33 @@ onMounted(() => {
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+
+// 权限加载中状态
+.auth-loading {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: #409EFF;
+  font-size: 14px;
+}
+
+// 无权限提示
+.no-permission {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: #909399;
+
+  p {
+    font-size: 16px;
+    margin: 0;
+  }
 }
 </style>

@@ -267,17 +267,20 @@ public class UserController {
     /**
      * 获取关注列表
      *
-     * @param id       用户ID
-     * @param queryDTO 查询条件
+     * @param id            用户ID
+     * @param queryDTO      查询条件
+     * @param currentUserId 当前登录用户ID（用于判断互关状态）
      * @return 关注列表
      */
     @GetMapping("/{id}/following")
     @Operation(summary = "获取关注列表", description = "分页获取用户的关注列表")
     public Result<PageResult<UserFollowVO>> getFollowing(
             @Parameter(description = "用户ID", required = true) @PathVariable Long id,
-            @Parameter(description = "查询条件") UserQueryDTO queryDTO) {
-        log.info("获取关注列表，用户ID：{}", id);
-        PageResult<UserFollowVO> result = userFollowService.getFollowing(id, queryDTO);
+            @Parameter(description = "查询条件") UserQueryDTO queryDTO,
+            @Parameter(description = "当前登录用户ID") @RequestHeader(value = "X-User-Id", required = false) Long currentUserId) {
+        log.info("获取关注列表，用户ID：{}，当前登录用户ID：{}", id, currentUserId);
+        // 【修复】传入currentUserId参数，用于判断互关状态
+        PageResult<UserFollowVO> result = userFollowService.getFollowing(id, queryDTO, currentUserId);
         return Result.success(result);
     }
 
@@ -406,12 +409,13 @@ public class UserController {
 
     /**
      * 内部API：增加用户帖子数
+     * 【修复】路径从绝对路径改为相对路径，避免与类级别路径冲突
      *
      * @param id 用户ID
      * @param serviceKey 内部服务密钥
      * @return 操作结果
      */
-    @PutMapping("/api/internal/user/{id}/post-count/increment")
+    @PutMapping("/internal/{id}/post-count/increment")
     @Operation(summary = "内部API-增加帖子数", description = "供其他服务调用的内部接口")
     public Result<Boolean> incrementPostCount(
             @Parameter(description = "用户ID") @PathVariable Long id,
@@ -428,12 +432,13 @@ public class UserController {
 
     /**
      * 内部API：减少用户帖子数
+     * 【修复】路径从绝对路径改为相对路径，避免与类级别路径冲突
      *
      * @param id 用户ID
      * @param serviceKey 内部服务密钥
      * @return 操作结果
      */
-    @PutMapping("/api/internal/user/{id}/post-count/decrement")
+    @PutMapping("/internal/{id}/post-count/decrement")
     @Operation(summary = "内部API-减少帖子数", description = "供其他服务调用的内部接口")
     public Result<Boolean> decrementPostCount(
             @Parameter(description = "用户ID") @PathVariable Long id,
@@ -450,12 +455,13 @@ public class UserController {
 
     /**
      * 内部API：增加用户评论数
+     * 【修复】路径从绝对路径改为相对路径，避免与类级别路径冲突
      *
      * @param id 用户ID
      * @param serviceKey 内部服务密钥
      * @return 操作结果
      */
-    @PutMapping("/api/internal/user/{id}/comment-count/increment")
+    @PutMapping("/internal/{id}/comment-count/increment")
     @Operation(summary = "内部API-增加评论数", description = "供其他服务调用的内部接口")
     public Result<Boolean> incrementCommentCount(
             @Parameter(description = "用户ID") @PathVariable Long id,
@@ -472,12 +478,13 @@ public class UserController {
 
     /**
      * 内部API：减少用户评论数
+     * 【修复】路径从绝对路径改为相对路径，避免与类级别路径冲突
      *
      * @param id 用户ID
      * @param serviceKey 内部服务密钥
      * @return 操作结果
      */
-    @PutMapping("/api/internal/user/{id}/comment-count/decrement")
+    @PutMapping("/internal/{id}/comment-count/decrement")
     @Operation(summary = "内部API-减少评论数", description = "供其他服务调用的内部接口")
     public Result<Boolean> decrementCommentCount(
             @Parameter(description = "用户ID") @PathVariable Long id,
@@ -494,12 +501,13 @@ public class UserController {
 
     /**
      * 内部API：封禁用户账号
+     * 【修复】路径从绝对路径改为相对路径，避免与类级别路径冲突
      *
      * @param id 用户ID
      * @param serviceKey 内部服务密钥
      * @return 操作结果
      */
-    @PutMapping("/api/internal/user/{id}/ban")
+    @PutMapping("/internal/{id}/ban")
     @Operation(summary = "内部API-封禁用户", description = "供其他服务调用的内部接口，封禁用户账号")
     public Result<Boolean> banUser(
             @Parameter(description = "用户ID") @PathVariable Long id,
@@ -516,12 +524,13 @@ public class UserController {
 
     /**
      * 内部API：解禁用户账号
+     * 【修复】路径从绝对路径改为相对路径，避免与类级别路径冲突
      *
      * @param id 用户ID
      * @param serviceKey 内部服务密钥
      * @return 操作结果
      */
-    @PutMapping("/api/internal/user/{id}/unban")
+    @PutMapping("/internal/{id}/unban")
     @Operation(summary = "内部API-解禁用户", description = "供其他服务调用的内部接口，解禁用户账号")
     public Result<Boolean> unbanUser(
             @Parameter(description = "用户ID") @PathVariable Long id,

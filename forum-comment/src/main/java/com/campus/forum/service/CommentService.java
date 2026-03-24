@@ -119,7 +119,8 @@ public interface CommentService {
      * @param commentId 评论ID
      * @param status 审核状态（1-通过，2-驳回）
      * @param remark 审核备注
+     * @param auditorId 审核人ID
      * @return 是否成功
      */
-    boolean auditComment(Long commentId, Integer status, String remark);
+    boolean auditComment(Long commentId, Integer status, String remark, Long auditorId);
 }

@@ -54,9 +54,8 @@ public class Like implements Serializable {
 
     /**
      * 删除标志（0-未取消，1-已取消）
-     * 注：forum_like 表无此字段，保留用于扩展
+     * 用于实现点赞/取消点赞的状态切换，避免频繁删除和插入记录
      */
-    // @TableLogic
     @TableField("delete_flag")
     private Integer deleteFlag;
 }

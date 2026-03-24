@@ -34,9 +34,10 @@ public interface PostService {
      *
      * @param id 帖子ID
      * @param currentUserId 当前用户ID（可为空）
+     * @param ipAddress 用户IP地址（用于浏览量防刷，可为空）
      * @return 帖子详情
      */
-    PostDetailVO getPostDetail(Long id, Long currentUserId);
+    PostDetailVO getPostDetail(Long id, Long currentUserId, String ipAddress);
 
     /**
      * 发布帖子
@@ -107,11 +108,22 @@ public interface PostService {
     PageResult<PostListVO> searchPosts(String keyword, PostQueryDTO queryDTO, Long currentUserId);
 
     /**
-     * 增加浏览量
+     * 增加浏览量（内部API使用，无防刷机制）
      *
      * @param id 帖子ID
      */
     void incrementViewCount(Long id);
+
+    /**
+     * 增加浏览量（带防刷机制）
+     * 同一用户/IP在指定时间窗口内只计一次浏览
+     *
+     * @param id 帖子ID
+     * @param userId 用户ID（可为null，未登录用户使用IP标识）
+     * @param ipAddress 用户IP地址（用于未登录用户的防刷）
+     * @return 是否成功计入浏览量（true-新浏览，false-重复浏览被过滤）
+     */
+    boolean incrementViewCountWithAntiSpam(Long id, Long userId, String ipAddress);
 
     /**
      * 点赞/取消点赞帖子

@@ -102,17 +102,39 @@ public class AuthController {
      * 刷新Token
      * 
      * <p>使用刷新令牌获取新的访问令牌</p>
+     * <p>安全修复：刷新Token时将旧Access Token加入黑名单，防止Token被重复使用</p>
      *
      * @param refreshTokenDTO 刷新Token请求DTO
+     * @param request HTTP请求（用于获取当前旧的Access Token）
      * @return 新的Token信息
      */
     @PostMapping("/refresh")
     @Operation(summary = "刷新Token", description = "使用刷新令牌获取新的访问令牌")
     public Result<TokenVO> refreshToken(
             @Parameter(description = "刷新Token请求DTO", required = true) 
-            @Validated @RequestBody RefreshTokenDTO refreshTokenDTO) {
+            @Validated @RequestBody RefreshTokenDTO refreshTokenDTO,
+            HttpServletRequest request) {
         log.info("刷新Token请求");
-        return authService.refreshToken(refreshTokenDTO);
+        // 【安全修复】从请求头获取当前旧的Access Token，用于加入黑名单
+        String oldAccessToken = getTokenFromRequest(request);
+        return authService.refreshToken(refreshTokenDTO, oldAccessToken);
+    }
+
+    /**
+     * 从请求头获取Token
+     *
+     * @param request HTTP请求
+     * @return Token字符串
+     */
+    private String getTokenFromRequest(HttpServletRequest request) {
+        String authorization = request.getHeader("Authorization");
+        if (authorization == null || authorization.isEmpty()) {
+            return null;
+        }
+        if (authorization.startsWith("Bearer ")) {
+            return authorization.substring(7);
+        }
+        return authorization;
     }
 
     /**

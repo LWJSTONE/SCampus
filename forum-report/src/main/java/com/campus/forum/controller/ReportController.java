@@ -320,12 +320,29 @@ public class ReportController {
 
     /**
      * 获取用户禁言状态
+     * 
+     * 权限控制：
+     * - 用户可以查看自己的禁言状态
+     * - 管理员可以查看任意用户的禁言状态
      */
     @GetMapping("/ban/user/{userId}")
     @Operation(summary = "获取用户禁言状态", description = "查询用户当前禁言状态")
     public Result<UserBanVO> getUserBanStatus(
             @Parameter(description = "用户ID") @PathVariable Long userId,
             HttpServletRequest request) {
+        
+        // 【权限验证修复】验证访问权限
+        Long currentUserId = getCurrentUserId(request);
+        if (currentUserId == null) {
+            return Result.fail(401, "请先登录");
+        }
+        
+        // 检查是否是本人或管理员
+        boolean isAdmin = checkAdminPermission(request);
+        if (!currentUserId.equals(userId) && !isAdmin) {
+            log.warn("用户{}尝试查看其他用户{}的禁言状态", currentUserId, userId);
+            return Result.fail(403, "无权限查看其他用户的禁言状态");
+        }
         
         log.info("获取用户禁言状态, userId: {}", userId);
         
@@ -358,12 +375,17 @@ public class ReportController {
 
     /**
      * 获取用户禁言历史
+     * 
+     * 【权限验证修复】仅管理员可以查看用户的禁言历史记录
      */
     @GetMapping("/ban/history/{userId}")
-    @Operation(summary = "获取用户禁言历史", description = "查询用户禁言历史记录")
+    @Operation(summary = "获取用户禁言历史", description = "查询用户禁言历史记录（管理员）")
     public Result<List<UserBanVO>> getBanHistory(
             @Parameter(description = "用户ID") @PathVariable Long userId,
             HttpServletRequest request) {
+        
+        // 验证管理员权限
+        validateAdminPermission(request);
         
         log.info("获取用户禁言历史, userId: {}", userId);
         
@@ -461,5 +483,40 @@ public class ReportController {
             return token;
         }
         return null;
+    }
+    
+    /**
+     * 检查当前用户是否为管理员（不抛异常版本）
+     * 
+     * @param request HTTP请求对象
+     * @return true表示是管理员，false表示不是管理员
+     */
+    private boolean checkAdminPermission(HttpServletRequest request) {
+        Long userId = getCurrentUserId(request);
+        if (userId == null) {
+            return false;
+        }
+        
+        String role = null;
+        
+        // 优先从JWT Token中解析角色
+        String token = extractToken(request);
+        if (token != null) {
+            role = JwtUtils.getRole(token);
+        }
+        
+        // 如果JWT中没有角色信息，通过UserApi获取用户角色进行双重验证
+        if (role == null || role.isEmpty()) {
+            try {
+                Result<UserDTO> result = userApi.getUserById(userId);
+                if (result != null && result.isSuccess() && result.getData() != null) {
+                    role = result.getData().getRole();
+                }
+            } catch (Exception e) {
+                log.error("调用UserApi获取用户角色失败: {}", e.getMessage());
+            }
+        }
+        
+        return "ADMIN".equalsIgnoreCase(role) || "ROLE_ADMIN".equalsIgnoreCase(role);
     }
 }

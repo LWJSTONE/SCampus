@@ -3,12 +3,17 @@ package com.campus.forum.config;
 import java.util.Arrays;
 import java.util.List;
 
+import javax.annotation.PostConstruct;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.reactive.CorsWebFilter;
 import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource;
+
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * 跨域配置类
@@ -47,8 +52,11 @@ import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource;
  * @version 1.0.0
  * @since 2024-01-01
  */
+@Slf4j
 @Configuration
 public class CorsConfig {
+
+    private final Environment environment;
 
     /**
      * 允许的跨域来源域名列表
@@ -59,11 +67,45 @@ public class CorsConfig {
      *   allowed-origins: https://example.com,https://admin.example.com
      * </pre>
      * 
-     * <p>如果不配置，将使用默认的开发模式配置（允许所有来源）。</p>
-     * <p><b>警告：生产环境必须配置此项！</b></p>
+     * <p><b>【安全修复】如果不配置，将使用安全的默认值：</b></p>
+     * <ul>
+     *     <li>开发环境(dev/local)：允许 localhost 来源</li>
+     *     <li>生产环境：拒绝所有跨域请求</li>
+     * </ul>
      */
     @Value("${cors.allowed-origins:}")
     private String allowedOrigins;
+
+    public CorsConfig(Environment environment) {
+        this.environment = environment;
+    }
+
+    /**
+     * 应用启动时的配置检查
+     * 
+     * 【安全修复】检查 CORS 配置是否安全
+     */
+    @PostConstruct
+    public void init() {
+        if (allowedOrigins == null || allowedOrigins.trim().isEmpty()) {
+            String[] activeProfiles = environment.getActiveProfiles();
+            boolean isDevOrLocal = Arrays.stream(activeProfiles)
+                    .anyMatch(p -> "dev".equals(p) || "local".equals(p) || "development".equals(p));
+            
+            log.warn("=" .repeat(60));
+            log.warn("【安全警告】未配置 CORS 允许的来源(cors.allowed-origins)！");
+            if (isDevOrLocal) {
+                log.warn("当前为开发环境，将允许 localhost 来源访问。");
+            } else {
+                log.warn("当前为生产环境，将拒绝所有跨域请求！");
+                log.warn("请在配置文件中设置允许的域名，例如：");
+                log.warn("  cors.allowed-origins=https://example.com,https://admin.example.com");
+            }
+            log.warn("=".repeat(60));
+        } else {
+            log.info("CORS 允许来源已配置: {}", allowedOrigins);
+        }
+    }
 
     /**
      * 创建跨域过滤器
@@ -117,28 +159,42 @@ public class CorsConfig {
     /**
      * 配置允许的跨域来源
      * 
-     * <p>根据配置文件中的设置来配置允许的域名：</p>
+     * <p>【安全修复】根据配置文件中的设置来配置允许的域名：</p>
      * <ul>
      *     <li>如果配置了具体的域名列表，则只允许这些域名跨域访问</li>
-     *     <li>如果没有配置，则允许所有来源（仅适用于开发环境）</li>
+     *     <li>如果没有配置且为开发环境，则允许 localhost 来源</li>
+     *     <li>如果没有配置且为生产环境，则不添加任何来源（拒绝所有跨域请求）</li>
      * </ul>
      * 
      * @param corsConfiguration CORS配置对象
      */
     private void configureAllowedOrigins(CorsConfiguration corsConfiguration) {
         if (allowedOrigins != null && !allowedOrigins.trim().isEmpty()) {
-            // 生产环境：使用配置的具体域名列表
+            // 已配置：使用配置的具体域名列表
             List<String> origins = Arrays.asList(allowedOrigins.split(","));
             for (String origin : origins) {
                 String trimmedOrigin = origin.trim();
                 if (!trimmedOrigin.isEmpty()) {
                     corsConfiguration.addAllowedOrigin(trimmedOrigin);
+                    log.debug("CORS 添加允许来源: {}", trimmedOrigin);
                 }
             }
         } else {
-            // 开发环境：允许所有来源（生产环境不应使用此配置）
-            // 警告：此配置在生产环境存在安全风险，仅用于开发调试
-            corsConfiguration.addAllowedOriginPattern("*");
+            // 未配置：根据环境使用安全的默认值
+            String[] activeProfiles = environment.getActiveProfiles();
+            boolean isDevOrLocal = Arrays.stream(activeProfiles)
+                    .anyMatch(p -> "dev".equals(p) || "local".equals(p) || "development".equals(p));
+            
+            if (isDevOrLocal) {
+                // 开发环境：仅允许 localhost 来源
+                corsConfiguration.addAllowedOrigin("http://localhost:*");
+                corsConfiguration.addAllowedOrigin("http://127.0.0.1:*");
+                log.info("CORS 开发模式：允许 localhost 来源");
+            } else {
+                // 生产环境：不添加任何来源，拒绝所有跨域请求
+                // 这样 CORS 策略会拒绝所有跨域请求，除非前端和后端同源
+                log.error("CORS 生产模式：未配置允许来源，将拒绝所有跨域请求！");
+            }
         }
     }
 

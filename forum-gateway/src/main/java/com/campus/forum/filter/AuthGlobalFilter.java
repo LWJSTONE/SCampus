@@ -23,6 +23,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
+import javax.annotation.PostConstruct;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -87,9 +88,31 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
     /**
      * 内部服务密钥 - 从配置中心读取
      * 生产环境必须配置此项
+     * 
+     * 【安全修复】如果未配置此项，内部服务接口将被拒绝访问
      */
     @Value("${app.internal-service-secret:}")
     private String internalServiceSecret;
+
+    /**
+     * 应用启动时的配置检查
+     * 
+     * 【安全修复】检查内部服务密钥是否已配置
+     * 如果未配置，将记录错误日志，并禁用内部服务接口访问
+     */
+    @PostConstruct
+    public void init() {
+        if (!StringUtils.hasText(internalServiceSecret)) {
+            log.error("=".repeat(60));
+            log.error("【安全警告】未配置内部服务密钥(app.internal-service-secret)！");
+            log.error("内部服务接口(/api/v1/*/internal/**)将拒绝所有访问请求。");
+            log.error("生产环境必须在配置文件中设置此项，例如：");
+            log.error("  app.internal-service-secret=your-secure-secret-key");
+            log.error("=".repeat(60));
+        } else {
+            log.info("内部服务密钥已配置，内部服务接口认证已启用。");
+        }
+    }
 
     /**
      * 白名单路径列表 - 不需要认证的路径
@@ -222,8 +245,12 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
                     return unauthorizedResponse(exchange, "禁止访问内部接口");
                 }
             } else {
-                // 未配置密钥时，记录警告（开发环境）
-                log.debug("内部服务接口验证通过(未配置签名验证): {}", path);
+                // 【安全修复】未配置密钥时，拒绝访问内部服务接口
+                // 不能简单绕过认证，否则攻击者只需设置请求头即可访问内部接口
+                log.error("内部服务接口访问被拒绝：未配置内部服务密钥(app.internal-service-secret)，路径: {}, 来源IP: {}", 
+                        path, 
+                        request.getRemoteAddress() != null ? request.getRemoteAddress().getAddress().getHostAddress() : "unknown");
+                return unauthorizedResponse(exchange, "内部服务接口未配置安全密钥，访问被拒绝");
             }
             
             log.debug("内部服务接口验证通过: {}", path);

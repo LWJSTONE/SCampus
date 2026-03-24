@@ -86,11 +86,13 @@ public interface AuthService {
      * 刷新Token
      * 
      * <p>使用刷新令牌获取新的访问令牌</p>
+     * <p>安全修复：刷新Token时将旧Access Token加入黑名单，防止Token被重复使用</p>
      *
      * @param refreshTokenDTO 刷新Token请求DTO
+     * @param oldAccessToken 当前旧的Access Token（从请求头获取）
      * @return 新的Token信息
      */
-    Result<TokenVO> refreshToken(RefreshTokenDTO refreshTokenDTO);
+    Result<TokenVO> refreshToken(RefreshTokenDTO refreshTokenDTO, String oldAccessToken);
 
     /**
      * 获取验证码

@@ -14,11 +14,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.springframework.data.redis.core.StringRedisTemplate;
+
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 用户禁言服务实现类
@@ -32,6 +35,16 @@ import java.util.Map;
 public class UserBanServiceImpl extends ServiceImpl<UserBanMapper, UserBan> implements UserBanService {
 
     private final UserBanMapper userBanMapper;
+    private final StringRedisTemplate stringRedisTemplate;
+    
+    /**
+     * 禁言操作分布式锁key前缀
+     */
+    private static final String BAN_LOCK_KEY_PREFIX = "ban:lock:user:";
+    /**
+     * 分布式锁超时时间（秒）
+     */
+    private static final long LOCK_TIMEOUT_SECONDS = 10;
 
     // 禁言类型映射
     private static final Map<Integer, String> BAN_TYPE_NAMES = new HashMap<>();
@@ -86,28 +99,50 @@ public class UserBanServiceImpl extends ServiceImpl<UserBanMapper, UserBan> impl
             throw new BusinessException("板块禁言必须指定板块ID");
         }
         
-        // 检查是否已被禁言
-        UserBanVO activeBan = userBanMapper.selectActiveBan(userId);
-        if (activeBan != null) {
-            throw new BusinessException("该用户已被禁言");
-        }
+        // 【并发安全修复】使用分布式锁防止并发创建多条禁言记录
+        String lockKey = BAN_LOCK_KEY_PREFIX + userId;
+        boolean locked = false;
+        try {
+            // 尝试获取分布式锁
+            locked = Boolean.TRUE.equals(stringRedisTemplate.opsForValue()
+                    .setIfAbsent(lockKey, String.valueOf(operatorId), LOCK_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+            
+            if (!locked) {
+                log.warn("获取禁言锁失败，用户 {} 可能正在被其他管理员处理", userId);
+                throw new BusinessException("该用户正在被其他管理员处理，请稍后再试");
+            }
+            
+            // 检查是否已被禁言（在锁保护下进行）
+            UserBanVO activeBan = userBanMapper.selectActiveBan(userId);
+            if (activeBan != null) {
+                throw new BusinessException("该用户已被禁言");
+            }
 
-        UserBan userBan = new UserBan();
-        userBan.setUserId(userId);
-        userBan.setBanType(banType);
-        userBan.setForumId(banDTO.getForumId());
-        userBan.setReason(banDTO.getReason());
-        userBan.setReportId(banDTO.getReportId());
-        userBan.setOperatorId(operatorId);
-        userBan.setStartTime(LocalDateTime.now());
-        userBan.setEndTime(LocalDateTime.now().plusDays(banDays));
-        userBan.setStatus(1); // 禁言中
-        userBan.setDeleteFlag(0);
-        
-        save(userBan);
-        
-        log.info("用户 {} 被禁言 {} 天，禁言ID: {}", userId, banDays, userBan.getId());
-        return userBan.getId();
+            UserBan userBan = new UserBan();
+            userBan.setUserId(userId);
+            userBan.setBanType(banType);
+            userBan.setForumId(banDTO.getForumId());
+            userBan.setReason(banDTO.getReason());
+            userBan.setReportId(banDTO.getReportId());
+            userBan.setOperatorId(operatorId);
+            userBan.setStartTime(LocalDateTime.now());
+            userBan.setEndTime(LocalDateTime.now().plusDays(banDays));
+            userBan.setStatus(1); // 禁言中
+            userBan.setDeleteFlag(0);
+            
+            save(userBan);
+            
+            log.info("用户 {} 被禁言 {} 天，禁言ID: {}", userId, banDays, userBan.getId());
+            return userBan.getId();
+        } finally {
+            // 释放锁（只释放自己持有的锁）
+            if (locked) {
+                String lockValue = stringRedisTemplate.opsForValue().get(lockKey);
+                if (String.valueOf(operatorId).equals(lockValue)) {
+                    stringRedisTemplate.delete(lockKey);
+                }
+            }
+        }
     }
 
     @Override
