@@ -351,7 +351,7 @@ public class JwtUtils {
      * @deprecated 此方法存在严重安全风险，请使用 {@link #getUserId(String, String)} 方法进行安全的Token验证。
      *             如确需使用此方法，请确保仅用于非安全敏感场景。
      */
-    @Deprecated(since = "2024", forRemoval = false)
+    @Deprecated
     public static Long getUserId(String token) {
         // 【安全修复】记录警告日志，追踪不当使用
         StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
@@ -426,7 +426,7 @@ public class JwtUtils {
      * @deprecated 此方法存在严重安全风险，请使用 {@link #getUsername(String, String)} 方法进行安全的Token验证。
      *             如确需使用此方法，请确保仅用于非安全敏感场景。
      */
-    @Deprecated(since = "2024", forRemoval = false)
+    @Deprecated
     public static String getUsername(String token) {
         // 【安全修复】记录警告日志，追踪不当使用
         StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();

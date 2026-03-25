@@ -122,7 +122,7 @@ public class MentionServiceImpl implements MentionService {
     @Override
     public List<Mention> getMentionList(Long userId) {
         if (userId == null || userId <= 0) {
-            return List.of();
+            return Collections.emptyList();
         }
         return mentionMapper.selectByUserId(userId);
     }

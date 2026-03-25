@@ -81,6 +81,21 @@ public class CorsConfig {
     }
 
     /**
+     * 重复字符串（Java 8兼容方法）
+     * 
+     * @param str 要重复的字符串
+     * @param count 重复次数
+     * @return 重复后的字符串
+     */
+    private String repeatString(String str, int count) {
+        StringBuilder sb = new StringBuilder(str.length() * count);
+        for (int i = 0; i < count; i++) {
+            sb.append(str);
+        }
+        return sb.toString();
+    }
+
+    /**
      * 应用启动时的配置检查
      * 
      * 【安全修复】检查 CORS 配置是否安全
@@ -92,7 +107,7 @@ public class CorsConfig {
             boolean isDevOrLocal = Arrays.stream(activeProfiles)
                     .anyMatch(p -> "dev".equals(p) || "local".equals(p) || "development".equals(p));
             
-            log.warn("=" .repeat(60));
+            log.warn(repeatString("=", 60));
             log.warn("【安全警告】未配置 CORS 允许的来源(cors.allowed-origins)！");
             if (isDevOrLocal) {
                 log.warn("当前为开发环境，将允许 localhost 来源访问。");
@@ -101,7 +116,7 @@ public class CorsConfig {
                 log.warn("请在配置文件中设置允许的域名，例如：");
                 log.warn("  cors.allowed-origins=https://example.com,https://admin.example.com");
             }
-            log.warn("=".repeat(60));
+            log.warn(repeatString("=", 60));
         } else {
             log.info("CORS 允许来源已配置: {}", allowedOrigins);
         }

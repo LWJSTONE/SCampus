@@ -133,15 +133,30 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
      * 【安全修复】检查内部服务密钥是否已配置
      * 如果未配置，将记录错误日志，并禁用内部服务接口访问
      */
+    /**
+     * 重复字符串（Java 8兼容方法）
+     * 
+     * @param str 要重复的字符串
+     * @param count 重复次数
+     * @return 重复后的字符串
+     */
+    private String repeatString(String str, int count) {
+        StringBuilder sb = new StringBuilder(str.length() * count);
+        for (int i = 0; i < count; i++) {
+            sb.append(str);
+        }
+        return sb.toString();
+    }
+
     @PostConstruct
     public void init() {
         if (!StringUtils.hasText(internalServiceSecret)) {
-            log.error("=".repeat(60));
+            log.error(repeatString("=", 60));
             log.error("【安全警告】未配置内部服务密钥(app.internal-service-secret)！");
             log.error("内部服务接口(/api/v1/*/internal/**)将拒绝所有访问请求。");
             log.error("生产环境必须在配置文件中设置此项，例如：");
             log.error("  app.internal-service-secret=your-secure-secret-key");
-            log.error("=".repeat(60));
+            log.error(repeatString("=", 60));
         } else {
             log.info("内部服务密钥已配置，内部服务接口认证已启用。");
         }

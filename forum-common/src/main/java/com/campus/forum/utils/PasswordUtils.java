@@ -102,7 +102,7 @@ public class PasswordUtils {
      * @deprecated 请勿用于任何安全敏感场景，特别是密码存储。请使用 {@link #encode(String)} 方法。
      *             此方法将在未来版本中移除，请尽快迁移到安全的哈希算法。
      */
-    @Deprecated(since = "2024", forRemoval = true)
+    @Deprecated
     public static String md5(String input) {
         if (input == null) {
             return null;
@@ -160,7 +160,7 @@ public class PasswordUtils {
      * @deprecated 请勿用于密码存储。请使用 {@link #encode(String)} 方法。
      *             此方法将在未来版本中移除，请尽快迁移到安全的哈希算法。
      */
-    @Deprecated(since = "2024", forRemoval = true)
+    @Deprecated
     public static String md5WithSalt(String input, String salt) {
         if (input == null || salt == null) {
             return null;
