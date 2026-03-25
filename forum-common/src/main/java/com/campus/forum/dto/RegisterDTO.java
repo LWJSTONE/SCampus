@@ -3,7 +3,7 @@ package com.campus.forum.dto;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
-import jakarta.validation.constraints.*;
+import javax.validation.constraints.*;
 import java.io.Serializable;
 
 /**

@@ -5,7 +5,7 @@ REM This script compiles and starts all backend services
 REM and frontend application
 REM 
 REM Prerequisites:
-REM - JDK 1.8
+REM - JDK 1.8+
 REM - Maven 3.6+
 REM - Node.js 18+
 REM - MySQL 8.0 (running on port 3306)
@@ -20,7 +20,7 @@ echo.
 echo Prerequisites:
 echo   - MySQL running on port 3306
 echo   - Redis running on port 6379
-echo   - JDK 1.8 installed
+echo   - JDK 1.8+ installed
 echo   - Maven 3.6+ installed
 echo   - Node.js 18+ installed
 echo.

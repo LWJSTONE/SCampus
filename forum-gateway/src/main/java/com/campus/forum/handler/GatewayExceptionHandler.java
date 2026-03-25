@@ -94,10 +94,10 @@ public class GatewayExceptionHandler implements ErrorWebExceptionHandler {
         // 根据异常类型设置不同的状态码和消息
         if (ex instanceof ResponseStatusException) {
             ResponseStatusException responseStatusException = (ResponseStatusException) ex;
-            response.setStatusCode(responseStatusException.getStatusCode());
-            result.put("code", responseStatusException.getStatusCode().value());
+            response.setStatusCode(responseStatusException.getStatus());
+            result.put("code", responseStatusException.getStatus().value());
             result.put("message", responseStatusException.getReason());
-            log.warn("网关响应异常: {} - {}", responseStatusException.getStatusCode(), responseStatusException.getReason());
+            log.warn("网关响应异常: {} - {}", responseStatusException.getStatus(), responseStatusException.getReason());
         } else {
             // 其他异常默认返回500
             response.setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR);

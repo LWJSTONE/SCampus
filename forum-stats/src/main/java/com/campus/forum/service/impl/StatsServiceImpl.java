@@ -15,7 +15,7 @@ import org.springframework.stereotype.Service;
 
 import com.campus.forum.exception.BusinessException;
 
-import jakarta.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.time.LocalDate;

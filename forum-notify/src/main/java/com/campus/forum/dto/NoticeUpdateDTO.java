@@ -2,7 +2,7 @@ package com.campus.forum.dto;
 
 import lombok.Data;
 
-import jakarta.validation.constraints.Size;
+import javax.validation.constraints.Size;
 import java.time.LocalDateTime;
 
 /**

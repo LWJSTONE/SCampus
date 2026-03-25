@@ -3,7 +3,7 @@ package com.campus.forum.service;
 import com.campus.forum.dto.StatsQueryDTO;
 import com.campus.forum.vo.*;
 
-import jakarta.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpServletResponse;
 
 /**
  * 统计服务接口
